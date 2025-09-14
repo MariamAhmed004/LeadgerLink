@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LeadgerLink.Server")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+00db8d96157cc0197238ede8d3d7ae0a1a96bf88")]
 [assembly: System.Reflection.AssemblyProductAttribute("LeadgerLink.Server")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LeadgerLink.Server")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
