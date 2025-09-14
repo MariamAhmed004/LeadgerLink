@@ -1,0 +1,6 @@
+@LeadgerLink.Server_HostAddress = http://localhost:5107
+
+GET {{LeadgerLink.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

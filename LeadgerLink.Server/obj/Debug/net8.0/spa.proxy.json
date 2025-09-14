@@ -1,0 +1,10 @@
+{
+"SpaProxyServer": {
+"ServerUrl": "https://localhost:55070",
+"RedirectUrl": "",
+"LaunchCommand": "npm run dev",
+"WorkingDirectory": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\..\\leadgerlink.client",
+"MaxTimeoutInSeconds": "120",
+"KeepRunning": "false"
+}
+}
