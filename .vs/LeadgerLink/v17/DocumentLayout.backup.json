@@ -3,40 +3,56 @@
   "WorkspaceRootPath": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\components\\navbar\\navbar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\components\\navbar\\navbar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\main.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\main.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
-      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\pages\\landing.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\pages\\landing.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\AppRoutes.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:leadgerlink.client\\src\\components\\AppRoutes.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\components\\layout\\layout.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\components\\layout\\layout.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\vite.config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\vite.config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\SignUp.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:leadgerlink.client\\src\\pages\\SignUp.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\app.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\app.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\Login.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:leadgerlink.client\\src\\pages\\Login.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\NotFound.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:leadgerlink.client\\src\\pages\\NotFound.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\components\\sidebar\\sidebar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\components\\sidebar\\sidebar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\app.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\app.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\components\\footer\\footer.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\components\\footer\\footer.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\main.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\main.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\app.css||{A5401142-F49D-43DB-90B1-F57BA349E55C}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{633DA7CF-3CFE-4E1E-AB37-A55059D5A69F}|LeadgerLink.Server\\LeadgerLink.Server.csproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.server\\controllers\\samplecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{633DA7CF-3CFE-4E1E-AB37-A55059D5A69F}|LeadgerLink.Server\\LeadgerLink.Server.csproj|solutionrelative:leadgerlink.server\\controllers\\samplecontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|c:\\users\\mario\\source\\repos\\leadgerlink\\leadgerlink.client\\src\\components\\navbar\\navbar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{4C11E726-63AA-FC60-33FC-3365E6A6EFE7}|leadgerlink.client\\leadgerlink.client.esproj|solutionrelative:leadgerlink.client\\src\\components\\navbar\\navbar.jsx||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     }
   ],
   "DocumentGroupContainers": [
@@ -46,29 +62,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 8,
+          "SelectedChildIndex": 4,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "App.css",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.css",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\App.css",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.css",
-              "RelativeToolTip": "leadgerlink.client\\src\\App.css",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
-              "WhenOpened": "2025-09-15T11:22:22.083Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
-            },
-            {
-              "$type": "Bookmark",
-              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
-            },
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{40ea2e6b-2121-4bb8-a43e-c83c04b51041}"
@@ -83,106 +78,171 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "Layout.jsx",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
-              "RelativeToolTip": "leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T11:15:40.29Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "Sidebar.jsx",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
-              "RelativeToolTip": "leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T11:14:26.181Z",
+              "DocumentIndex": 1,
+              "Title": "package.json",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\package.json",
+              "RelativeDocumentMoniker": "leadgerlink.client\\package.json",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\package.json",
+              "RelativeToolTip": "leadgerlink.client\\package.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-09-15T21:52:57.856Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "NavBar.jsx",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
-              "RelativeToolTip": "leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAA2AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T11:11:31.386Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "Footer.jsx",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
-              "RelativeToolTip": "leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAUAAABWAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T11:09:14.9Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "SampleController.cs",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\Controllers\\SampleController.cs",
-              "RelativeDocumentMoniker": "LeadgerLink.Server\\Controllers\\SampleController.cs",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\Controllers\\SampleController.cs",
-              "RelativeToolTip": "LeadgerLink.Server\\Controllers\\SampleController.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAABIAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-15T09:56:57.979Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "vite.config.js",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\vite.config.js",
-              "RelativeDocumentMoniker": "leadgerlink.client\\vite.config.js",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\vite.config.js",
-              "RelativeToolTip": "leadgerlink.client\\vite.config.js",
-              "ViewState": "AgIAACUAAAAAAAAAAAAgwDQAAAAPAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2025-09-15T09:36:29.429Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "App.jsx",
-              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.jsx",
-              "RelativeDocumentMoniker": "leadgerlink.client\\src\\App.jsx",
-              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.jsx",
-              "RelativeToolTip": "leadgerlink.client\\src\\App.jsx",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAA0AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T09:36:11.192Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
               "Title": "main.jsx",
               "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\main.jsx",
               "RelativeDocumentMoniker": "leadgerlink.client\\src\\main.jsx",
               "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\main.jsx",
               "RelativeToolTip": "leadgerlink.client\\src\\main.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABMAAAASAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:50:01.438Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "NotFound.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\NotFound.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\pages\\NotFound.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\NotFound.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\pages\\NotFound.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:32:56.375Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Login.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\Login.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\pages\\Login.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\Login.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\pages\\Login.jsx",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAB0AAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:26:52.301Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "SignUp.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\SignUp.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\pages\\SignUp.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\SignUp.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\pages\\SignUp.jsx",
+              "ViewState": "AgIAACoAAAAAAAAAAAAAAFoAAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:23:19.092Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "AppRoutes.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\AppRoutes.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\AppRoutes.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\AppRoutes.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\components\\AppRoutes.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:21:43.52Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "Sidebar.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\components\\Sidebar\\Sidebar.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB4AAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T21:00:09.173Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "Layout.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\components\\Layout\\Layout.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T20:52:28.09Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "App.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\App.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\App.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAA6AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T20:41:39.244Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Landing.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\Landing.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\pages\\Landing.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\pages\\Landing.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\pages\\Landing.jsx",
+              "ViewState": "AgIAACAAAAAAAAAAAAAAADAAAAAGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T20:40:05.616Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "App.css",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.css",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\App.css",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\App.css",
+              "RelativeToolTip": "leadgerlink.client\\src\\App.css",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003000|",
+              "WhenOpened": "2025-09-15T20:25:57.586Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "Footer.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\components\\Footer\\Footer.jsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
-              "WhenOpened": "2025-09-15T09:36:09.657Z",
+              "WhenOpened": "2025-09-15T20:23:46.931Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "NavBar.jsx",
+              "DocumentMoniker": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
+              "RelativeDocumentMoniker": "leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
+              "ToolTip": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
+              "RelativeToolTip": "leadgerlink.client\\src\\components\\NavBar\\NavBar.jsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABsAAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003663|",
+              "WhenOpened": "2025-09-15T20:03:24.718Z",
               "EditorCaption": ""
             }
           ]
