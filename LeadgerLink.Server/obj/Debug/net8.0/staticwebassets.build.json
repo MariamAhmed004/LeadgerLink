@@ -1,0 +1,24 @@
+{
+  "Version": 1,
+  "Hash": "fjhdSM0iZ1dlWIMJ4A4Ip/69tuXxGLDD0vdWuCNkU20=",
+  "Source": "LeadgerLink.Server",
+  "BasePath": "_content/LeadgerLink.Server",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [
+    {
+      "Identity": "C:\\Users\\mario\\Source\\Repos\\LeadgerLink\\leadgerlink.client\\leadgerlink.client.esproj",
+      "Version": 2,
+      "Source": "leadgerlink.client",
+      "GetPublishAssetsTargets": "GetCurrentProjectPublishStaticWebAssetItems",
+      "AdditionalPublishProperties": "Configuration=Debug;Platform=AnyCPU",
+      "AdditionalPublishPropertiesToRemove": "WebPublishProfileFile;TargetFramework",
+      "GetBuildAssetsTargets": "GetCurrentProjectBuildStaticWebAssetItems",
+      "AdditionalBuildProperties": "Configuration=Debug;Platform=AnyCPU",
+      "AdditionalBuildPropertiesToRemove": "WebPublishProfileFile;TargetFramework"
+    }
+  ],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
