@@ -1,0 +1,22 @@
+# ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dbmdl
+*.log
+
+# React / Node.js
+node_modules/
+build/
+dist/
+.env
+npm-debug.log*
+
+# System files
+Thumbs.db
+.DS_Store
+
+# Git
+.git/
