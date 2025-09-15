@@ -484,11 +484,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\LeadgerLink.Server.csproj",
+      "projectUniqueName": "C:\\Users\\mario\\Source\\Repos\\LeadgerLink\\LeadgerLink.Server\\LeadgerLink.Server.csproj",
       "projectName": "LeadgerLink.Server",
-      "projectPath": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\LeadgerLink.Server.csproj",
+      "projectPath": "C:\\Users\\mario\\Source\\Repos\\LeadgerLink\\LeadgerLink.Server\\LeadgerLink.Server.csproj",
       "packagesPath": "C:\\Users\\mario\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\mario\\source\\repos\\LeadgerLink\\LeadgerLink.Server\\obj\\",
+      "outputPath": "C:\\Users\\mario\\Source\\Repos\\LeadgerLink\\LeadgerLink.Server\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -555,7 +555,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.201/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.203/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
