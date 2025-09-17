@@ -18,9 +18,10 @@ const Login = () => {
       // await login(email, password);
       alert('Login successful!');
     } catch (err) {
-      setError('Invalid credentials.');
+        setError('Invalid credentials.');
+        console.log(err)
     }
-  };
+    };
 
   return (
       <div className="login-page d-flex align-items-center justify-content-center" style={{ minHeight: "70vh" }}>

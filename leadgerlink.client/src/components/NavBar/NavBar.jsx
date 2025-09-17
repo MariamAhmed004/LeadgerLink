@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from 'react-router-dom';
 
 const NavBar = () => (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -6,7 +7,7 @@ const NavBar = () => (
             {/* Left corner: logo and title in a flex div */}
             <div className="d-flex align-items-center me-auto">
                 {/* Logo as a separate link */}
-                <a href="#" className="me-2">
+                <Link to="/" className="me-2">
                     <img
                         src="/LeadgerLink_Logo.png"
                         alt="LeadgerLink Logo"
@@ -14,14 +15,14 @@ const NavBar = () => (
                         height="40"
                         style={{ objectFit: "contain", display: "block", borderRadius: "20%" }}
                     />
-                </a>
+                </Link>
 
                 <span style={{ color: "#FFFFFF", size: "150%" }} className="mx-3" ><b>  ||  </b></span>
 
                 {/* Title as its own link */}
-                <a className="navbar-brand" href="#">
+                <Link to="/" className="navbar-brand" href="#">
                     LeadgerLink
-                </a>
+                </Link>
             </div>
             <button
                 className="navbar-toggler"
@@ -37,14 +38,20 @@ const NavBar = () => (
             <div className="collapse navbar-collapse" id="navbarNav">
                 <ul className="navbar-nav ms-auto">
                     {/* TODO: Add navigation links here when pages are defined */}
-                    {/* Example:
-          <li className="nav-item">
-            <a className="nav-link" href="/dashboard">Dashboard</a>
-          </li>
-          <li className="nav-item">
-            <a className="nav-link" href="/profile">Profile</a>
-          </li>
-          */}
+
+                    <li className="nav-item">
+                        <Link to="/dashboard" className="nav-link">Dashboard</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/reports" className="nav-link">Reports</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/users" className="nav-link">User Adminstration</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/settings" className="nav-link">Settings</Link>
+                    </li>
+
                 </ul>
             </div>
         </div>
