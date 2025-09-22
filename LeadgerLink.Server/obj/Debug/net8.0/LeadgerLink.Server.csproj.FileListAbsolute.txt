@@ -32,8 +32,9 @@ C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\refi
 C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\LeadgerLink.Server.pdb
 C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\LeadgerLink.Server.genruntimeconfig.cache
 C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\ref\LeadgerLink.Server.dll
-C:\Users\mario\source\repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\rpswa.dswa.cache.json
-C:\Users\mario\source\repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\rjimswa.dswa.cache.json
-C:\Users\mario\source\repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\rjsmrazor.dswa.cache.json
-C:\Users\mario\source\repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json
-C:\Users\mario\source\repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets.build.json.cache
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets\msbuild.LeadgerLink.Server.Microsoft.AspNetCore.StaticWebAssets.props
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets\msbuild.LeadgerLink.Server.Microsoft.AspNetCore.StaticWebAssetEndpoints.props
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets\msbuild.build.LeadgerLink.Server.props
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets\msbuild.buildMultiTargeting.LeadgerLink.Server.props
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets\msbuild.buildTransitive.LeadgerLink.Server.props
+C:\Users\mario\Source\Repos\LeadgerLink\LeadgerLink.Server\obj\Debug\net8.0\staticwebassets.pack.json

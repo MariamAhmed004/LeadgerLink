@@ -40,6 +40,19 @@ const NavBar = () => (
                     {/* TODO: Add navigation links here when pages are defined */}
 
                     <li className="nav-item">
+                        <Link to="/sales" className="nav-link">Sales</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/inventory" className="nav-link">Inventory</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/recipes" className="nav-link">Recipes</Link>
+                    </li>
+                    <li className="nav-item">
+                        <Link to="/branchDetails" className="nav-link">Branch Details</Link>
+                    </li>
+                    
+                    <li className="nav-item">
                         <Link to="/dashboard" className="nav-link">Dashboard</Link>
                     </li>
                     <li className="nav-item">
