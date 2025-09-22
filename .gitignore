@@ -1,42 +1,59 @@
-# ASP.NET Core
+########################################
+# 🌐 ASP.NET Core / .NET
+########################################
 bin/
 obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.log
+*.dbmdl
 *.user
 *.suo
-.vs/
-*.dbmdl
-*.log
+*.userosscache
+*.sln.docstates
+ScaffoldingReadMe.txt
 
-# React / Node.js
+# Static web assets and proxy config
+*.staticwebassets.json
+spa.proxy.json
+
+########################################
+# 🧠 Visual Studio / IDE Artifacts
+########################################
+.vs/
+*.suo
+*.user
+*.dbmdl
+*.pdb
+*.backup.json
+DocumentLayout.json
+DocumentLayout.backup.json
+
+########################################
+# ⚛️ React / Node.js
+########################################
 node_modules/
 build/
 dist/
 .env
 npm-debug.log*
 
-# System files
+########################################
+# 🖥️ System Files
+########################################
 Thumbs.db
 .DS_Store
 
-# Git
+########################################
+# 🧬 Git Internal
+########################################
 .git/
 
-# .NET build artifacts
-bin/
-obj/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# Visual Studio files
-.vs/
-*.dbmdl
-*.pdb
-
-# ASP.NET Scaffolding
-ScaffoldingReadMe.txt
-
-# Others
-*.cache
-*.log
+########################################
+# 🧪 ProjectEvaluation Cache (custom)
+########################################
+leaderlink.metadata.v9.bin
+leaderlink.projects.v9.bin
+leaderlink.strings.v9.bin
