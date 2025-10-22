@@ -23,13 +23,25 @@ spa.proxy.json
 # 🧠 Visual Studio / IDE Artifacts
 ########################################
 .vs/
+.vs/**/*
 *.suo
 *.user
 *.dbmdl
 *.pdb
 *.backup.json
-DocumentLayout.json
-DocumentLayout.backup.json
+**/DocumentLayout.json
+**/DocumentLayout.backup.json
+*.dtbcache.v2
+*.futdcache.v2
+*.v2
+
+# CopilotIndices and SemanticSymbols
+**/CodeChunks.db
+**/CodeChunks.db-shm
+**/CodeChunks.db-wal
+**/SemanticSymbols.db
+**/SemanticSymbols.db-shm
+**/SemanticSymbols.db-wal
 
 ########################################
 # ⚛️ React / Node.js
