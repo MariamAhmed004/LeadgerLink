@@ -69,3 +69,18 @@ Thumbs.db
 leaderlink.metadata.v9.bin
 leaderlink.projects.v9.bin
 leaderlink.strings.v9.bin
+
+
+########################################
+# 🧪 for the once inside the .server
+########################################
+**/bin/
+**/obj/
+
+
+**/.vs/
+**/.vs/**
+DocumentLayout.json
+DocumentLayout.backup.json
+**/*.suo
+**/*.v2
