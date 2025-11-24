@@ -84,3 +84,4 @@ DocumentLayout.json
 DocumentLayout.backup.json
 **/*.suo
 **/*.v2
+/leadgerlink.client/obj/Debug/package.g.props
