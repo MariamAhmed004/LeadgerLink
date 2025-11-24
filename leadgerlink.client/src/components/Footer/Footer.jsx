@@ -1,5 +1,6 @@
 import React from "react";
 import { FaInstagram, FaLinkedin, FaYoutube } from "react-icons/fa";
+import { Link } from 'react-router-dom';
 
 const Footer = () => (
     <footer className="bg-primary text-white pt-4 pb-3 mt-5">
@@ -13,7 +14,6 @@ const Footer = () => (
                             alt="LedgerLink Logo"
                             style={{ width: "32px", marginRight: "8px" }}
                         />
-                        
                     </div>
                     <p className="small">
                         Connect your business with its management securely and efficiently.
@@ -58,19 +58,14 @@ const Footer = () => (
                     <h5>INFORMATION</h5>
                     <ul className="list-unstyled">
                         <li>
-                            <a href="/faqs" className="text-white text-decoration-none">
-                                FAQs
-                            </a>
+                            <Link to="/faqs" className="text-white text-decoration-none mx-2">FAQs</Link>
                         </li>
                         <li>
-                            <a href="/privacy-policy" className="text-white text-decoration-none">
-                                Privacy Policy
-                            </a>
+                            <Link to="/privacypolicy" className="text-white text-decoration-none mx-2">Privacy Policy</Link>
                         </li>
                         <li>
-                            <a href="/terms-of-service" className="text-white text-decoration-none">
-                                Terms of Service
-                            </a>
+                            <Link to="/termsofservice" className="text-white text-decoration-none mx-2">Terms of Service</Link>
+
                         </li>
                     </ul>
                 </div>

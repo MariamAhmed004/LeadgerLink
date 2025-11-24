@@ -6,7 +6,12 @@ import HomePage from "../pages/Home";
 import SignupPage from "../pages/SignUp";
 import NotFound from "../pages/NotFound";
 import Login from "../pages/Login";
-import Landing from "../pages/Landing";
+import Landing from "../pages/GeneralInformation/LandingPage/Landing";
+import PrivacyPolicy from "../pages/GeneralInformation/PrivacyPolicy";
+import TermsOfService from "../pages/GeneralInformation/TermsOfService";
+import FAQ from "../pages/GeneralInformation/FAQ";
+import AboutUs from "../pages/GeneralInformation/aboutus";
+
 
 import Dashboard from "../pages/Dashboard";
 import Reports from "../pages/Reports";
@@ -33,6 +38,10 @@ const AppRoutes = () => {
           <Route path="*" element={<NotFound />} />
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/branchDetails" element={<BranchDetails />} />
+          <Route path="/privacypolicy" element={<PrivacyPolicy />} />
+          <Route path="/termsofservice" element={<TermsOfService />} />
+          <Route path="/faqs" element={<FAQ />} />
+          <Route path="/aboutus" element={<AboutUs />} />
 
     </Routes>
   );

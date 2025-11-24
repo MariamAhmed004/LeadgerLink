@@ -4,6 +4,7 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import 'bootswatch/dist/sandstone/bootstrap.min.css'; // Bootswatch theme
+import 'bootstrap/dist/js/bootstrap.bundle.min.js';   // Bootstrap JS for interactive components
 
 // Diagnostic check for duplicate React
 if (window.React1 && window.React1 !== React) {
