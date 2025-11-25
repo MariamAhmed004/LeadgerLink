@@ -1,27 +1,43 @@
-import React, { useState } from 'react';
-import { api } from "../services/api"; // adjust the path if needed
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../services/api"; // your backend login service
+import { useAuth } from "../Context/AuthContext"; // context we built earlier
 
 export default function Login() {
-    // State variables
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const navigate = useNavigate();
+    const { setLoggedInUser } = useAuth(); // update context after login
 
-    // Form submit handler
     const handleSubmit = async (e) => {
-        e.preventDefault(); // prevent page reload
-        setError("");       // clear previous error
+        e.preventDefault();
+        setError("");
 
         try {
-            // Call backend login API
+            // 1) Call backend login API
             await api.login(email, password);
 
-            // Success feedback
-            alert("Logged in successfully!");
-            // Optional: redirect to dashboard if using react-router
-            // navigate("/dashboard");
+            // 2) Fetch current logged-in user info
+            const res = await fetch("/api/auth/LoggedInUser", {
+                credentials: "include" // send cookie
+            });
+            const userData = await res.json();
+
+            // 3) Save to context
+            setLoggedInUser(userData);
+
+            // 4) Navigate based on role
+            if (userData.roles.includes("Admin")) {
+                navigate("/dashboard");
+            } else if (userData.roles.includes("Manager")) {
+                navigate("/manager-homepage");
+            } else if (userData.roles.includes("Employee")) {
+                navigate("/employee-homepage");
+            } else {
+                navigate("/"); // fallback
+            }
         } catch (err) {
-            // Show backend error
             setError(err.message || "Login failed. Please try again.");
         }
     };
@@ -34,7 +50,7 @@ export default function Login() {
             {/* Left side image */}
             <div className="me-5 d-none d-md-block">
                 <img
-                    src="/images/login.png" // place image in public/images
+                    src="/images/login.png"
                     alt="Login Visual"
                     style={{
                         width: "260px",
@@ -50,9 +66,7 @@ export default function Login() {
                 <h2 className="mb-4">Login</h2>
                 <form onSubmit={handleSubmit} className="login-form">
                     <div className="mb-3">
-                        <label htmlFor="email" className="form-label">
-                            Email:
-                        </label>
+                        <label htmlFor="email" className="form-label">Email:</label>
                         <input
                             id="email"
                             type="email"
@@ -65,9 +79,7 @@ export default function Login() {
                     </div>
 
                     <div className="mb-3">
-                        <label htmlFor="password" className="form-label">
-                            Password:
-                        </label>
+                        <label htmlFor="password" className="form-label">Password:</label>
                         <input
                             id="password"
                             type="password"

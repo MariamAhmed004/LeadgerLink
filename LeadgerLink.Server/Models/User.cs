@@ -35,7 +35,7 @@ public partial class User
     public bool IsActive { get; set; }
 
     [Column("org_id")]
-    public int OrgId { get; set; }
+    public int? OrgId { get; set; }
 
     [Column("user_lastname")]
     [StringLength(50)]
@@ -44,7 +44,7 @@ public partial class User
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 
-    [Column("updated_ at")]
+    [Column("updated_at")]
     public DateTime UpdatedAt { get; set; }
 
     [InverseProperty("User")]

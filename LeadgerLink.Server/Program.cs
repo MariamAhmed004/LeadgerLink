@@ -41,6 +41,16 @@ namespace LeadgerLink.Server
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
+            // Allow React frontend (register the policy)
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowReactApp", policy =>
+                    policy.WithOrigins("http://localhost:55070") //when published add the domain here
+                          .AllowAnyHeader()
+                          .AllowAnyMethod()
+                          .AllowCredentials());
+            });
+
             var app = builder.Build();
 
             // Seed admin user
@@ -58,6 +68,8 @@ namespace LeadgerLink.Server
 
             app.UseHttpsRedirection();
 
+            app.UseCors("AllowReactApp");   // enable CORS 
+            app.UseAuthentication();
             app.UseAuthorization();
 
 
@@ -75,10 +87,20 @@ namespace LeadgerLink.Server
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
+            
             // Ensure roles exist
-            var adminRole = "Admin";
-            if (!await roleManager.RoleExistsAsync(adminRole))
-                await roleManager.CreateAsync(new IdentityRole(adminRole));
+            string[] roles = { "Application Admin", "Organization Admin", "Organization Accountant", "Store Manager", "Store Employee" };
+
+            foreach (var roleName in roles)
+            {
+                if (!await roleManager.RoleExistsAsync(roleName))
+                {
+                    await roleManager.CreateAsync(new IdentityRole(roleName));
+                    Console.WriteLine($"Role '{roleName}' created.");
+                }
+            }
+
+            string applicationAdminRole = "Application Admin";
 
             // Check if admin exists
             string adminEmail = "admin@demo.com";
@@ -90,7 +112,7 @@ namespace LeadgerLink.Server
                 var result = await userManager.CreateAsync(adminUser, adminPassword);
                 if (result.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(adminUser, adminRole);
+                    await userManager.AddToRoleAsync(adminUser, applicationAdminRole);
                     Console.WriteLine("Admin user created!");
                 }
                 else
