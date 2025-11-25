@@ -1,7 +1,8 @@
 import React, { useState } from "react";
+import "./Login.css";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api"; // your backend login service
-import { useAuth } from "../Context/AuthContext"; // context we built earlier
+import { api } from "../../services/api"; // your backend login service
+import { useAuth } from "../../Context/AuthContext"; // context we built earlier
 
 export default function Login() {
     const [email, setEmail] = useState("");
@@ -43,27 +44,19 @@ export default function Login() {
     };
 
     return (
-        <div
-            className="login-page d-flex align-items-center justify-content-center"
-            style={{ minHeight: "70vh" }}
-        >
-            {/* Left side image */}
-            <div className="me-5 d-none d-md-block">
-                <img
-                    src="/images/login.png"
-                    alt="Login Visual"
-                    style={{
-                        width: "260px",
-                        height: "auto",
-                        borderRadius: "16px",
-                        boxShadow: "0 0 16px rgba(0,0,0,0.08)",
-                    }}
-                />
-            </div>
+        <div className="login-page d-flex flex-wrap" style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
+            {/* Left: Form Section */}
+            <div className="login-form-section p-5 flex-grow-1" style={{ maxWidth: "500px", backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 0 12px rgba(0,0,0,0.05)" }}>
+                {/* Tabs */}
+                <div className="d-flex mb-4 gap-4 fw-bold fs-5">
+                    <span className="text-primary border-bottom border-primary pb-1">Login</span>
+                    <span className="text-secondary">Subscribe</span>
+                </div>
 
-            {/* Right side form */}
-            <div className="login-form-container">
+                {/* Heading */}
                 <h2 className="mb-4">Login</h2>
+
+                {/* Form */}
                 <form onSubmit={handleSubmit} className="login-form">
                     <div className="mb-3">
                         <label htmlFor="email" className="form-label">Email:</label>
@@ -74,7 +67,7 @@ export default function Login() {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             autoFocus
-                            className="form-control"
+                            className="form-control rounded-3"
                         />
                     </div>
 
@@ -86,16 +79,37 @@ export default function Login() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            className="form-control"
+                            className="form-control rounded-3"
                         />
                     </div>
 
+                    {/* Forgot Password */}
+                    <div className="mb-3 text-end">
+                        <a href="#" className="text-success">Forget your password?</a>
+                    </div>
+
+                    {/* Error */}
                     {error && <div className="error text-danger mb-3">{error}</div>}
 
-                    <button type="submit" className="btn btn-primary w-100">
+                    {/* Submit */}
+                    <button type="submit" className="btn btn-primary w-100 rounded-3">
                         Login
                     </button>
                 </form>
+            </div>
+
+            {/* Right: Illustration Section */}
+            <div className="login-graphic-section d-none d-md-flex flex-grow-1 align-items-center justify-content-center">
+                <img
+                    src="/images/login-illustration.png"
+                    alt="Login Graphic"
+                    style={{
+                        maxWidth: "500px",
+                        height: "auto",
+                        borderRadius: "16px",
+                        boxShadow: "0 0 16px rgba(0,0,0,0.08)"
+                    }}
+                />
             </div>
         </div>
     );

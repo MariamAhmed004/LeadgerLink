@@ -1,0 +1,24 @@
+.login-page {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+.login-form-section {
+    background-color: #ffffff;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
+    max-width: 500px;
+}
+
+.login-graphic-section {
+    background-color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-form input,
+.login-form button {
+    border-radius: 8px;
+}}

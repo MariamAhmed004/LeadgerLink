@@ -1,16 +1,23 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { useAuth } from "../../Context/AuthContext"; 
-import { useNavigate } from "react-router-dom";
-
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../Context/AuthContext";
+import { FaFileInvoice } from "react-icons/fa";
+import { MdOutlineInventory } from "react-icons/md";
+import { FaBookBookmark } from "react-icons/fa6";
+import { BiSolidPackage } from "react-icons/bi";
+import { BiSolidBuildings } from "react-icons/bi";
+import { HiUsers } from "react-icons/hi";
+import { HiOutlineDocumentSearch } from "react-icons/hi";
 
 const NavBar = () => {
     const { loggedInUser, setLoggedInUser } = useAuth();
-    const navigate = useNavigate(); 
+    const navigate = useNavigate();
 
     const isApplicationAdmin = loggedInUser?.roles?.includes("Application Admin");
-    const isManager = loggedInUser ?.roles?.includes("Manager");
-    const isEmployee = loggedInUser ?.roles?.includes("Employee");
+    const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+    const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+    const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
+    const isStoreEmployee = loggedInUser?.roles?.includes("Store Employee");
 
     return (
         <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -50,57 +57,83 @@ const NavBar = () => {
 
                 <div className="collapse navbar-collapse" id="navbarNav">
                     <ul className="navbar-nav ms-auto">
-                        {/* Role-based links */}
+                        {/* Application Admin */}
                         {isApplicationAdmin && (
                             <>
                                 <li className="nav-item">
-                                    <Link to="/users" className="nav-link">User Administration</Link>
+                                    <Link to="/organizations" className="nav-link"><BiSolidBuildings />Organizations</Link>
                                 </li>
                                 <li className="nav-item">
-                                    <Link to="/reports" className="nav-link">Reports</Link>
+                                    <Link to="/users" className="nav-link"><HiUsers />Users</Link>
                                 </li>
                                 <li className="nav-item">
-                                    <Link to="/settings" className="nav-link">Settings</Link>
+                                    <Link to="/applicationauditlogs" className="nav-link"><HiOutlineDocumentSearch />Audit Logs</Link>
+                                </li>                                
+                            </>
+                        )}
+
+                        {/* Organization Admin */}
+                        {isOrgAdmin && (
+                            <>
+                                <li className="nav-item">
+                                    <Link to="/org-admin-dashboard" className="nav-link">Org Admin Dashboard</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <Link to="/org-settings" className="nav-link">Organization Settings</Link>
                                 </li>
                             </>
                         )}
 
-                        {isManager && (
+                        {/* Organization Accountant */}
+                        {isOrgAccountant && (
                             <>
                                 <li className="nav-item">
-                                    <Link to="/sales" className="nav-link">Sales</Link>
+                                    <Link to="/org-accounting" className="nav-link">Accounting</Link>
                                 </li>
                                 <li className="nav-item">
-                                    <Link to="/inventory" className="nav-link">Inventory</Link>
-                                </li>
-                                <li className="nav-item">
-                                    <Link to="/reports" className="nav-link">Reports</Link>
+                                    <Link to="/org-reports" className="nav-link">Financial Reports</Link>
                                 </li>
                             </>
                         )}
 
-                        {isEmployee && (
+                        {/* Store Manager */}
+                        {isStoreManager && (
                             <>
                                 <li className="nav-item">
-                                    <Link to="/recipes" className="nav-link">Recipes</Link>
+                                    <Link to="/store-dashboard" className="nav-link">Store Dashboard</Link>
                                 </li>
                                 <li className="nav-item">
-                                    <Link to="/branchDetails" className="nav-link">Branch Details</Link>
+                                    <Link to="/store-inventory" className="nav-link">Inventory</Link>
+                                </li>
+                            </>
+                        )}
+
+                        {/* Store Employee */}
+                        {isStoreEmployee && (
+                            <>
+                                <li className="nav-item">
+                                    <Link to="/store-tasks" className="nav-link"><FaFileInvoice />Sales</Link>
                                 </li>
                                 <li className="nav-item">
-                                    <Link to="/dashboard" className="nav-link">Dashboard</Link>
+                                    <Link to="/store-profile" className="nav-link"><MdOutlineInventory />Inventory</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <Link to="/store-profile" className="nav-link"><FaBookBookmark />Recipes</Link>
+                                </li>
+                                <li className="nav-item">
+                                    <Link to="/store-profile" className="nav-link"><BiSolidPackage />Products</Link>
                                 </li>
                             </>
                         )}
 
                         {/* Guest view */}
-                        {!loggedInUser ?.isAuthenticated && (
+                        {!loggedInUser?.isAuthenticated && (
                             <Link to="/login" className="btn btn-outline-light btn-lg mx-2">
                                 Login
                             </Link>
                         )}
 
-                        {/* Show username when logged in and options*/}
+                        {/* Logged-in dropdown */}
                         {loggedInUser?.isAuthenticated && (
                             <li className="nav-item dropdown ms-3">
                                 <button

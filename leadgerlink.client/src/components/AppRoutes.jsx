@@ -5,22 +5,25 @@ import { Routes, Route } from "react-router-dom";
 import HomePage from "../pages/Home";
 import ProfilePage from "../pages/Profile";
 import NotFound from "../pages/NotFound";
-import Login from "../pages/Login";
+import Login from "../pages/Login/Login";
 import Landing from "../pages/GeneralInformation/LandingPage/Landing";
 import PrivacyPolicy from "../pages/GeneralInformation/PrivacyPolicy";
 import TermsOfService from "../pages/GeneralInformation/TermsOfService";
 import FAQ from "../pages/GeneralInformation/FAQ";
 import AboutUs from "../pages/GeneralInformation/aboutus";
 import Notifications from "../pages/Notifications";
+import OrganizationsList from "../pages/Organizations/OrganizationsList";
+
 
 import Dashboard from "../pages/Dashboard";
 import Reports from "../pages/Reports";
-import Users from "../pages/UserAdministration";
+import Users from "../pages/Users/UsersList";
 import Settings from "../pages/Settings";
 import Sales from "../pages/Sales";
 import InventoryManagement from "../pages/InventoryManagement";
 import Recipes from "../pages/Recipes";
 import BranchDetails from "../pages/BranchDetails";
+import ApplicationAuditLogsList from "../pages/AuditLogs/ApplicationAuditLogsList";
 
 const AppRoutes = () => {
   return (
@@ -43,6 +46,8 @@ const AppRoutes = () => {
           <Route path="/faqs" element={<FAQ />} />
           <Route path="/aboutus" element={<AboutUs />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/organizations" element={<OrganizationsList />} />
+          <Route path="/applicationauditlogs" element={<ApplicationAuditLogsList />} />
 
     </Routes>
   );

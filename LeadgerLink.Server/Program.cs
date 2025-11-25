@@ -55,6 +55,7 @@ namespace LeadgerLink.Server
 
             // Seed admin user
             await SeedAdminUser(app);
+            await SeedTestUsers(app);
 
             app.UseDefaultFiles();
             app.UseStaticFiles();
@@ -118,6 +119,57 @@ namespace LeadgerLink.Server
                 else
                 {
                     Console.WriteLine("Failed to create admin user:");
+                    foreach (var error in result.Errors)
+                        Console.WriteLine(error.Description);
+                }
+            }
+        }
+
+        private static async Task SeedTestUsers(WebApplication app)
+        {
+            using var scope = app.Services.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+            // Roles to ensure exist (excluding Application Admin since you already seeded it)
+            string[] roles = { "Organization Admin", "Organization Accountant", "Store Manager", "Store Employee" };
+
+            foreach (var roleName in roles)
+            {
+                if (!await roleManager.RoleExistsAsync(roleName))
+                {
+                    await roleManager.CreateAsync(new IdentityRole(roleName));
+                    Console.WriteLine($"Role '{roleName}' created.");
+                }
+            }
+
+            // Seed Organization Admin
+            await CreateUserWithRole(userManager, "orgadmin@demo.com", "OrgAdmin123!", "Organization Admin");
+
+            // Seed Organization Accountant
+            await CreateUserWithRole(userManager, "orgaccountant@demo.com", "OrgAccountant123!", "Organization Accountant");
+
+            // Seed Store Manager
+            await CreateUserWithRole(userManager, "storemanager@demo.com", "StoreManager123!", "Store Manager");
+
+            // Seed Store Employee
+            await CreateUserWithRole(userManager, "storeemployee@demo.com", "StoreEmployee123!", "Store Employee");
+        }
+
+        private static async Task CreateUserWithRole(UserManager<ApplicationUser> userManager, string email, string password, string role)
+        {
+            if (await userManager.FindByEmailAsync(email) == null)
+            {
+                var user = new ApplicationUser { UserName = email, Email = email };
+                var result = await userManager.CreateAsync(user, password);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(user, role);
+                    Console.WriteLine($"{role} user created: {email}");
+                }
+                else
+                {
+                    Console.WriteLine($"Failed to create {role} user:");
                     foreach (var error in result.Errors)
                         Console.WriteLine(error.Description);
                 }
