@@ -1,0 +1,8 @@
+/* Reset navbar text casing so labels render as written in JSX */
+.navbar .nav-link,
+.navbar .nav-item .nav-link,
+.navbar .btn,
+.navbar .dropdown-toggle {
+    text-transform: none !important;
+    -webkit-text-transform: none !important;
+}
