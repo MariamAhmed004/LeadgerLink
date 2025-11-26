@@ -51,6 +51,9 @@ public partial class Store
     public DateTime UpdatedAt { get; set; }
 
     [InverseProperty("Store")]
+    public virtual ICollection<Driver> Drivers { get; set; } = new List<Driver>();
+
+    [InverseProperty("Store")]
     public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
 
     [InverseProperty("FromStoreNavigation")]
@@ -75,6 +78,9 @@ public partial class Store
 
     [InverseProperty("Store")]
     public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
+
+    [InverseProperty("Store")]
+    public virtual ICollection<Supplier> Suppliers { get; set; } = new List<Supplier>();
 
     [ForeignKey("UserId")]
     [InverseProperty("Stores")]

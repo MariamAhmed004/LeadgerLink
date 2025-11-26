@@ -21,6 +21,8 @@ public partial class LedgerLinkDbContext : DbContext
 
     public virtual DbSet<AuditLogLevel> AuditLogLevels { get; set; }
 
+    public virtual DbSet<Driver> Drivers { get; set; }
+
     public virtual DbSet<IndustryType> IndustryTypes { get; set; }
 
     public virtual DbSet<InventoryItem> InventoryItems { get; set; }
@@ -92,6 +94,15 @@ public partial class LedgerLinkDbContext : DbContext
             entity.HasKey(e => e.AuditLogLevelId).HasName("PK_audit_log_level");
         });
 
+        modelBuilder.Entity<Driver>(entity =>
+        {
+            entity.HasKey(e => e.DriverId).HasName("PK_Driver");
+
+            entity.Property(e => e.DriverId).ValueGeneratedNever();
+
+            entity.HasOne(d => d.Store).WithMany(p => p.Drivers).HasConstraintName("FK_Driver_store");
+        });
+
         modelBuilder.Entity<InventoryItem>(entity =>
         {
             entity.HasOne(d => d.InventoryItemCategory).WithMany(p => p.InventoryItems).HasConstraintName("FK_inventory_item_inventory_item_categories");
@@ -112,6 +123,8 @@ public partial class LedgerLinkDbContext : DbContext
         modelBuilder.Entity<InventoryTransfer>(entity =>
         {
             entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.InventoryTransferApprovedByNavigations).HasConstraintName("FK_inventory_transfer_user_02");
+
+            entity.HasOne(d => d.Driver).WithMany(p => p.InventoryTransfers).HasConstraintName("FK_inventory_transfer_Driver");
 
             entity.HasOne(d => d.FromStoreNavigation).WithMany(p => p.InventoryTransferFromStoreNavigations)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -230,6 +243,8 @@ public partial class LedgerLinkDbContext : DbContext
             entity.HasKey(e => e.SupplierId).HasName("PK_Supplier");
 
             entity.Property(e => e.SupplierId).ValueGeneratedNever();
+
+            entity.HasOne(d => d.Store).WithMany(p => p.Suppliers).HasConstraintName("FK_supplier_store");
         });
 
         modelBuilder.Entity<TransferItem>(entity =>

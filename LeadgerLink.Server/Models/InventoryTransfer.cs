@@ -31,8 +31,7 @@ public partial class InventoryTransfer
     public DateTime? RequestedAt { get; set; }
 
     [Column("notes")]
-    [StringLength(50)]
-    [Unicode(false)]
+    [StringLength(950)]
     public string? Notes { get; set; }
 
     [Column("requested_by")]
@@ -41,13 +40,8 @@ public partial class InventoryTransfer
     [Column("approved_by")]
     public int? ApprovedBy { get; set; }
 
-    [Column("driver_name")]
-    [StringLength(150)]
-    public string? DriverName { get; set; }
-
-    [Column("driver_email")]
-    [StringLength(200)]
-    public string? DriverEmail { get; set; }
+    [Column("driver_id")]
+    public int? DriverId { get; set; }
 
     [Column("recieved_at")]
     public DateTime? RecievedAt { get; set; }
@@ -55,6 +49,10 @@ public partial class InventoryTransfer
     [ForeignKey("ApprovedBy")]
     [InverseProperty("InventoryTransferApprovedByNavigations")]
     public virtual User? ApprovedByNavigation { get; set; }
+
+    [ForeignKey("DriverId")]
+    [InverseProperty("InventoryTransfers")]
+    public virtual Driver? Driver { get; set; }
 
     [ForeignKey("FromStore")]
     [InverseProperty("InventoryTransferFromStoreNavigations")]

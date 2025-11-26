@@ -21,6 +21,13 @@ public partial class Supplier
     [StringLength(350)]
     public string ContactMethod { get; set; } = null!;
 
+    [Column("store_id")]
+    public int? StoreId { get; set; }
+
     [InverseProperty("Supplier")]
     public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
+
+    [ForeignKey("StoreId")]
+    [InverseProperty("Suppliers")]
+    public virtual Store? Store { get; set; }
 }
