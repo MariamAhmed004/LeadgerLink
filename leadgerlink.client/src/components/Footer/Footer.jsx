@@ -1,4 +1,4 @@
-import React from "react";
+ï»¿import React from "react";
 import { FaInstagram, FaLinkedin, FaYoutube } from "react-icons/fa";
 import { Link } from 'react-router-dom';
 
@@ -8,21 +8,21 @@ const Footer = () => (
             <div className="row">
                 {/* Branding and Social */}
                 <div className="col-md-4 mb-4 mb-md-0">
-                    <div className="d-flex align-items-center mb-2">
+                    <div className="d-flex align-items-center justify-content-center mb-2 ">
                         <img
                             src="/LeadgerLink_Logo.png"
                             alt="LedgerLink Logo"
-                            style={{ width: "32px", marginRight: "8px" }}
+                            style={{ width: "45%" }}
                         />
                     </div>
-                    <p className="small">
+                    <p className="small text-start ms-4">
                         Connect your business with its management securely and efficiently.
                         <br />
                         Every detail is preserved, every action traceable.
                         <br />
                         Minimize waste, maximize clarity.
                     </p>
-                    <div className="d-flex gap-3">
+                    <div className="d-flex gap-3 justify-content-center">
                         <a
                             href="https://instagram.com"
                             target="_blank"
@@ -55,25 +55,42 @@ const Footer = () => (
 
                 {/* Information Links */}
                 <div className="col-md-4 mb-4 mb-md-0">
-                    <h5>INFORMATION</h5>
-                    <ul className="list-unstyled">
+                    <h6 className="my-4">INFORMATION</h6>
+                    <ul className="list-unstyled small d-flex flex-column gap-2">
                         <li>
-                            <Link to="/faqs" className="text-white text-decoration-none mx-2">FAQs</Link>
+                            <Link
+                                to="/faqs"
+                                className="text-white text-decoration-underline fst-italic fw-light"
+                                style={{ fontStyle: "italic" }}
+                            >
+                                FAQs
+                            </Link>
                         </li>
                         <li>
-                            <Link to="/privacypolicy" className="text-white text-decoration-none mx-2">Privacy Policy</Link>
+                            <Link
+                                to="/privacypolicy"
+                                className="text-white text-decoration-underline fst-italic fw-light"
+                                style={{ fontStyle: "italic" }}
+                            >
+                                Privacy Policy
+                            </Link>
                         </li>
                         <li>
-                            <Link to="/termsofservice" className="text-white text-decoration-none mx-2">Terms of Service</Link>
-
+                            <Link
+                                to="/termsofservice"
+                                className="text-white text-decoration-underline fst-italic fw-light"
+                                style={{ fontStyle: "italic" }}
+                            >
+                                Terms of Service
+                            </Link>
                         </li>
                     </ul>
                 </div>
 
                 {/* Contact Info */}
                 <div className="col-md-4">
-                    <h5>CONTACT US</h5>
-                    <address className="small">
+                    <h6 className="my-4">CONTACT US</h6>
+                    <address className="small " style={{ fontStyle: "italic" }}>
                         XXX Manama Avenue
                         <br />
                         Manama, MA 1203
@@ -90,7 +107,7 @@ const Footer = () => (
             </div>
 
             <hr className="border-light mt-4" />
-            <div className="text-center small">© 2025 LedgerLink. All rights reserved.</div>
+            <div className="text-center small">&copy; 2025 LedgerLink. All rights reserved.</div>
         </div>
     </footer>
 );

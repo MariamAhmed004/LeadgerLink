@@ -32,8 +32,8 @@ const NavBar = () => {
             isOrgAdmin ? "/org-admin" :
                 isOrgAccountant ? "/org-accounting" :
                     isStoreManager ? "/store-dashboard" :
-                        isStoreEmployee ? "/store-tasks" :
-                            "/home";
+                        isStoreEmployee ? "/store-employee" :
+                            "/";
 
 
 
