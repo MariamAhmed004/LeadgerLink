@@ -28,7 +28,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             transfer.ApprovedBy = approvingUserId;
             transfer.RecievedAt = DateTime.UtcNow;
 
-            // Try to resolve an "Approved" status row in inventory_transfer_statuses
             var approvedStatus = await _context.InventoryTransferStatuses
                 .FirstOrDefaultAsync(s => s.TransferStatus.ToLower() == "approved");
 
@@ -44,12 +43,35 @@ namespace LeadgerLink.Server.Repositories.Implementations
         // Count transfers that involve stores belonging to a given organization.
         public async Task<int> CountTransfersByOrganizationAsync(int organizationId)
         {
-            return await _context.InventoryTransfers
+            return await CountTransfersByOrganizationAsync(organizationId, null, null);
+        }
+
+        // Count transfers that involve stores belonging to a given organization with optional date range.
+        public async Task<int> CountTransfersByOrganizationAsync(int organizationId, DateTime? from, DateTime? to)
+        {
+            var q = _context.InventoryTransfers
                 .Include(t => t.FromStoreNavigation)
                 .Include(t => t.ToStoreNavigation)
-                .Where(t => (t.FromStoreNavigation != null && t.FromStoreNavigation.OrgId == organizationId)
-                         || (t.ToStoreNavigation != null && t.ToStoreNavigation.OrgId == organizationId))
-                .CountAsync();
+                .AsQueryable();
+
+            q = q.Where(t =>
+                (t.FromStoreNavigation != null && t.FromStoreNavigation.OrgId == organizationId)
+                || (t.ToStoreNavigation != null && t.ToStoreNavigation.OrgId == organizationId)
+            );
+
+            if (from.HasValue)
+            {
+                var fromDate = from.Value.Date;
+                q = q.Where(t => t.RequestedAt.HasValue && t.RequestedAt.Value >= fromDate);
+            }
+
+            if (to.HasValue)
+            {
+                var toDate = to.Value.Date.AddDays(1).AddTicks(-1);
+                q = q.Where(t => t.RequestedAt.HasValue && t.RequestedAt.Value <= toDate);
+            }
+
+            return await q.CountAsync();
         }
 
         // Return quarterly inventory movement totals (grouped by month) for an organization.
@@ -60,7 +82,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var startMonth = (quarter - 1) * 3 + 1;
             var months = new[] { startMonth, startMonth + 1, startMonth + 2 };
 
-            // Use RequestedAt (DateTime?) as the transfer timestamp for grouping.
             var query = from ti in _context.TransferItems
                         join tr in _context.InventoryTransfers on ti.InventoryTransferId equals tr.InventoryTransferId
                         where tr.RequestedAt.HasValue

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Models;
@@ -13,6 +14,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return count of transfers for an organization.
         Task<int> CountTransfersByOrganizationAsync(int organizationId);
+
+        // Count transfers for an organization optionally filtered by date range.
+        Task<int> CountTransfersByOrganizationAsync(int organizationId, DateTime? from, DateTime? to);
 
         // Return quarterly inventory movement summaries for an organization.
         Task<IEnumerable<MonthlyInventoryMovementDto>> GetQuarterlyInventoryMovementsAsync(int organizationId, int year, int quarter);
