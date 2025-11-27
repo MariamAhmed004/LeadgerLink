@@ -33,6 +33,7 @@ import StoreEmployeeHome from "../pages/HomePages/StoreEmployee-Home";
 import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfersList";
 import StoresList from "../pages/Stores/StoresList";
 import ProductsList from "../pages/Products/ProductsList";
+import ForgetPassword from "../pages/Login/ForgetPassword";
 
 
 const AppRoutes = () => {
@@ -68,6 +69,8 @@ const AppRoutes = () => {
           <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
           <Route path="/stores" element={<StoresList />} />
           <Route path="/products" element={<ProductsList />} />
+          <Route path="/reset-password" element={<ForgetPassword />} />
+          
 
     </Routes>
   );

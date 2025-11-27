@@ -1,53 +1,73 @@
-import React from 'react';
+import React, { useEffect, useState } from "react";
+import WelcomeMessage from "../../components/homepages/WelcomeMessage";
+import CardSection from "../../components/homepages/HomePageCardSection";
+import HomePageTable from "../../components/homepages/HomePageTable";
 
-// Placeholder Organization Admin Home
-// Static content only — no data fetching or logic to avoid runtime errors during navigation.
-export default function OrganizationAdminHome() {
-  return (
-    <div className="organization-admin-home container py-3">
-      <h2>Organization Admin Home</h2>
-      <p className="text-muted">Placeholder page to satisfy navigation routes. No backend calls or props required.</p>
+const OrgAdminHomePage = () => {
+    const [username, setUsername] = useState("OrgAdmin<User>");
+    const [overviewCards, setOverviewCards] = useState([]);
+    const [activityLogs, setActivityLogs] = useState([]);
+    const [notifications, setNotifications] = useState([]);
 
-      <div className="row g-3 my-3">
-        <div className="col-12 col-md-6">
-          <div className="card text-center">
-            <div className="card-body">
-              <h6 className="card-subtitle mb-2 text-muted">Organization Settings</h6>
-              <div className="display-6">—</div>
-              <p className="mt-2 mb-0 text-muted">Manage organization settings in the full app.</p>
-            </div>
-          </div>
+    //  Placeholder: Fetch organization overview stats
+    const fetchOverviewStats = async () => {
+        // TODO: Replace with API call
+        setOverviewCards([
+            { title: "Total Stores", value: 12 },
+            { title: "Total Organization Users", value: 45 },
+            { title: "Active Users Today", value: 9 },
+        ]);
+    };
+
+    //  Placeholder: Fetch recent activity logs
+    const fetchActivityLogs = async () => {
+        // TODO: Replace with API call
+        setActivityLogs([
+            ["22: John Doe", "11:23:04 October 12, 2025", "Logged out"],
+            ["22: John Doe", "11:03:46 October 12, 2025", "Created a new branch employee user"],
+            ["22: John Doe", "10:25:13 October 12, 2025", "Logged In to the system"],
+        ]);
+    };
+
+    //  Placeholder: Fetch latest notifications
+    const fetchNotifications = async () => {
+        // TODO: Replace with API call
+        setNotifications([
+            ["11:23:04 October 12, 2025", "Logged out"],
+            ["11:03:46 October 12, 2025", "Created a new branch employee user"],
+            ["10:25:13 October 12, 2025", "Logged In to the system"],
+        ]);
+    };
+
+    useEffect(() => {
+        fetchOverviewStats();
+        fetchActivityLogs();
+        fetchNotifications();
+    }, []);
+
+    return (
+        <div className="container py-5">
+            {/* Welcome Message */}
+            <WelcomeMessage username={username} />
+
+            {/* Organization Overview Cards */}
+            <CardSection title="Organization Overview" cards={overviewCards} />
+
+            {/* Recent Activity Table */}
+            <HomePageTable
+                title="Recent Activity"
+                columns={["User", "Timestamp", "Log Details"]}
+                rows={activityLogs}
+            />
+
+            {/* Latest Notifications Table */}
+            <HomePageTable
+                title="Latest Notifications"
+                columns={["Timestamp", "Notification"]}
+                rows={notifications}
+            />
         </div>
+    );
+};
 
-        <div className="col-12 col-md-6">
-          <div className="card text-center">
-            <div className="card-body">
-              <h6 className="card-subtitle mb-2 text-muted">Members</h6>
-              <div className="display-6">—</div>
-              <p className="mt-2 mb-0 text-muted">User and role management will be available here.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="table-responsive mt-3">
-        <table className="table table-sm table-striped">
-          <thead>
-            <tr>
-              <th>Area</th>
-              <th>Description</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Sample Entry</td>
-              <td>Placeholder content for navigation.</td>
-              <td>—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+export default OrgAdminHomePage;

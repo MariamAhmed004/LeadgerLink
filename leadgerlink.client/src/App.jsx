@@ -1,20 +1,28 @@
-//import { useEffect, useState } from 'react';
 import './App.css';
 import Layout from './components/Layout/Layout.jsx';
 import { AuthProvider } from "./Context/AuthContext";
 import AppRoutes from './components/AppRoutes';
+import { useLocation } from "react-router-dom";
 
 function App() {
+  const location = useLocation();
 
-    return (
-        <AuthProvider>
+  // Edit this array to add pages that should NOT use the Layout
+    const noLayoutPaths = ["/login", "/reset-password"];
+
+  const useLayout = !noLayoutPaths.includes(location.pathname);
+
+  return (
+    <AuthProvider>
+      {useLayout ? (
         <Layout>
-            {/*Currently displaying the landing page only */}
-            <AppRoutes/>
-            </Layout>
-        </AuthProvider>
-    );
-
+          <AppRoutes />
+        </Layout>
+      ) : (
+        <AppRoutes />
+      )}
+    </AuthProvider>
+  );
 }
 
 export default App;

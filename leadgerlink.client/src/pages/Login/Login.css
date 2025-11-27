@@ -1,5 +1,4 @@
 .login-page {
-    background-color: #f8f9fa;
     min-height: 100vh;
 }
 
@@ -11,8 +10,11 @@
     max-width: 500px;
 }
 
+.colored-section {
+    background-color: #6585A5;
+}
+
 .login-graphic-section {
-    background-color: #e9ecef;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -21,4 +23,22 @@
 .login-form input,
 .login-form button {
     border-radius: 8px;
-}}
+}
+
+.tab-underline {
+    border-bottom: 4px solid var(--bs-primary, #0d6efd) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+
+/* thicker horizontal rule used in ForgetPassword (hr.bold) */
+.login-form-section hr.bold {
+    height: 2px; /* adjust thickness here (px) */
+    border: none;
+    background-color: var(--bs-primary);
+    opacity: 1;
+    margin: 0.5rem 0 1rem 0;
+    width: 100%;
+    display: block;
+}

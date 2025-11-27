@@ -1,63 +1,71 @@
-import React from 'react';
+ï»¿import React, { useEffect, useState } from "react";
+import WelcomeMessage from "../../components/homepages/WelcomeMessage";
+import QuickAccessPanel from "../../components/homepages/HomePageQuickAccess";
+import HomePageTable from "../../components/homepages/HomePageTable";
+import { FaReceipt, FaBoxOpen, FaUtensils } from "react-icons/fa";
 
-// Placeholder Store Employee Home
-// Static content only — no data fetching or logic to avoid runtime errors during navigation.
-export default function StoreEmployeeHome() {
-  return (
-    <div className="store-employee-home container py-3">
-      <h2>Store Employee Home</h2>
-      <p className="text-muted">Static placeholder page for navigation. No backend calls required.</p>
+const StoreEmployeeHomePage = () => {
+    const [username, setUsername] = useState("StoreEmployee<User>");
+    const [notifications, setNotifications] = useState([]);
+    const [pendingTransfers, setPendingTransfers] = useState([]);
 
-      <div className="row g-3 my-3">
-        <div className="col-12 col-md-4">
-          <div className="card text-center">
-            <div className="card-body">
-              <h6 className="card-subtitle mb-2 text-muted">Today's Tasks</h6>
-              <div className="display-6">—</div>
-              <p className="mt-2 mb-0 text-muted">Task list will appear here in the full app.</p>
-            </div>
-          </div>
+    // ðŸ”— Quick Access Routes
+    
+
+    const quickActions = [
+        { label: "New Sale", route: "/sales/new", icon: <FaReceipt /> },
+        { label: "New Inventory Item", route: "/inventory/new", icon: <FaBoxOpen /> },
+        { label: "New Recipe", route: "/recipes/new", icon: <FaUtensils /> },
+    ];
+
+    // ðŸ”§ Placeholder: Fetch latest notifications
+    const fetchNotifications = async () => {
+        // TODO: Replace with actual API call
+        setNotifications([
+            ["11:23:04 October 12, 2025", "Branch Manager has added a transfer request to be filled"],
+            ["11:03:46 October 12, 2025", "Created a new branch employee user"],
+            ["10:25:13 October 12, 2025", "Logged In to the system"],
+        ]);
+    };
+
+    // ðŸ”§ Placeholder: Fetch pending inventory movements
+    const fetchPendingTransfers = async () => {
+        // TODO: Replace with actual API call
+        setPendingTransfers([
+            ["XXX Store", "XXX Store", "Rejected", "12-10-2025"],
+            ["XXX Store", "XXX Store", "Completed", "11-10-2025"],
+            ["XXX Store", "XXX Store", "Out for delivery", "10-10-2025"],
+        ]);
+    };
+
+    useEffect(() => {
+        fetchNotifications();
+        fetchPendingTransfers();
+    }, []);
+
+    return (
+        <div className="container py-5">
+            {/* Welcome Message */}
+            <WelcomeMessage username={username} />
+
+            {/* Quick Access Buttons */}
+            <QuickAccessPanel actions={quickActions} />
+
+            {/* Latest Notifications Table */}
+            <HomePageTable
+                title="Latest Notifications"
+                columns={["Timestamp", "Notification"]}
+                rows={notifications}
+            />
+
+            {/* Pending Inventory Movements Table */}
+            <HomePageTable
+                title="Pending Inventory Movements"
+                columns={["Requester", "Requested From", "Status", "Transfer Date"]}
+                rows={pendingTransfers}
+            />
         </div>
+    );
+};
 
-        <div className="col-12 col-md-4">
-          <div className="card text-center">
-            <div className="card-body">
-              <h6 className="card-subtitle mb-2 text-muted">Open Sales</h6>
-              <div className="display-6">0</div>
-              <p className="mt-2 mb-0 text-muted">Placeholder metric</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-12 col-md-4">
-          <div className="card text-center">
-            <div className="card-body">
-              <h6 className="card-subtitle mb-2 text-muted">Inventory Access</h6>
-              <div className="display-6">—</div>
-              <p className="mt-2 mb-0 text-muted">Inventory items and transfers available in full app.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="table-responsive mt-3">
-        <table className="table table-sm table-striped">
-          <thead>
-            <tr>
-              <th>Task</th>
-              <th>Assigned</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Sample Task</td>
-              <td>Store Employee</td>
-              <td>—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+export default StoreEmployeeHomePage;

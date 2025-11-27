@@ -1,63 +1,86 @@
-import React from 'react';
+ï»¿import React, { useEffect, useState } from "react";
+import WelcomeMessage from "../../components/homepages/WelcomeMessage";
+import CardSection from "../../components/homepages/HomePageCardSection";
+import HomePageTable from "../../components/homepages/HomePageTable";
 
-// Placeholder Application Admin Home
-// Static content only — no data fetching or logic to avoid runtime errors during navigation.
-export default function ApplicationAdminHome() {
+
+const AdminHomePage = () => {
+    const [username, setUsername] = useState("Admin<User>");
+    const [cards, setCards] = useState([]);
+    const [activityLogs, setActivityLogs] = useState([]);
+    const [logOverview, setLogOverview] = useState({
+        totalLogs: 0,
+        exceptionsToday: 0,
+    });
+
+    // Placeholder: Fetch dashboard stats
+    const fetchDashboardStats = async () => {
+        // TODO: Replace with actual API call
+        setCards([
+            {
+                title: "Total Organizations",
+                value: 32,
+            },
+            {
+                title: "Total Users",
+                value: 22,
+            },
+            {
+                title: "Active Users Today",
+                value: 11,
+            },
+        ]);
+    };
+
+    //  Placeholder: Fetch recent activity logs
+    const fetchActivityLogs = async () => {
+        // TODO: Replace with actual API call
+        setActivityLogs([
+            ["22: John Doe", "11:23:04 October 12, 2025", "Logged out"],
+            ["22: John Doe", "11:03:46 October 12, 2025", "Created a new branch employee user"],
+            ["22: John Doe", "10:25:13 October 12, 2025", "Logged In to the system"],
+        ]);
+    };
+
+    //  Placeholder: Fetch log overview
+    const fetchLogOverview = async () => {
+        // TODO: Replace with actual API call
+        setLogOverview({
+            totalLogs: 12,
+            exceptionsToday: 1,
+        });
+    };
+
+    useEffect(() => {
+        fetchDashboardStats();
+        fetchActivityLogs();
+        fetchLogOverview();
+    }, []);
+
     return (
-        <div className="application-admin-home container py-3">
-            <h2>Application Admin Home</h2>
-            <p className="text-muted">Placeholder page to satisfy navigation routes. No backend calls or props required.</p>
+        <div className="container py-5">
+            <WelcomeMessage username={username} />
 
-            <div className="row g-3 my-3">
-                <div className="col-12 col-md-4">
-                    <div className="card text-center">
-                        <div className="card-body">
-                            <h6 className="card-subtitle mb-2 text-muted">Organizations</h6>
-                            <div className="display-6">0</div>
-                            <p className="mt-2 mb-0 text-muted">Manage organizations in the real implementation.</p>
-                        </div>
-                    </div>
-                </div>
+            {/* System Overview Cards */}
+            <CardSection title="System Overview" cards={cards} />
 
-                <div className="col-12 col-md-4">
-                    <div className="card text-center">
-                        <div className="card-body">
-                            <h6 className="card-subtitle mb-2 text-muted">Users</h6>
-                            <div className="display-6">0</div>
-                            <p className="mt-2 mb-0 text-muted">User management will be available here.</p>
-                        </div>
-                    </div>
-                </div>
+            {/* Recent Activity Table */}
+            <HomePageTable
+                title="Recent Activity"
+                columns={["User", "Timestamp", "Log Details"]}
+                rows={activityLogs}
+            />
 
-                <div className="col-12 col-md-4">
-                    <div className="card text-center">
-                        <div className="card-body">
-                            <h6 className="card-subtitle mb-2 text-muted">Audit Logs</h6>
-                            <div className="display-6">0</div>
-                            <p className="mt-2 mb-0 text-muted">View application audit logs in the full app.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="table-responsive mt-3">
-                <table className="table table-sm table-striped">
-                    <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th>Description</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Sample Organization</td>
-                            <td>Placeholder entry</td>
-                            <td>—</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            {/* Logs Overview as two cards */}
+            <CardSection
+                title="Logs Overview"
+                cards={[
+                    { title: "Today's Log Entries", value: logOverview.totalLogs },
+                    { title: "Exceptions Found Today", value: logOverview.exceptionsToday },
+                ]}
+            />
         </div>
     );
-}
+};
+
+export default AdminHomePage;

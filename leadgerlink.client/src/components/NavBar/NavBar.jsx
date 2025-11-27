@@ -30,8 +30,8 @@ const NavBar = () => {
     const homeRoute =
         isApplicationAdmin ? "/app-admin" :
             isOrgAdmin ? "/org-admin" :
-                isOrgAccountant ? "/org-accounting" :
-                    isStoreManager ? "/store-dashboard" :
+                isOrgAccountant ? "/org-accountant" :
+                    isStoreManager ? "/store-manager" :
                         isStoreEmployee ? "/store-employee" :
                             "/";
 
