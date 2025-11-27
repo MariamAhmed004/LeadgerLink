@@ -46,6 +46,21 @@ namespace LeadgerLink.Server.Controllers
             return Ok(stores);
         }
 
+        // GET: api/stores/count
+        // Optional query parameter: organizationId
+        [HttpGet("count")]
+        public async Task<ActionResult<int>> Count([FromQuery] int? organizationId)
+        {
+            if (organizationId.HasValue)
+            {
+                var c = await _repository.CountAsync(s => s.OrgId == organizationId.Value);
+                return Ok(c);
+            }
+
+            var total = await _repository.CountAsync(s => true);
+            return Ok(total);
+        }
+
         // POST: api/stores
         [HttpPost]
         public async Task<ActionResult<Store>> Create([FromBody] Store model)

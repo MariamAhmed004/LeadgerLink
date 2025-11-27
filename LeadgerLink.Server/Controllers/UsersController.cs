@@ -12,7 +12,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LeadgerLink.Server.Controllers
 {
-    
     [ApiController]
     [Route("api/users")]
     public class UsersController : ControllerBase
@@ -49,19 +48,13 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // GET: api/users/count
-        // Optional query parameters: orgId, storeId
+        // Optional query parameter: orgId
         [HttpGet("count")]
-        public async Task<ActionResult<int>> Count([FromQuery] int? orgId, [FromQuery] int? storeId)
+        public async Task<ActionResult<int>> Count([FromQuery] int? orgId)
         {
             if (orgId.HasValue)
             {
                 var c = await _userRepository.CountAsync(u => u.OrgId == orgId.Value);
-                return Ok(c);
-            }
-
-            if (storeId.HasValue)
-            {
-                var c = await _userRepository.CountAsync(u => u.StoreId == storeId.Value);
                 return Ok(c);
             }
 
@@ -108,7 +101,6 @@ namespace LeadgerLink.Server.Controllers
                 StoreId = model.StoreId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
-                // RoleId mapping: map role name to RoleId here if you maintain numeric RoleId
             };
 
             var created = await _userRepository.AddAsync(domainUser);
@@ -116,5 +108,4 @@ namespace LeadgerLink.Server.Controllers
             return CreatedAtAction(nameof(GetById), new { id = created.UserId }, created);
         }
     }
-
 }
