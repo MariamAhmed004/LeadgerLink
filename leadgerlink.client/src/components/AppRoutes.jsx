@@ -14,7 +14,6 @@ import AboutUs from "../pages/GeneralInformation/aboutus";
 import Notifications from "../pages/Notifications";
 import OrganizationsList from "../pages/Organizations/OrganizationsList";
 
-
 import Dashboard from "../pages/Dashboards/Dashboard";
 import Reports from "../pages/Reports";
 import Users from "../pages/Users/UsersList";
@@ -34,7 +33,9 @@ import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfe
 import StoresList from "../pages/Stores/StoresList";
 import ProductsList from "../pages/Products/ProductsList";
 import ForgetPassword from "../pages/Login/ForgetPassword";
-
+import SalesNew from "../pages/Sales/SalesNew";
+import InventoryNew from "../pages/InventoryItems/InventoryNew";
+import RecipeNew from "../pages/Recipes/RecipeNew";
 
 const AppRoutes = () => {
   return (
@@ -70,8 +71,10 @@ const AppRoutes = () => {
           <Route path="/stores" element={<StoresList />} />
           <Route path="/products" element={<ProductsList />} />
           <Route path="/reset-password" element={<ForgetPassword />} />
-          
 
+          <Route path="/sales/new" element={<SalesNew />} />
+          <Route path="/inventory/new" element={<InventoryNew />} />
+          <Route path="/recipes/new" element={<RecipeNew />} />
     </Routes>
   );
 };

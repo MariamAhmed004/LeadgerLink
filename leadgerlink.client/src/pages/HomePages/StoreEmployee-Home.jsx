@@ -9,33 +9,65 @@ const StoreEmployeeHomePage = () => {
     const [notifications, setNotifications] = useState([]);
     const [pendingTransfers, setPendingTransfers] = useState([]);
 
-    // 🔗 Quick Access Routes
-    
-
     const quickActions = [
         { label: "New Sale", route: "/sales/new", icon: <FaReceipt /> },
         { label: "New Inventory Item", route: "/inventory/new", icon: <FaBoxOpen /> },
         { label: "New Recipe", route: "/recipes/new", icon: <FaUtensils /> },
     ];
 
-    // 🔧 Placeholder: Fetch latest notifications
+    // Fetch latest notifications for current user (up to 5)
     const fetchNotifications = async () => {
-        // TODO: Replace with actual API call
-        setNotifications([
-            ["11:23:04 October 12, 2025", "Branch Manager has added a transfer request to be filled"],
-            ["11:03:46 October 12, 2025", "Created a new branch employee user"],
-            ["10:25:13 October 12, 2025", "Logged In to the system"],
-        ]);
+        try {
+            const res = await fetch("/api/notifications/latest?pageSize=5", { credentials: "include" });
+            if (!res.ok) {
+                setNotifications([]);
+                return;
+            }
+
+            const items = await res.json();
+            const rows = (items || []).map((n) => {
+                // Notification model: CreatedAt, Message, Subject
+                const ts = n.createdAt ?? n.CreatedAt ?? null;
+                const timestamp = ts ? new Date(ts).toLocaleString() : "";
+                const message = n.message ?? n.Message ?? n.subject ?? n.Subject ?? "";
+                return [timestamp, message];
+            });
+
+            setNotifications(rows);
+        } catch (err) {
+            console.error("Failed to load notifications", err);
+            setNotifications([]);
+        }
     };
 
-    // 🔧 Placeholder: Fetch pending inventory movements
+    // Fetch pending inventory transfers for current store (show up to 5 latest with status 'Pending')
     const fetchPendingTransfers = async () => {
-        // TODO: Replace with actual API call
-        setPendingTransfers([
-            ["XXX Store", "XXX Store", "Rejected", "12-10-2025"],
-            ["XXX Store", "XXX Store", "Completed", "11-10-2025"],
-            ["XXX Store", "XXX Store", "Out for delivery", "10-10-2025"],
-        ]);
+        try {
+            const res = await fetch("/api/inventorytransfers/latest-for-current-store?pageSize=10", { credentials: "include" });
+            if (!res.ok) {
+                setPendingTransfers([]);
+                return;
+            }
+
+            const items = await res.json();
+
+            // Filter to pending status (case-insensitive), take top 5
+            const pending = (items || [])
+                .filter(t => (t.status ?? "").toString().toLowerCase() === "pending")
+                .slice(0, 5);
+
+            const rows = pending.map((t) => [
+                t.requester ?? "System",
+                t.fromStore ?? "",
+                t.status ?? "",
+                t.requestedAt ? new Date(t.requestedAt).toLocaleString() : ""
+            ]);
+
+            setPendingTransfers(rows);
+        } catch (err) {
+            console.error("Failed to load pending transfers", err);
+            setPendingTransfers([]);
+        }
     };
 
     useEffect(() => {
@@ -56,6 +88,7 @@ const StoreEmployeeHomePage = () => {
                 title="Latest Notifications"
                 columns={["Timestamp", "Notification"]}
                 rows={notifications}
+                emptyMessage="No notifications yet."
             />
 
             {/* Pending Inventory Movements Table */}
@@ -63,6 +96,7 @@ const StoreEmployeeHomePage = () => {
                 title="Pending Inventory Movements"
                 columns={["Requester", "Requested From", "Status", "Transfer Date"]}
                 rows={pendingTransfers}
+                emptyMessage="No pending inventory movements."
             />
         </div>
     );
