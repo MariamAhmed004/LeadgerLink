@@ -1,6 +1,8 @@
 
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Implementations;
+using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +22,16 @@ namespace LeadgerLink.Server
             // 2) Add Identity DB context (separate)
             builder.Services.AddDbContext<IdentityContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // register repositories
+            builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
+            builder.Services.AddScoped<IStoreRepository, StoreRepository>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<ISaleRepository, SaleRepository>();
+            builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
+            builder.Services.AddScoped<IInventoryTransferRepository, InventoryTransferRepository>();
+            builder.Services.AddScoped<IRecipeRepository, RecipeRepository>();
+            builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
             // 3) Add Identity
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()

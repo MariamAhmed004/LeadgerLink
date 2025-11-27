@@ -3,7 +3,6 @@ import WelcomeMessage from "../../components/homepages/WelcomeMessage";
 import CardSection from "../../components/homepages/HomePageCardSection";
 import HomePageTable from "../../components/homepages/HomePageTable";
 
-
 const AdminHomePage = () => {
     const [username, setUsername] = useState("Admin<User>");
     const [cards, setCards] = useState([]);
@@ -13,28 +12,34 @@ const AdminHomePage = () => {
         exceptionsToday: 0,
     });
 
-    // Placeholder: Fetch dashboard stats
+    // Fetch dashboard stats including organization count and users count
     const fetchDashboardStats = async () => {
-        // TODO: Replace with actual API call
-        setCards([
-            {
-                title: "Total Organizations",
-                value: 32,
-            },
-            {
-                title: "Total Users",
-                value: 22,
-            },
-            {
-                title: "Active Users Today",
-                value: 11,
-            },
-        ]);
+        try {
+            const [orgRes, usersRes] = await Promise.all([
+                fetch("/api/organizations/count", { credentials: "include" }),
+                fetch("/api/users/count", { credentials: "include" })
+            ]);
+
+            const orgCount = orgRes.ok ? await orgRes.json() : 0;
+            const usersCount = usersRes.ok ? await usersRes.json() : 0;
+
+            setCards([
+                { title: "Total Organizations", value: orgCount },
+                { title: "Total Users", value: usersCount },
+                { title: "Active Users Today", value: 11 }, // keep placeholder for now
+            ]);
+        } catch (err) {
+            console.error("Failed to load dashboard stats", err);
+            setCards([
+                { title: "Total Organizations", value: 0 },
+                { title: "Total Users", value: 0 },
+                { title: "Active Users Today", value: 0 },
+            ]);
+        }
     };
 
-    //  Placeholder: Fetch recent activity logs
+    // Placeholder: Fetch recent activity logs
     const fetchActivityLogs = async () => {
-        // TODO: Replace with actual API call
         setActivityLogs([
             ["22: John Doe", "11:23:04 October 12, 2025", "Logged out"],
             ["22: John Doe", "11:03:46 October 12, 2025", "Created a new branch employee user"],
@@ -42,9 +47,8 @@ const AdminHomePage = () => {
         ]);
     };
 
-    //  Placeholder: Fetch log overview
+    // Placeholder: Fetch log overview
     const fetchLogOverview = async () => {
-        // TODO: Replace with actual API call
         setLogOverview({
             totalLogs: 12,
             exceptionsToday: 1,
