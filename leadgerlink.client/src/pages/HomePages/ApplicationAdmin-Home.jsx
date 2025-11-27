@@ -12,7 +12,9 @@ const AdminHomePage = () => {
         exceptionsToday: 0,
     });
 
-    // Fetch dashboard stats including organization count and users count
+    const getTodayString = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Fetch dashboard stats including organization count, users count and active users today
     const fetchDashboardStats = async () => {
         try {
             const [orgRes, usersRes] = await Promise.all([
@@ -23,11 +25,27 @@ const AdminHomePage = () => {
             const orgCount = orgRes.ok ? await orgRes.json() : 0;
             const usersCount = usersRes.ok ? await usersRes.json() : 0;
 
+            // audit counts for today
+            const today = getTodayString();
+            const [todayLogsRes, loginRes] = await Promise.all([
+                fetch(`/api/auditlogs/count?from=${today}&to=${today}`, { credentials: "include" }),
+                fetch(`/api/auditlogs/count?from=${today}&to=${today}&actionType=Login`, { credentials: "include" })
+            ]);
+
+            const todayLogs = todayLogsRes.ok ? await todayLogsRes.json() : 0;
+            const activeUsersToday = loginRes.ok ? await loginRes.json() : 0;
+
             setCards([
                 { title: "Total Organizations", value: orgCount },
                 { title: "Total Users", value: usersCount },
-                { title: "Active Users Today", value: 11 }, // keep placeholder for now
+                { title: "Active Users Today", value: activeUsersToday },
             ]);
+
+            // update log overview values that were previously placeholders
+            setLogOverview(prev => ({
+                ...prev,
+                totalLogs: todayLogs
+            }));
         } catch (err) {
             console.error("Failed to load dashboard stats", err);
             setCards([
@@ -35,24 +53,52 @@ const AdminHomePage = () => {
                 { title: "Total Users", value: 0 },
                 { title: "Active Users Today", value: 0 },
             ]);
+            setLogOverview({ totalLogs: 0, exceptionsToday: 0 });
         }
     };
 
-    // Placeholder: Fetch recent activity logs
+    // Fetch recent activity logs for the main table using audit logs overview endpoint
     const fetchActivityLogs = async () => {
-        setActivityLogs([
-            ["22: John Doe", "11:23:04 October 12, 2025", "Logged out"],
-            ["22: John Doe", "11:03:46 October 12, 2025", "Created a new branch employee user"],
-            ["22: John Doe", "10:25:13 October 12, 2025", "Logged In to the system"],
-        ]);
+        try {
+            const res = await fetch("/api/auditlogs/overview?page=1&pageSize=10", { credentials: "include" });
+            if (!res.ok) {
+                setActivityLogs([]);
+                return;
+            }
+            const items = await res.json();
+            // Convert overview DTOs into rows expected by HomePageTable
+            const rows = items.map((it) => [
+                it.userName ?? "System",
+                new Date(it.timestamp).toLocaleString(),
+                it.details ?? ""
+            ]);
+            setActivityLogs(rows);
+        } catch (err) {
+            console.error("Failed to load activity logs", err);
+            setActivityLogs([]);
+        }
     };
 
-    // Placeholder: Fetch log overview
+    // Fetch log overview counts (total today and exceptions today)
     const fetchLogOverview = async () => {
-        setLogOverview({
-            totalLogs: 12,
-            exceptionsToday: 1,
-        });
+        try {
+            const today = getTodayString();
+            const [totalRes, exceptionsRes] = await Promise.all([
+                fetch(`/api/auditlogs/count?from=${today}&to=${today}`, { credentials: "include" }),
+                fetch(`/api/auditlogs/count?from=${today}&to=${today}&actionType=Exception`, { credentials: "include" })
+            ]);
+
+            const total = totalRes.ok ? await totalRes.json() : 0;
+            const exceptions = exceptionsRes.ok ? await exceptionsRes.json() : 0;
+
+            setLogOverview({
+                totalLogs: total,
+                exceptionsToday: exceptions,
+            });
+        } catch (err) {
+            console.error("Failed to load log overview", err);
+            setLogOverview({ totalLogs: 0, exceptionsToday: 0 });
+        }
     };
 
     useEffect(() => {
@@ -73,6 +119,7 @@ const AdminHomePage = () => {
                 title="Recent Activity"
                 columns={["User", "Timestamp", "Log Details"]}
                 rows={activityLogs}
+                emptyMessage="There is no activity logged yet."
             />
 
             {/* Logs Overview as two cards */}
