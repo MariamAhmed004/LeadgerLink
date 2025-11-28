@@ -1,6 +1,5 @@
-const FilterDate = ({ label, value, onChange }) => (
+const FilterDate = ({ value, onChange }) => (
     <div className="mb-3">
-        <label className="form-label fw-semibold text-secondary">{label}</label>
         <input
             type="date"
             className="form-control"

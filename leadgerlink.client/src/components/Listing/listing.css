@@ -1,4 +1,9 @@
-/* Shared listing component styles (single source of truth) */
+
+/* ============================================================
+   Section: PageHeader / Actions layout
+   Styles that control the layout and sizing of the header action
+   buttons and their responsive behavior.
+   ============================================================ */
 
 /* PageHeader actions container */
 .page-header-actions {
@@ -38,4 +43,132 @@
   .page-header-actions .page-header-btn {
     min-width: 120px;
   }
+}
+
+/* ============================================================
+   Section: FilterSection (bottom row controls)
+   Styles used by FilterSection component to align the bottom
+   row containing entries selector (left) and search (right).
+   ============================================================ */
+
+/* --- FilterSection bottom row styles --- */
+.filter-bottom-row {
+  margin-top: 0.75rem;
+}
+
+/* left: entries selector alignment */
+.filter-bottom-left {
+  display: flex;
+  align-items: center;
+}
+
+/* right: search field alignment */
+.filter-bottom-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* constrain search field width so it doesn't stretch too wide */
+.filter-bottom-right .search-wrapper {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Responsive: stack controls and center them on very small screens */
+@media (max-width: 576px) {
+  .filter-bottom-left,
+  .filter-bottom-right {
+    justify-content: center;
+  }
+
+  .filter-bottom-right .search-wrapper {
+    max-width: 100%;
+    padding: 0 0.5rem;
+  }
+
+  .filter-bottom-left {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* ============================================================
+   Section: Link styles (hover / focus / visited)
+   Controls link interaction visuals used inside tables and
+   table-row links across listing components.
+   ============================================================ */
+
+/* Hover/focus styles for table row links */
+.table-row-link {
+  transition: color 0.15s ease, text-decoration-color 0.15s ease, transform 0.12s ease;
+  text-decoration-thickness: 1.5px;
+}
+
+.table-row-link:hover,
+.table-row-link:focus {
+  color: var(--bs-primary); /* uses Bootstrap primary color */
+  text-decoration-color: var(--bs-primary);
+  transform: translateX(2px);
+  outline: none;
+}
+
+/* Optional: keep focus visible for keyboard users */
+.table-row-link:focus-visible {
+  box-shadow: 0 0 0 0.15rem rgba(13,110,253,0.25);
+  border-radius: 0.25rem;
+}
+
+.entity-table a {
+    color: var(--bs-dark);
+}
+
+/* Visited links should use the secondary color */
+.table-row-link:visited,
+.entity-table a.table-row-link:visited {
+    color: var(--bs-secondary);
+    text-decoration-color: var(--bs-secondary);
+}
+
+/* ============================================================
+   Section: Entity Table visual adjustments
+   Visual tweaks for table appearance: rounded corners,
+   primary-colored headers, borders and subtle row hover.
+   ============================================================ */
+
+/* Entity table visual adjustments: rounded corners and primary headers */
+/* Keep hover and existing behaviors unchanged; add visual tweaks only. */
+.entity-table {
+    width: 100%;
+    border-collapse: separate; /* allow rounded corners */
+    border-spacing: 0;
+    border-radius: 0.5rem; /* rounded corners for the table */
+    overflow: hidden; /* clip header/background to rounded corners */
+    border: 0.2px solid #325d8880 !important; /* use primary for outer border */
+}
+
+/* Make the header use the primary color and white text */
+    .entity-table thead th {
+        background-color: var(--bs-primary) !important;
+        color: var(--bs-white, #fff) !important;
+        border: 0.5px solid #325d8880 !important; /* use primary for outer border */
+    }
+
+/* Ensure first and last header cells visually respect the rounded corners */
+.entity-table thead th:first-child {
+  border-top-left-radius: 0.5rem;
+}
+
+.entity-table thead th:last-child {
+  border-top-right-radius: 0.5rem;
+}
+
+/* Keep body cells normal but aligned */
+.entity-table tbody td {
+  vertical-align: middle;
+  background-color: var(--bs-white, #fff);
+}
+
+/* Subtle hover on rows to improve readability */
+.entity-table tbody tr:hover {
+  background-color: rgba(13,110,253,0.03); /* light tint of primary */
 }

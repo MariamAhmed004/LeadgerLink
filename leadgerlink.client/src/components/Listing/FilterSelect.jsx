@@ -1,11 +1,12 @@
 const FilterSelect = ({ label, options, value, onChange }) => (
     <div className="mb-3">
-        <label className="form-label fw-semibold text-secondary">{label}</label>
         <select
             className="form-select"
-            value={value}
+            value={value ?? ""}
             onChange={(e) => onChange(e.target.value)}
+            aria-label={label}
         >
+            <option value="">{label}</option>
             {options.map((opt, index) => (
                 <option key={index} value={opt.value}>
                     {opt.label}
