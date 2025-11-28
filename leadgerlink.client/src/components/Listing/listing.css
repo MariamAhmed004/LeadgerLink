@@ -1,0 +1,41 @@
+/* Shared listing component styles (single source of truth) */
+
+/* PageHeader actions container */
+.page-header-actions {
+  flex-basis: 34%;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  align-items: center;
+  padding-inline: 0.5rem; /* keep spacing from container edges */
+}
+
+/* Make all action buttons the same width and centered content */
+.page-header-actions .page-header-btn {
+  min-width: 140px; /* adjust to taste */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Optional: ensure equal spacing from container edges (mx-2 equivalent) */
+.page-header-actions {
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+/* Small responsive tweak: stack on very narrow screens */
+@media (max-width: 576px) {
+  .page-header-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+
+  .page-header-actions .page-header-btn {
+    min-width: 120px;
+  }
+}

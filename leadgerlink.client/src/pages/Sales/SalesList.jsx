@@ -1,64 +1,131 @@
-import React from 'react';
+import { useState } from "react";
+import { FaFileInvoice, FaPlus } from "react-icons/fa";
+import PageHeader from "../../components/Listing/PageHeader";
+import FilterSection from "../../components/Listing/FilterSection";
+import FilterSelect from "../../components/Listing/FilterSelect";
+import FilterDate from "../../components/Listing/FilterDate";
+import SearchField from "../../components/Listing/SearchField";
+import EntriesPerPageSelector from "../../components/Listing/EntriesPerPageSelector";
+import EntityTable from "../../components/Listing/EntityTable";
+import TableRowLink from "../../components/Listing/TableRowLink";
+import PaginationSection from "../../components/Listing/PaginationSection";
 
-// SalesSection Component
-// This component displays:
-// - A button for adding new sales
-// - Filtering options
-// - A list of sales (latest to oldest)
-// All logic is mocked for future implementation.
+const SalesListPage = () => {
+    const [createdBy, setCreatedBy] = useState("");
+    const [selectedDate, setSelectedDate] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [entriesPerPage, setEntriesPerPage] = useState(10);
+    const [currentPage, setCurrentPage] = useState(1);
 
-const SalesSection = () => {
-  // Placeholder for future state management (e.g., sales data, filters)
-  // const [sales, setSales] = React.useState([]);
-  // const [filter, setFilter] = React.useState('');
+    // Sample static data
+    const sales = [
+        {
+            id: 1,
+            timestamp: "11:03:46 October 12, 2025",
+            createdBy: "Healthcare",
+            amount: "12.500 BHD",
+            method: "support@bh",
+        },
+        {
+            id: 2,
+            timestamp: "11:03:46 October 12, 2025",
+            createdBy: "Manufacturing",
+            amount: "9.200 BHD",
+            method: "info@acme",
+        },
+        {
+            id: 3,
+            timestamp: "11:03:46 October 12, 2025",
+            createdBy: "Education",
+            amount: "15.000 BHD",
+            method: "hello@edu",
+        },
+    ];
 
-  // Handler for adding a new sale (to be implemented)
-  const handleAddSale = () => {
-    // TODO: Implement logic to add a new sale
-  };
+    // Filtered and paginated rows
+    const filteredSales = sales.filter((sale) =>
+        sale.createdBy.toLowerCase().includes(createdBy.toLowerCase()) &&
+        sale.timestamp.includes(selectedDate) &&
+        (searchTerm === "" ||
+            sale.createdBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            sale.method.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
-  // Handler for filter changes (to be implemented)
-  const handleFilterChange = (event) => {
-    // TODO: Implement logic to filter sales
-  };
+    const paginatedSales = filteredSales.slice(
+        (currentPage - 1) * entriesPerPage,
+        currentPage * entriesPerPage
+    );
 
-  return (
-    <div className="sales-section">
-      {/* Top controls: Add Sale button and filtering options */}
-      <div className="sales-controls" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-        {/* Add New Sale Button */}
-        <button onClick={handleAddSale}>
-          Add New Sale
-        </button>
+    const tableRows = paginatedSales.map((sale) => [
+        <TableRowLink key={sale.id} to={`/sales/${sale.id}`}>
+            {sale.timestamp}
+        </TableRowLink>,
+        sale.createdBy,
+        sale.amount,
+        sale.method,
+    ]);
 
-        {/* Filtering Options (e.g., dropdown, search input) */}
-        {/* Replace with actual filter controls as needed */}
-        <select onChange={handleFilterChange}>
-          <option value="">All Sales</option>
-          <option value="today">Today</option>
-          <option value="thisWeek">This Week</option>
-          {/* Add more filter options as needed */}
-        </select>
-      </div>
+    return (
+        <div className="container py-5">
+            {/* Header - new structure: icon, title, two description lines, and action buttons */}
+            <PageHeader
+                icon={<FaFileInvoice size={28} />}
+                title="Sales"
+                descriptionLines={[
+                    "View and manage recorded sales. Use filters to narrow results.",
+                    "Create new sales records or inspect existing transactions."
+                ]}
+                actions={[
+                    {
+                        icon: <FaPlus />,
+                        title: "New Sale",
+                        route: "/sales/new"
+                    }
+                ]}
+            />
 
-      {/* Sales List (latest to oldest) */}
-      <div className="sales-list">
-        {/* TODO: Map over sales data and render each sale item */}
-        {/* Example placeholder items */}
-        <div className="sale-item">
-          {/* Replace with actual sale data */}
-          <p>Sale #1 (Latest)</p>
+            {/* Filter Section */}
+            <FilterSection>
+                <div className="col-md-4">
+                    <FilterSelect
+                        label="Created By"
+                        value={createdBy}
+                        onChange={setCreatedBy}
+                        options={[
+                            { label: "All", value: "" },
+                            { label: "Healthcare", value: "Healthcare" },
+                            { label: "Manufacturing", value: "Manufacturing" },
+                            { label: "Education", value: "Education" },
+                        ]}
+                    />
+                </div>
+                <div className="col-md-4">
+                    <FilterDate label="Date" value={selectedDate} onChange={setSelectedDate} />
+                </div>
+                <div className="col-md-4">
+                    <SearchField value={searchTerm} onChange={setSearchTerm} placeholder="Search sales..." />
+                </div>
+                <div className="col-md-4">
+                    <EntriesPerPageSelector value={entriesPerPage} onChange={setEntriesPerPage} />
+                </div>
+            </FilterSection>
+
+            {/* Table */}
+            <EntityTable
+                title="Sales Records"
+                columns={["Timestamp", "Created By", "Total Amount", "Payment Method"]}
+                rows={tableRows}
+                emptyMessage="No sales found for the selected filters."
+            />
+
+            {/* Pagination */}
+            <PaginationSection
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredSales.length / entriesPerPage)}
+                onPageChange={setCurrentPage}
+            />
         </div>
-        <div className="sale-item">
-          <p>Sale #2</p>
-        </div>
-        <div className="sale-item">
-          <p>Sale #3 (Oldest)</p>
-        </div>
-        {/* End of placeholder items */}
-      </div>
-    </div>
-  );
+    );
 };
 
-export default SalesSection;
+export default SalesListPage;
