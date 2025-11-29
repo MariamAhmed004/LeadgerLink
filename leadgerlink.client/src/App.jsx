@@ -1,6 +1,6 @@
 import './App.css';
 import Layout from './components/Layout/Layout.jsx';
-import { AuthProvider } from "./Context/AuthContext";
+import { AuthProvider } from "./Context/AuthProvider";
 import AppRoutes from './components/AppRoutes';
 import { useLocation } from "react-router-dom";
 
