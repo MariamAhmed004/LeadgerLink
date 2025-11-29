@@ -183,5 +183,31 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return sum ?? 0m;
         }
+
+        // Returns a lightweight list of sales for the specified store.
+        public async Task<IEnumerable<SaleListDto>> GetSalesByStoreAsync(int storeId)
+        {
+            var query = _context.Sales
+                .Where(s => s.StoreId == storeId)
+                .Include(s => s.User)
+                .Include(s => s.PaymentMethod)
+                .OrderByDescending(s => s.Timestamp)
+                .Select(s => new SaleListDto
+                {
+                    Id = s.SaleId,
+                    Timestamp = s.Timestamp,
+                    CreatedById = s.UserId,
+                    CreatedByName = (s.User != null)
+                        ? ( (s.User.UserFirstname ?? string.Empty).Trim() + " " + (s.User.UserLastname ?? string.Empty).Trim() ).Trim()
+                        : null,
+                    Amount = s.TotalAmount,
+                    PaymentMethodId = s.PaymentMethodId,
+                    // best-effort projection for payment method name; may be null depending on model
+                    PaymentMethodName = s.PaymentMethod != null ? s.PaymentMethod.PaymentMethodName
+                                                                  : null
+                });
+
+            return await query.ToListAsync();
+        }
     }
 }

@@ -37,5 +37,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Sum sales made by a specific user in a store for a given year and month.
         Task<decimal> SumSalesByUserAsync(int userId, int storeId, int year, int month);
+
+        // Get sales list for a store (used by the frontend listing page)
+        Task<IEnumerable<SaleListDto>> GetSalesByStoreAsync(int storeId);
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -15,10 +16,14 @@ namespace LeadgerLink.Server.Controllers
     public class SalesController : ControllerBase
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly ISaleRepository _saleRepository;
+        private readonly IUserRepository _userRepository;
 
-        public SalesController(LedgerLinkDbContext context)
+        public SalesController(LedgerLinkDbContext context, ISaleRepository saleRepository, IUserRepository userRepository)
         {
             _context = context;
+            _saleRepository = saleRepository;
+            _userRepository = userRepository;
         }
 
         // GET api/sales/sum?organizationId=5&from=2025-11-27&to=2025-11-27
@@ -130,6 +135,75 @@ namespace LeadgerLink.Server.Controllers
                 .FirstOrDefaultAsync();
 
             return Ok(recipe);
+        }
+
+        // GET api/sales?storeId=5
+        // If storeId is provided it returns sales for that store, otherwise it resolves the current authenticated user's store and returns sales for it.
+        [Authorize]
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<SaleListDto>>> GetSalesByStore([FromQuery] int? storeId)
+        {
+            int resolvedStoreId;
+
+            if (storeId.HasValue)
+            {
+                resolvedStoreId = storeId.Value;
+            }
+            else
+            {
+                // resolve from authenticated user
+                if (User?.Identity?.IsAuthenticated != true)
+                    return Unauthorized();
+
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return Unauthorized();
+
+                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (domainUser == null || !domainUser.StoreId.HasValue)
+                    return Ok(Enumerable.Empty<SaleListDto>());
+
+                resolvedStoreId = domainUser.StoreId.Value;
+            }
+
+            var sales = await _saleRepository.GetSalesByStoreAsync(resolvedStoreId);
+            return Ok(sales);
+        }
+
+        // GET api/sales/store-users?storeId=5
+        // Returns users for the store (for populating the "Created By" filter).
+        [Authorize]
+        [HttpGet("store-users")]
+        public async Task<ActionResult<IEnumerable<UserListItemDto>>> GetUsersForStore([FromQuery] int? storeId)
+        {
+            int resolvedStoreId;
+
+            if (storeId.HasValue)
+            {
+                resolvedStoreId = storeId.Value;
+            }
+            else
+            {
+                if (User?.Identity?.IsAuthenticated != true)
+                    return Unauthorized();
+
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return Unauthorized();
+
+                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (domainUser == null || !domainUser.StoreId.HasValue)
+                    return Ok(Enumerable.Empty<UserListItemDto>());
+
+                resolvedStoreId = domainUser.StoreId.Value;
+            }
+
+            var users = await _userRepository.GetUsersByStoreAsync(resolvedStoreId);
+            return Ok(users);
         }
     }
 }

@@ -1,8 +1,10 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Dtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -30,6 +32,22 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 return null!;
 
             return await _context.Users.FindAsync(top.UserId);
+        }
+
+        // Return lightweight user list items for a store
+        public async Task<IEnumerable<UserListItemDto>> GetUsersByStoreAsync(int storeId)
+        {
+            var q = _context.Users
+                .Where(u => u.StoreId == storeId && u.IsActive)
+                .OrderBy(u => u.UserFirstname)
+                .Select(u => new UserListItemDto
+                {
+                    UserId = u.UserId,
+                    FullName = ((u.UserFirstname ?? string.Empty).Trim() + " " + (u.UserLastname ?? string.Empty).Trim()).Trim(),
+                    Email = u.Email
+                });
+
+            return await q.ToListAsync();
         }
     }
 }

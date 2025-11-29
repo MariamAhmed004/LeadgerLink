@@ -15,7 +15,7 @@ public partial class PaymentMethod
 
     [Column("payment_method")]
     [StringLength(50)]
-    public string PaymentMethod1 { get; set; } = null!;
+    public string PaymentMethodName { get; set; } = null!;
 
     [InverseProperty("PaymentMethod")]
     public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
