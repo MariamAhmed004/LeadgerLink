@@ -200,3 +200,140 @@
   width: 100%;
   min-height: 44px;
 }
+
+/* ============================================================
+   Metadata table (grey variant)
+   - Matches entity table borders / rounded corners
+   - Uses grey accents instead of primary color
+   - Label column bold + underlined, value column left-aligned
+   ============================================================ */
+
+/* Base table frame - visible dark outer border */
+.metadata-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 0.2px solid #3E3F3A !important; 
+    background-color: var(--bs-white);
+}
+
+/* If a header is used, style it to match the dark accent */
+.metadata-table thead th {
+    background-color: #3E3F3A;
+    color: var(--bs-white);
+    border: none;
+}
+
+/* Keep first/last header rounded if there is a thead */
+.metadata-table thead th:first-child {
+  border-top-left-radius: 0.5rem;
+}
+.metadata-table thead th:last-child {
+  border-top-right-radius: 0.5rem;
+}
+
+/* Body label column - bold and underlined, left aligned.
+   No horizontal cell borders between rows; only a vertical separator
+   between label and value to visually separate columns. */
+.metadata-table tbody th,
+.metadata-table tbody th.detail-label {
+  width: 45%;
+  vertical-align: middle;
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 0.75rem;
+  background-color: transparent;
+  border: none;                 /* remove horizontal/outer cell borders */
+  border-right: 1px solid #3E3F3A; /* vertical separator only */
+}
+
+/* Value column - no cell borders so rows have no horizontal lines */
+.metadata-table tbody td,
+.metadata-table tbody td.detail-value {
+  padding: 0.75rem;
+  vertical-align: middle;
+  background-color: var(--bs-white);
+  border: none;
+}
+
+/* Ensure table cells do not display inner borders (override Bootstrap .table-bordered) */
+.metadata-table th,
+.metadata-table td {
+  border: none !important;
+}
+
+/* Hover state remains but neutral */
+.metadata-table tbody tr:hover {
+  background-color: rgba(0,0,0,0.02);
+}
+
+/* Small screens: stack labels above values (no horizontal separators) */
+@media (max-width: 576px) {
+  .metadata-table tbody th,
+  .metadata-table tbody td {
+    display: block;
+    width: 100%;
+    border-right: none;
+  }
+
+  .metadata-table tbody tr {
+    display: block;
+    margin-bottom: 0.5rem;
+    border-bottom: none;
+  }
+}
+
+/* ============================================================
+   Section: Detail page actions layout
+   Horizontal/Vertical button layouts for detail pages.
+   ============================================================ */
+
+/* Detail page actions layout
+   - Horizontal: buttons laid out in a single row, equal width
+   - Vertical: buttons stacked, full width of container
+*/
+.page-actions-wrapper {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* container for the buttons */
+.page-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Horizontal layout: buttons share available width equally */
+.page-actions.horizontal {
+  flex-direction: row;
+  width: 100%;
+  max-width: 640px; /* limits total button area; adjust if needed */
+}
+
+/* make each button grow equally in horizontal layout */
+.page-actions.horizontal .page-action-btn {
+  flex: 1 1 0;
+  min-width: 120px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Vertical layout: buttons stacked */
+.page-actions.vertical {
+  flex-direction: column;
+  width: 100%;
+  max-width: 340px; /* width of the stack container; adjust if needed */
+}
+
+/* vertical buttons full width of the actions container */
+.page-actions.vertical .page-action-btn {
+  width: 100%;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
