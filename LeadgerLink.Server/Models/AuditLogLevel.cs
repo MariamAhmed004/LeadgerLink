@@ -14,9 +14,9 @@ public partial class AuditLogLevel
     [StringLength(50)]
     public string AuditLogLevelId { get; set; } = null!;
 
-    [Column("audit_log_level")]
+    [Column("audit_log_level_name")]
     [StringLength(150)]
-    public string AuditLogLevel1 { get; set; } = null!;
+    public string AuditLogLevelName { get; set; } = null!;
 
     [InverseProperty("AuditLogLevel")]
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();

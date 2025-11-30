@@ -14,9 +14,9 @@ public partial class ActionType
     [StringLength(50)]
     public string ActionTypeId { get; set; } = null!;
 
-    [Column("action_type")]
+    [Column("action_type_name")]
     [StringLength(50)]
-    public string ActionType1 { get; set; } = null!;
+    public string ActionTypeName { get; set; } = null!;
 
     [InverseProperty("ActionType")]
     public virtual ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();

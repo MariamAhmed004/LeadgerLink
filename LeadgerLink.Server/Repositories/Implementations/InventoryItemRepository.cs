@@ -47,7 +47,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var query = await _context.InventoryItems
                 .Where(ii => ii.StoreId == storeId)
-                .GroupBy(ii => new { ii.InventoryItemCategoryId, CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategory1 : null })
+                .GroupBy(ii => new { ii.InventoryItemCategoryId, CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : null })
                 .Select(g => new InventoryCategoryLevelDto
                 {
                     CategoryId = g.Key.InventoryItemCategoryId,
@@ -66,7 +66,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var query = await _context.InventoryItems
                 .Include(ii => ii.Store)
                 .Where(ii => ii.Store != null && ii.Store.OrgId == organizationId)
-                .GroupBy(ii => new { ii.InventoryItemCategoryId, CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategory1 : null })
+                .GroupBy(ii => new { ii.InventoryItemCategoryId, CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : null })
                 .Select(g => new InventoryCategoryLevelDto
                 {
                     CategoryId = g.Key.InventoryItemCategoryId,

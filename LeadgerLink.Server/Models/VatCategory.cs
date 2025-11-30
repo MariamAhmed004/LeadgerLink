@@ -13,9 +13,9 @@ public partial class VatCategory
     [Column("VAT_category_id")]
     public int VatCategoryId { get; set; }
 
-    [Column("VAT_category")]
+    [Column("VAT_category_name")]
     [StringLength(150)]
-    public string VatCategory1 { get; set; } = null!;
+    public string VatCategoryName { get; set; } = null!;
 
     [Column("VAT_rate", TypeName = "decimal(7, 3)")]
     public decimal VatRate { get; set; }

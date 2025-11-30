@@ -13,7 +13,7 @@ public partial class PaymentMethod
     [Column("payment_method_id")]
     public int PaymentMethodId { get; set; }
 
-    [Column("payment_method")]
+    [Column("payment_method_name")]
     [StringLength(50)]
     public string PaymentMethodName { get; set; } = null!;
 

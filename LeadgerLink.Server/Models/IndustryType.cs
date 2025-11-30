@@ -13,9 +13,9 @@ public partial class IndustryType
     [Column("industry_type_id")]
     public int IndustryTypeId { get; set; }
 
-    [Column("industry_type")]
+    [Column("industry_type_name")]
     [StringLength(250)]
-    public string IndustryType1 { get; set; } = null!;
+    public string IndustryTypeName { get; set; } = null!;
 
     [InverseProperty("IndustryType")]
     public virtual ICollection<Organization> Organizations { get; set; } = new List<Organization>();

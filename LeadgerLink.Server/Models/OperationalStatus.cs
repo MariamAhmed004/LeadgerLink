@@ -13,9 +13,9 @@ public partial class OperationalStatus
     [Column("operational_status_id")]
     public int OperationalStatusId { get; set; }
 
-    [Column("operational_status")]
+    [Column("operational_status_name")]
     [StringLength(50)]
-    public string OperationalStatus1 { get; set; } = null!;
+    public string OperationalStatusName { get; set; } = null!;
 
     [InverseProperty("OperationalStatus")]
     public virtual ICollection<Store> Stores { get; set; } = new List<Store>();

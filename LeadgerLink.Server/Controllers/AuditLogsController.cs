@@ -37,7 +37,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 q = q.Where(a =>
                     a.ActionTypeId == actionType
-                    || a.ActionType != null && a.ActionType.ActionType1 == actionType);
+                    || a.ActionType != null && a.ActionType.ActionTypeName == actionType);
             }
 
             if (organizationId.HasValue)
@@ -89,7 +89,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 q = q.Where(a =>
                     a.ActionTypeId == actionType
-                    || a.ActionType != null && a.ActionType.ActionType1 == actionType);
+                    || a.ActionType != null && a.ActionType.ActionTypeName == actionType);
             }
 
             if (organizationId.HasValue)
@@ -119,7 +119,7 @@ namespace LeadgerLink.Server.Controllers
                     Timestamp = a.Timestamp,
                     UserId = a.UserId,
                     UserName = a.User != null ? (a.User.UserFirstname + " " + a.User.UserLastname).Trim() : null,
-                    ActionType = a.ActionType != null ? a.ActionType.ActionType1 : a.ActionTypeId,
+                    ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId,
                     Details = a.Details
                 })
                 .ToListAsync();
@@ -145,8 +145,8 @@ namespace LeadgerLink.Server.Controllers
                 Timestamp = a.Timestamp,
                 UserId = a.UserId,
                 UserName = a.User != null ? (a.User.UserFirstname + " " + a.User.UserLastname).Trim() : null,
-                ActionType = a.ActionType != null ? a.ActionType.ActionType1 : a.ActionTypeId,
-                AuditLogLevel = a.AuditLogLevel != null ? a.AuditLogLevel.AuditLogLevel1 : a.AuditLogLevelId,
+                ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId,
+                AuditLogLevel = a.AuditLogLevel != null ? a.AuditLogLevel.AuditLogLevelName : a.AuditLogLevelId,
                 OldValue = a.OldValue,
                 NewValue = a.NewValue,
                 Details = a.Details

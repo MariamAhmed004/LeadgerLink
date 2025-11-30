@@ -13,9 +13,9 @@ public partial class InventoryItemCategory
     [Column("inventory_item_category_id")]
     public int InventoryItemCategoryId { get; set; }
 
-    [Column("inventory_item_category")]
+    [Column("inventory_item_category_name")]
     [StringLength(150)]
-    public string InventoryItemCategory1 { get; set; } = null!;
+    public string InventoryItemCategoryName { get; set; } = null!;
 
     [InverseProperty("InventoryItemCategory")]
     public virtual ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();

@@ -64,7 +64,7 @@ namespace LeadgerLink.Server.Controllers
 
             if (!string.IsNullOrWhiteSpace(type))
             {
-                q = q.Where(n => n.NotificationType != null && n.NotificationType.NotificationType1 == type);
+                q = q.Where(n => n.NotificationType != null && n.NotificationType.NotificationTypeName == type);
             }
 
             if (organizationId.HasValue)

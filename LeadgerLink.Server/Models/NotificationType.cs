@@ -13,9 +13,9 @@ public partial class NotificationType
     [Column("notification_type_id")]
     public int NotificationTypeId { get; set; }
 
-    [Column("notification_type")]
+    [Column("notification_type_name")]
     [StringLength(250)]
-    public string NotificationType1 { get; set; } = null!;
+    public string NotificationTypeName { get; set; } = null!;
 
     [InverseProperty("NotificationType")]
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
