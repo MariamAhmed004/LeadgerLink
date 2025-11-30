@@ -1,4 +1,3 @@
-
 /* ============================================================
    Section: PageHeader / Actions layout
    Styles that control the layout and sizing of the header action
@@ -171,4 +170,33 @@
 /* Subtle hover on rows to improve readability */
 .entity-table tbody tr:hover {
   background-color: rgba(13,110,253,0.03); /* light tint of primary */
+}
+
+/* Stock indicator (small colored circle) */
+.stock-indicator {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.03) inset;
+  flex-shrink: 0;
+}
+
+/* Colors */
+.stock-red {
+  background-color: #dc3545; /* bootstrap danger */
+}
+.stock-yellow {
+  background-color: #ffc107; /* bootstrap warning */
+}
+.stock-green {
+  background-color: #28a745; /* bootstrap success */
+}
+
+.entity-table tbody td > .stock-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
 }

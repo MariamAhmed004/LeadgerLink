@@ -1,53 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaExchangeAlt } from 'react-icons/fa';
 
-// Placeholder Inventory Transfers list
-// Static content only — no data fetching or logic.
+import PageHeader from '../../components/Listing/PageHeader';
+import FilterSection from '../../components/Listing/FilterSection';
+import FilterSelect from '../../components/Listing/FilterSelect';
+import EntityTable from '../../components/Listing/EntityTable';
+import PaginationSection from '../../components/Listing/PaginationSection';
+
+// Inventory Transfers list
 export default function InventoryTransfersList() {
+  // Filters (no backend logic yet)
+  const [transferFlow, setTransferFlow] = useState('');
+  const [transferStatus, setTransferStatus] = useState('');
+
+  // Pagination placeholders
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Placeholder rows - wire up real data fetching later
+  const tableRows = [];
+
+  const transferFlowOptions = [
+    { label: 'All', value: '' },
+    { label: 'In', value: 'in' },
+    { label: 'Out', value: 'out' },
+  ];
+
+  const transferStatusOptions = [
+    { label: 'All', value: '' },
+    { label: 'Pending', value: 'pending' },
+    { label: 'In Transit', value: 'inTransit' },
+    { label: 'Completed', value: 'completed' },
+    { label: 'Cancelled', value: 'cancelled' },
+  ];
+
   return (
-    <div className="inventory-transfers-list container py-3">
-      <h2>Inventory Transfers</h2>
-      <p className="text-muted">This is a placeholder page used for navigation. No backend calls or props required.</p>
+    <div className="container py-5">
+      <PageHeader
+        icon={<FaExchangeAlt size={28} />}
+        title="Inventory Transfers"
+        descriptionLines={[
+          'View and manage inventory transfers between stores.',
+          'Use the filters to narrow results. No actions are shown in this header.',
+        ]}
+        actions={[]} // explicitly no action buttons in header
+      />
 
-      <div className="table-responsive mt-3">
-        <table className="table table-sm table-striped">
-          <thead>
-            <tr>
-              <th>Transfer ID</th>
-              <th>From Store</th>
-              <th>To Store</th>
-              <th>Items</th>
-              <th>Status</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>TR-0001</td>
-              <td>Main Store</td>
-              <td>Outlet #1</td>
-              <td>3</td>
-              <td>Pending</td>
-              <td>2025-01-01</td>
-            </tr>
-            <tr>
-              <td>TR-0002</td>
-              <td>Warehouse</td>
-              <td>Main Store</td>
-              <td>12</td>
-              <td>Completed</td>
-              <td>2025-01-02</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="d-flex justify-content-between align-items-center mt-3">
-        <small className="text-muted">Page 1 of 1 — 2 items</small>
-        <div>
-          <button className="btn btn-sm btn-secondary me-2" disabled>Previous</button>
-          <button className="btn btn-sm btn-secondary" disabled>Next</button>
+      <FilterSection
+        searchValue={''}
+        onSearchChange={() => {}}
+        searchPlaceholder=""
+        entriesValue={entriesPerPage}
+        onEntriesChange={setEntriesPerPage}
+      >
+        <div className="col-md-3">
+          <FilterSelect
+            label="Transfer Flow"
+            value={transferFlow}
+            onChange={setTransferFlow}
+            options={transferFlowOptions}
+          />
         </div>
-      </div>
+
+        <div className="col-md-3">
+          <FilterSelect
+            label="Transfer Status"
+            value={transferStatus}
+            onChange={setTransferStatus}
+            options={transferStatusOptions}
+          />
+        </div>
+      </FilterSection>
+
+      <EntityTable
+        title="Transfers"
+        columns={[
+          'In/Out',
+          'Requested On',
+          'Store Involved',
+          'Status',
+          'Driver',
+        ]}
+        rows={tableRows}
+        emptyMessage="No inventory transfers to display for the selected filters."
+      />
+
+      <PaginationSection
+        currentPage={currentPage}
+        totalPages={Math.ceil((tableRows.length || 0) / entriesPerPage)}
+        onPageChange={setCurrentPage}
+        entriesPerPage={entriesPerPage}
+        totalEntries={tableRows.length}
+      />
     </div>
   );
 }

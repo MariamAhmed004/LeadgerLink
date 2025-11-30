@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaPlus } from 'react-icons/fa';
 
-// RecipesManagement Component
+import PageHeader from "../../components/Listing/PageHeader";
+import FilterSection from "../../components/Listing/FilterSection";
+import FilterSelect from "../../components/Listing/FilterSelect";
+import EntityTable from "../../components/Listing/EntityTable";
+import PaginationSection from "../../components/Listing/PaginationSection";
+
+// Recipes Management Component
 // This component displays:
 // - A button for adding new recipes
 // - Filtering options
@@ -8,56 +15,76 @@ import React from 'react';
 // All logic is mocked for future implementation.
 
 const RecipesManagement = () => {
-  // Placeholder for future state management (e.g., recipes data, filters)
-  // const [recipes, setRecipes] = React.useState([]);
-  // const [filter, setFilter] = React.useState('');
+  // filter state (no logic yet)
+  const [onSaleFilter, setOnSaleFilter] = useState("");
+
+  // pagination placeholders
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // placeholder rows (wire real data later)
+  const tableRows = [];
+
+  const onSaleOptions = [
+    { label: "All", value: "" },
+    { label: "On Sale", value: "true" },
+    { label: "Not On Sale", value: "false" },
+  ];
 
   // Handler for adding a new recipe (to be implemented)
   const handleAddRecipe = () => {
     // TODO: Implement logic to add a new recipe
   };
 
-  // Handler for filter changes (to be implemented)
-  const handleFilterChange = (event) => {
-    // TODO: Implement logic to filter recipes
-  };
-
   return (
-    <div className="recipes-management-section">
-      {/* Top controls: Add Recipe button and filtering options */}
-      <div className="recipes-controls" style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-        {/* Add New Recipe Button */}
-        <button onClick={handleAddRecipe}>
-          Add New Recipe
-        </button>
+    <div className="container py-5">
+      <PageHeader
+        icon={<FaPlus size={28} />}
+        title="Recipes"
+        descriptionLines={[
+          "Manage recipes and their sale status.",
+          "Use the filter to show only recipes that are on sale or not.",
+        ]}
+        actions={[
+          {
+            icon: <FaPlus />,
+            title: "New Recipe",
+            route: "/recipes/new",
+          },
+        ]}
+      />
 
-        {/* Filtering Options (e.g., dropdown, search input) */}
-        {/* Replace with actual filter controls as needed */}
-        <select onChange={handleFilterChange}>
-          <option value="">All Recipes</option>
-          <option value="vegetarian">Vegetarian</option>
-          <option value="vegan">Vegan</option>
-          <option value="dessert">Dessert</option>
-          {/* Add more filter options as needed */}
-        </select>
-      </div>
+      <FilterSection
+        searchValue={""}
+        onSearchChange={() => {}}
+        searchPlaceholder=""
+        entriesValue={entriesPerPage}
+        onEntriesChange={setEntriesPerPage}
+      >
+        <div className="col-md-4">
+          <FilterSelect
+            label="On Sale"
+            value={onSaleFilter}
+            onChange={setOnSaleFilter}
+            options={onSaleOptions}
+          />
+        </div>
+      </FilterSection>
 
-      {/* Recipes List (latest to oldest) */}
-      <div className="recipes-list">
-        {/* TODO: Map over recipes data and render each recipe item */}
-        {/* Example placeholder items */}
-        <div className="recipe-item">
-          {/* Replace with actual recipe data */}
-          <p>Recipe #1 (Latest)</p>
-        </div>
-        <div className="recipe-item">
-          <p>Recipe #2</p>
-        </div>
-        <div className="recipe-item">
-          <p>Recipe #3 (Oldest)</p>
-        </div>
-        {/* End of placeholder items */}
-      </div>
+      <EntityTable
+        title="Recipe List"
+        columns={["On Sale", "Recipe Name", "Selling Price", "Added By"]}
+        rows={tableRows}
+        emptyMessage="No recipes to display."
+      />
+
+      <PaginationSection
+        currentPage={currentPage}
+        totalPages={Math.ceil((tableRows.length || 0) / entriesPerPage)}
+        onPageChange={setCurrentPage}
+        entriesPerPage={entriesPerPage}
+        totalEntries={tableRows.length}
+      />
     </div>
   );
 };
