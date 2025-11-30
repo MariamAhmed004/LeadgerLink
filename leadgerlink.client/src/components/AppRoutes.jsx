@@ -18,6 +18,7 @@ import Dashboard from "../pages/Dashboards/Dashboard";
 import Reports from "../pages/Reports";
 import Users from "../pages/Users/UsersList";
 import Sales from "../pages/Sales/SalesList";
+import SaleView from "../pages/Sales/SaleView";
 import InventoryManagement from "../pages/InventoryItems/InventoryItemsList";
 import Recipes from "../pages/Recipes/RecipesList";
 import ApplicationAuditLogsList from "../pages/AuditLogs/ApplicationAuditLogsList";
@@ -48,6 +49,7 @@ const AppRoutes = () => {
       <Route path="/reports" element={<Reports />} />
       <Route path="/users" element={<Users />} />
           <Route path="/sales" element={<Sales />} />
+          <Route path="/sales/:id" element={<SaleView />} />
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="*" element={<NotFound />} />
           <Route path="/recipes" element={<Recipes />} />

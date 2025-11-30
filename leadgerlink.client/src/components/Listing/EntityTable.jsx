@@ -27,7 +27,7 @@ const EntityTable = ({
         <thead className="table-light">
           <tr>
             {columns.map((col, index) => (
-              <th key={index}>{col}</th>
+              <th key={index} className="text-center">{col}</th>
             ))}
           </tr>
         </thead>
@@ -44,10 +44,10 @@ const EntityTable = ({
                   if (isLinkCell) {
                     const url = rowLink(row, rowIndex);
                     return (
-                      <td key={cellIndex}>
+                      <td key={cellIndex} className="text-center align-middle">
                         <Link
                           to={url}
-                          className="table-row-link text-decoration-underline fw-semibold"
+                          className="table-row-link text-decoration-underline fw-semibold d-inline-block"
                         >
                           {cell}
                         </Link>
@@ -55,7 +55,7 @@ const EntityTable = ({
                     );
                   }
 
-                  return <td key={cellIndex}>{cell}</td>;
+                  return <td key={cellIndex} className="text-center align-middle">{cell}</td>;
                 })}
               </tr>
             ))

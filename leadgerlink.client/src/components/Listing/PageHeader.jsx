@@ -54,12 +54,20 @@ const PageHeader = ({
         )}
       </div>
 
-      <div className="page-header-actions">
+      {/* Actions are always stacked vertically and share the same width */}
+      <div
+        className="page-header-actions d-flex flex-column align-items-center px-5"
+        style={{
+          minWidth: 220,            // ensure a consistent action column width
+          padding: "0.25rem 0.5rem",// little space on left & right
+          boxSizing: "border-box"
+        }}
+      >
         {allActions.map((act, idx) => (
           <Link
             key={idx}
             to={act.route}
-            className="btn btn-primary page-header-btn"
+            className="btn btn-primary page-header-btn mb-2 mx-3 w-100"
             role="button"
           >
             {act.icon && <span className="me-2">{act.icon}</span>}
