@@ -11,8 +11,7 @@ public partial class AuditLogLevel
 {
     [Key]
     [Column("audit_log_level_id")]
-    [StringLength(50)]
-    public string AuditLogLevelId { get; set; } = null!;
+    public int AuditLogLevelId { get; set; }
 
     [Column("audit_log_level_name")]
     [StringLength(150)]

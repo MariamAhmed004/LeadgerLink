@@ -24,20 +24,28 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // GET api/auditlogs/count
-        // Optional query: actionType (string), from (yyyy-MM-dd), to (yyyy-MM-dd), organizationId (int)
+        // Optional query: actionTypeId (int), actionTypeName (string), from (yyyy-MM-dd), to (yyyy-MM-dd), organizationId (int)
         [HttpGet("count")]
-        public async Task<ActionResult<int>> Count([FromQuery] string? actionType, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int? organizationId)
+        public async Task<ActionResult<int>> Count(
+            [FromQuery] int? actionTypeId,
+            [FromQuery] string? actionTypeName,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] int? organizationId)
         {
             var q = _context.AuditLogs
                 .Include(a => a.User)
                 .Include(a => a.ActionType)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(actionType))
+            // Prefer numeric id filter when provided
+            if (actionTypeId.HasValue)
             {
-                q = q.Where(a =>
-                    a.ActionTypeId == actionType
-                    || a.ActionType != null && a.ActionType.ActionTypeName == actionType);
+                q = q.Where(a => a.ActionTypeId == actionTypeId.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(actionTypeName))
+            {
+                q = q.Where(a => a.ActionType != null && a.ActionType.ActionTypeName == actionTypeName);
             }
 
             if (organizationId.HasValue)
@@ -67,7 +75,8 @@ namespace LeadgerLink.Server.Controllers
         public async Task<ActionResult<IEnumerable<AuditLogOverviewDto>>> GetOverview(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10,
-            [FromQuery] string? actionType = null,
+            [FromQuery] int? actionTypeId = null,
+            [FromQuery] string? actionTypeName = null,
             [FromQuery] DateTime? from = null,
             [FromQuery] DateTime? to = null,
             [FromQuery] int? organizationId = null)
@@ -85,11 +94,14 @@ namespace LeadgerLink.Server.Controllers
                 .Include(a => a.ActionType)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(actionType))
+            // Prefer numeric id filter when provided
+            if (actionTypeId.HasValue)
             {
-                q = q.Where(a =>
-                    a.ActionTypeId == actionType
-                    || a.ActionType != null && a.ActionType.ActionTypeName == actionType);
+                q = q.Where(a => a.ActionTypeId == actionTypeId.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(actionTypeName))
+            {
+                q = q.Where(a => a.ActionType != null && a.ActionType.ActionTypeName == actionTypeName);
             }
 
             if (organizationId.HasValue)
@@ -119,7 +131,8 @@ namespace LeadgerLink.Server.Controllers
                     Timestamp = a.Timestamp,
                     UserId = a.UserId,
                     UserName = a.User != null ? (a.User.UserFirstname + " " + a.User.UserLastname).Trim() : null,
-                    ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId,
+                    // ActionType is returned as display string: prefer ActionType.ActionTypeName, otherwise fallback to numeric id as string
+                    ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId.ToString(),
                     Details = a.Details
                 })
                 .ToListAsync();
@@ -145,8 +158,10 @@ namespace LeadgerLink.Server.Controllers
                 Timestamp = a.Timestamp,
                 UserId = a.UserId,
                 UserName = a.User != null ? (a.User.UserFirstname + " " + a.User.UserLastname).Trim() : null,
-                ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId,
-                AuditLogLevel = a.AuditLogLevel != null ? a.AuditLogLevel.AuditLogLevelName : a.AuditLogLevelId,
+                // prefer action type name, fallback to numeric id string
+                ActionType = a.ActionType != null ? a.ActionType.ActionTypeName : a.ActionTypeId.ToString(),
+                // prefer level name, fallback to numeric id string
+                AuditLogLevel = a.AuditLogLevel != null ? a.AuditLogLevel.AuditLogLevelName : a.AuditLogLevelId.ToString(),
                 OldValue = a.OldValue,
                 NewValue = a.NewValue,
                 Details = a.Details

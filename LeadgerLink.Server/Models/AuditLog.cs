@@ -31,12 +31,10 @@ public partial class AuditLog
     public string? Details { get; set; }
 
     [Column("action_type_id")]
-    [StringLength(50)]
-    public string? ActionTypeId { get; set; }
+    public int? ActionTypeId { get; set; }
 
     [Column("audit_log_level_id")]
-    [StringLength(50)]
-    public string? AuditLogLevelId { get; set; }
+    public int? AuditLogLevelId { get; set; }
 
     [Column("user_id")]
     public int? UserId { get; set; }

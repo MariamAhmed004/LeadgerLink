@@ -11,8 +11,7 @@ public partial class ActionType
 {
     [Key]
     [Column("action_type_id")]
-    [StringLength(50)]
-    public string ActionTypeId { get; set; } = null!;
+    public int ActionTypeId { get; set; }
 
     [Column("action_type_name")]
     [StringLength(50)]
