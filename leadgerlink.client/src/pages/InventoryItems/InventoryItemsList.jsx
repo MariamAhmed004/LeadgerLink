@@ -19,14 +19,14 @@ const InventoryItemsListPage = () => {
 
   // Data state
   const [items, setItems] = useState([]);
-  const [supplierOptions, setSupplierOptions] = useState([{ label: 'All', value: '' }]);
-  const [categoryOptions, setCategoryOptions] = useState([{ label: 'All', value: '' }]);
+  const [supplierOptions, setSupplierOptions] = useState([{ label: 'All Suppliers', value: '' }]);
+  const [categoryOptions, setCategoryOptions] = useState([{ label: 'All Categories', value: '' }]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleNewInventory = () => {
-    // navigate to /inventory-items/new or open modal (to implement)
+    // navigate to /inventory/new or open modal (to implement)
   };
 
   const handleRestockItems = () => {
@@ -60,6 +60,52 @@ const InventoryItemsListPage = () => {
     return 'green';
   };
 
+  // Load suppliers for the current user's store and system categories (once)
+  useEffect(() => {
+    let mounted = true;
+    const loadLookups = async () => {
+      try {
+        // Server endpoints:
+        // - GET /api/suppliers  -> returns suppliers for current user's store when no storeId provided
+        // - GET /api/categories -> returns all categories in the system
+        const [supRes, catRes] = await Promise.all([
+          fetch('/api/suppliers', { credentials: 'include' }).catch(() => null),
+          fetch('/api/categories', { credentials: 'include' }).catch(() => null),
+        ]);
+
+        if (supRes && supRes.ok) {
+          const supJson = await supRes.json();
+          if (!mounted) return;
+          const supOpts = [{ label: 'All Suppliers', value: '' }];
+          (supJson || []).forEach(s => supOpts.push({ label: s.name ?? s.supplierName ?? `Supplier ${s.id ?? s.supplierId}`, value: String(s.supplierId ?? s.id ?? '') }));
+          setSupplierOptions(supOpts);
+        } else {
+          // keep default 'All Suppliers'
+          setSupplierOptions([{ label: 'All Suppliers', value: '' }]);
+        }
+
+        if (catRes && catRes.ok) {
+          const catJson = await catRes.json();
+          if (!mounted) return;
+          const catOpts = [{ label: 'All Categories', value: '' }];
+          (catJson || []).forEach(c => catOpts.push({ label: c.name ?? c.categoryName ?? `Category ${c.id ?? c.categoryId}`, value: String(c.categoryId ?? c.id ?? '') }));
+          setCategoryOptions(catOpts);
+        } else {
+          setCategoryOptions([{ label: 'All Categories', value: '' }]);
+        }
+      } catch (err) {
+        console.error('Failed to load suppliers/categories', err);
+        if (mounted) {
+          setSupplierOptions([{ label: 'All Suppliers', value: '' }]);
+          setCategoryOptions([{ label: 'All Categories', value: '' }]);
+        }
+      }
+    };
+
+    loadLookups();
+    return () => { mounted = false; };
+  }, []);
+
   // fetch list when filters / paging change
   useEffect(() => {
     let mounted = true;
@@ -89,15 +135,23 @@ const InventoryItemsListPage = () => {
         setItems(json.items || []);
         setTotalCount(json.totalCount || 0);
 
-        // build supplier options
-        const supOpts = [{ label: 'All Suppliers', value: '' }];
-        (json.suppliers || []).forEach(s => supOpts.push({ label: s.name ?? `Supplier ${s.id}`, value: String(s.id) }));
-        setSupplierOptions(supOpts);
+        // If server returned suppliers/categories in the list response, don't overwrite the lookup arrays;
+        // otherwise the lookups loaded in the other effect remain valid.
+        if (!json.suppliers) {
+          // nothing to do
+        } else {
+          const supOpts = [{ label: 'All Suppliers', value: '' }];
+          (json.suppliers || []).forEach(s => supOpts.push({ label: s.name ?? s.supplierName ?? `Supplier ${s.id}`, value: String(s.id ?? s.supplierId) }));
+          setSupplierOptions(supOpts);
+        }
 
-        // build category options
-        const catOpts = [{ label: 'All Categories', value: '' }];
-        (json.categories || []).forEach(c => catOpts.push({ label: c.name ?? `Category ${c.id}`, value: String(c.id) }));
-        setCategoryOptions(catOpts);
+        if (!json.categories) {
+          // nothing to do
+        } else {
+          const catOpts = [{ label: 'All Categories', value: '' }];
+          (json.categories || []).forEach(c => catOpts.push({ label: c.name ?? `Category ${c.id}`, value: String(c.id ?? c.categoryId) }));
+          setCategoryOptions(catOpts);
+        }
       } catch (err) {
         console.error(err);
         if (mounted) setError(err.message || 'Failed to load inventory items');
@@ -144,7 +198,7 @@ const InventoryItemsListPage = () => {
           'Use filters to narrow the listing. Create or restock items using the actions.',
         ]}
         actions={[
-          { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory-items/new', onClick: handleNewInventory },
+            { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory/new', onClick: handleNewInventory },
           { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock', onClick: handleRestockItems }
         ]}
       />
