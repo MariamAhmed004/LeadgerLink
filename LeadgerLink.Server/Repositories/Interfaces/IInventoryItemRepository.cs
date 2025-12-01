@@ -43,5 +43,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Mark an item as on sale.
         Task SetItemOnSaleAsync(int itemId);
+
+        // Get an inventory item with related entities (supplier, unit, category, store, user)
+        Task<InventoryItem?> GetWithRelationsAsync(int inventoryItemId);
     }
 }

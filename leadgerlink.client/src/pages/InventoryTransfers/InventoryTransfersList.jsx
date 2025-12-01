@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FaExchangeAlt } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react';
+import { FaExchangeAlt, FaArrowDown, FaArrowUp } from 'react-icons/fa';
 
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
@@ -9,16 +9,20 @@ import PaginationSection from '../../components/Listing/PaginationSection';
 
 // Inventory Transfers list
 export default function InventoryTransfersList() {
-  // Filters (no backend logic yet)
+  // Filters
   const [transferFlow, setTransferFlow] = useState('');
   const [transferStatus, setTransferStatus] = useState('');
+  const [transferStatusOptions, setTransferStatusOptions] = useState([{ label: 'All', value: '' }]);
 
-  // Pagination placeholders
+  // Pagination state
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Placeholder rows - wire up real data fetching later
-  const tableRows = [];
+  // Data state
+  const [rowsData, setRowsData] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const transferFlowOptions = [
     { label: 'All', value: '' },
@@ -26,13 +30,78 @@ export default function InventoryTransfersList() {
     { label: 'Out', value: 'out' },
   ];
 
-  const transferStatusOptions = [
-    { label: 'All', value: '' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'In Transit', value: 'inTransit' },
-    { label: 'Completed', value: 'completed' },
-    { label: 'Cancelled', value: 'cancelled' },
-  ];
+  useEffect(() => {
+    let mounted = true;
+    const loadStatuses = async () => {
+      try {
+        const res = await fetch('/api/inventorytransfers/statuses', { credentials: 'include' });
+        if (!res.ok) return;
+        const arr = await res.json();
+        if (!mounted) return;
+        const opts = [{ label: 'All', value: '' }, ...(Array.isArray(arr) ? arr.map(s => ({ label: s, value: s })) : [])];
+        setTransferStatusOptions(opts);
+      } catch (err) {
+        console.error('Failed to load transfer statuses', err);
+      }
+    };
+
+    loadStatuses();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const qs = new URLSearchParams();
+        if (transferFlow) qs.append('flow', transferFlow);
+        if (transferStatus) qs.append('status', transferStatus);
+        qs.append('page', String(currentPage));
+        qs.append('pageSize', String(entriesPerPage));
+
+        const res = await fetch(`/api/inventorytransfers/list-for-current-store?${qs.toString()}`, {
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || 'Failed to load transfers');
+        }
+
+        const json = await res.json();
+        if (!mounted) return;
+
+        setRowsData(json.items || []);
+        setTotalCount(json.totalCount || 0);
+      } catch (err) {
+        console.error(err);
+        if (mounted) setError(err.message || 'Failed to load transfers');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, [transferFlow, transferStatus, currentPage, entriesPerPage]);
+
+  const tableRows = rowsData.map((t) => {
+    const inOutCell = (t.inOut || '').toString().toLowerCase() === 'in'
+      ? <span className="text-success" title="In"><FaArrowDown size={18} /></span>
+      : (t.inOut || '').toString().toLowerCase() === 'out'
+        ? <span className="text-danger" title="Out"><FaArrowUp size={18} /></span>
+        : (t.inOut ?? 'N/A');
+
+    return [
+      inOutCell,
+      t.requestedAt ? new Date(t.requestedAt).toLocaleString() : '',
+      t.storeInvolved ?? '',
+      t.status ?? '',
+      t.driverName ?? 'Not assigned'
+    ];
+  });
 
   return (
     <div className="container py-5">
@@ -41,7 +110,7 @@ export default function InventoryTransfersList() {
         title="Inventory Transfers"
         descriptionLines={[
           'View and manage inventory transfers between stores.',
-          'Use the filters to narrow results. No actions are shown in this header.',
+          'Use the filters to narrow results.',
         ]}
         actions={[]} // explicitly no action buttons in header
       />
@@ -82,15 +151,15 @@ export default function InventoryTransfersList() {
           'Driver',
         ]}
         rows={tableRows}
-        emptyMessage="No inventory transfers to display for the selected filters."
+        emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory transfers to display for the selected filters.')}
       />
 
       <PaginationSection
         currentPage={currentPage}
-        totalPages={Math.ceil((tableRows.length || 0) / entriesPerPage)}
+        totalPages={Math.max(1, Math.ceil((totalCount || 0) / entriesPerPage))}
         onPageChange={setCurrentPage}
         entriesPerPage={entriesPerPage}
-        totalEntries={tableRows.length}
+        totalEntries={totalCount}
       />
     </div>
   );

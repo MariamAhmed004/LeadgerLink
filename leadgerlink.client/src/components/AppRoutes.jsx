@@ -37,6 +37,8 @@ import ForgetPassword from "../pages/Login/ForgetPassword";
 import SalesNew from "../pages/Sales/SalesNew";
 import InventoryNew from "../pages/InventoryItems/InventoryNew";
 import RecipeNew from "../pages/Recipes/RecipeNew";
+import RestockItemsPage from "../pages/InventoryItems/RestockItemsPage";
+import InventoryItemView from "../pages/InventoryItems/InventoryItemView";
 
 const AppRoutes = () => {
   return (
@@ -77,6 +79,12 @@ const AppRoutes = () => {
           <Route path="/sales/new" element={<SalesNew />} />
           <Route path="/inventory/new" element={<InventoryNew />} />
           <Route path="/recipes/new" element={<RecipeNew />} />
+
+          {/* Restock items page route */}
+          <Route path="/inventory-items/restock" element={<RestockItemsPage />} />
+
+          {/* Inventory item view */}
+          <Route path="/inventory-items/:id" element={<InventoryItemView />} />
     </Routes>
   );
 };

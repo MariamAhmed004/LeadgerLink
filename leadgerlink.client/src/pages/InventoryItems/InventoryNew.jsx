@@ -2,9 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/Listing/PageHeader";
 import FormBody from "../../components/Form/FormBody";
-import TabbedMenu from "../../components/Form/TabbedMenu";
-import MenuTabCard from "../../components/Form/MenuTabCard";
-import TimestampField from "../../components/Form/TimestampField";
 import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import TextArea from "../../components/Form/TextArea";
@@ -14,53 +11,56 @@ import FormActions from "../../components/Form/FormActions";
 import { FaBox } from "react-icons/fa";
 
 /*
-  Inventory Item form layout:
-  Rows:
-    1 - text field + image upload
-    2 - text area
-    3 - select field
-    4 - select field
-    5 - two input fields
-    6 - two input fields
-    7 - two input fields
-    8 - two input fields
-    9 - switch + input field
-    10 - text area
-    11 - action buttons
+  Revised Inventory Item form layout per request:
+
+  Row 1: [ Item Name | Image Upload ]
+  Row 2: [ Description (text area) ]
+  Row 3: [ Supplier select (with contact-method span beside) ]
+  Row 4: [ If 'Add new supplier' selected -> Supplier Name | Supplier Contact Method ]
+  Row 5: [ Category select | Unit select ]
+  Row 6: [ Quantity input (show unit label beside) ]
+  Row 7: [ Cost per unit | Threshold (reorder level) ]
+  Row 8: [ Switch: Set On Sale | VAT Category select ]
+  Row 9: [ Product Description (text area) ]
+  Row 10: [ Actions ]
 */
 
 const InventoryItemNew = () => {
   const navigate = useNavigate();
 
-  // primary fields
+  // Primary fields
   const [itemName, setItemName] = useState("");
   const [imageFile, setImageFile] = useState(null);
 
   const [shortDescription, setShortDescription] = useState("");
 
-  const [categoryId, setCategoryId] = useState(null);
-  const [subCategoryId, setSubCategoryId] = useState(null);
+  // Suppliers
+  const [supplierId, setSupplierId] = useState(""); // "" = none, "new" = add new
+  const [suppliers, setSuppliers] = useState([]);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierContact, setNewSupplierContact] = useState("");
+  const [selectedSupplierContactMethod, setSelectedSupplierContactMethod] = useState("");
 
-  const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-
-  const [reorderLevel, setReorderLevel] = useState("");
-  const [maxStock, setMaxStock] = useState("");
-
-  const [weight, setWeight] = useState("");
-  const [unit, setUnit] = useState("");
-
-  const [costPrice, setCostPrice] = useState("");
-  const [sellingPrice, setSellingPrice] = useState("");
-
-  const [isActive, setIsActive] = useState(true);
-  const [openingQty, setOpeningQty] = useState("");
-
-  const [notes, setNotes] = useState("");
-
-  // helper lists (placeholder / loaded from API)
+  // Category / Unit
+  const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState([]);
-  const [subCategories, setSubCategories] = useState([]);
+  const [unitId, setUnitId] = useState("");
+  const [units, setUnits] = useState([]);
+
+  // Quantity
+  const [quantity, setQuantity] = useState("");
+
+  // Cost & threshold
+  const [costPerUnit, setCostPerUnit] = useState("");
+  const [threshold, setThreshold] = useState("");
+
+  // On sale + VAT
+  const [isOnSale, setIsOnSale] = useState(false);
+  const [vatCategoryId, setVatCategoryId] = useState("");
+  const [vatCategories, setVatCategories] = useState([]);
+
+  // Product description
+  const [productDescription, setProductDescription] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -68,7 +68,19 @@ const InventoryItemNew = () => {
   useEffect(() => {
     const loadLookups = async () => {
       try {
-        // placeholder: categories endpoint; change to your real endpoints later
+        // Suppliers
+        const supRes = await fetch("/api/suppliers", { credentials: "include" }).catch(() => null);
+        if (supRes && supRes.ok) {
+          const data = await supRes.json();
+          setSuppliers(data || []);
+        } else {
+          setSuppliers([
+            { supplierId: 1, supplierName: "Supplier A", contactMethod: "email: a@example.com" },
+            { supplierId: 2, supplierName: "Supplier B", contactMethod: "phone: +973-XXXXX" },
+          ]);
+        }
+
+        // Categories
         const catRes = await fetch("/api/categories", { credentials: "include" }).catch(() => null);
         if (catRes && catRes.ok) {
           const data = await catRes.json();
@@ -77,23 +89,46 @@ const InventoryItemNew = () => {
           setCategories([{ categoryId: 1, name: "General" }, { categoryId: 2, name: "Perishables" }]);
         }
 
-        // placeholder subcategories
-        const subRes = await fetch("/api/subcategories", { credentials: "include" }).catch(() => null);
-        if (subRes && subRes.ok) {
-          const sdata = await subRes.json();
-          setSubCategories(sdata || []);
+        // Units
+        const unitRes = await fetch("/api/units", { credentials: "include" }).catch(() => null);
+        if (unitRes && unitRes.ok) {
+          const udata = await unitRes.json();
+          setUnits(udata || []);
         } else {
-          setSubCategories([{ subCategoryId: 1, name: "Default" }]);
+          setUnits([{ unitId: 1, unitName: "pcs" }, { unitId: 2, unitName: "kg" }]);
+        }
+
+        // VAT categories
+        const vatRes = await fetch("/api/vatcategories", { credentials: "include" }).catch(() => null);
+        if (vatRes && vatRes.ok) {
+          const vdata = await vatRes.json();
+          setVatCategories(vdata || []);
+        } else {
+          setVatCategories([
+            { id: "none", label: "No VAT" },
+            { id: "standard", label: "Standard VAT" },
+          ]);
         }
       } catch (ex) {
         console.error(ex);
-        setCategories([{ categoryId: 1, name: "General" }]);
-        setSubCategories([{ subCategoryId: 1, name: "Default" }]);
       }
     };
 
     loadLookups();
   }, []);
+
+  // update selected supplier contact method when supplier changes
+  useEffect(() => {
+    if (!supplierId || supplierId === "new") {
+      setSelectedSupplierContactMethod("");
+      return;
+    }
+
+    const s = suppliers.find(
+      (x) => String(x.supplierId ?? x.id ?? x.SupplierId) === String(supplierId)
+    );
+    setSelectedSupplierContactMethod(s ? (s.contactMethod ?? s.contact_method ?? s.ContactMethod ?? "") : "");
+  }, [supplierId, suppliers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,26 +136,22 @@ const InventoryItemNew = () => {
     setSaving(true);
 
     const payload = {
-      name: itemName,
-      timestamp: new Date().toISOString(),
-      categoryId: categoryId ?? null,
-      subCategoryId: subCategoryId ?? null,
-      sku: sku || null,
-      barcode: barcode || null,
-      quantity: openingQty ? Number(openingQty) : 0,
-      unit: unit || null,
-      weight: weight ? Number(weight) : null,
-      costPrice: costPrice ? Number(costPrice) : 0,
-      sellingPrice: sellingPrice ? Number(sellingPrice) : 0,
-      reorderLevel: reorderLevel ? Number(reorderLevel) : 0,
-      maxStock: maxStock ? Number(maxStock) : 0,
-      isActive: !!isActive,
+      inventoryItemName: itemName,
       shortDescription: shortDescription || null,
-      notes: notes || null,
+      // supplier: either existing id or new supplier details
+      supplierId: supplierId && supplierId !== "new" ? Number(supplierId) : null,
+      newSupplier: supplierId === "new" ? { name: newSupplierName || null, contactMethod: newSupplierContact || null } : null,
+      inventoryItemCategoryId: categoryId ? Number(categoryId) : null,
+      unitId: unitId ? Number(unitId) : null,
+      quantity: quantity ? Number(quantity) : 0,
+      costPerUnit: costPerUnit ? Number(costPerUnit) : 0,
+      minimumQuantity: threshold ? Number(threshold) : null,
+      isOnSale: !!isOnSale,
+      vatCategoryId: vatCategoryId || null,
+      productDescription: productDescription || null,
     };
 
     try {
-      // if image included send FormData
       let res;
       if (imageFile) {
         const fd = new FormData();
@@ -141,7 +172,7 @@ const InventoryItemNew = () => {
       }
 
       if (!res.ok) {
-        const txt = await res.text();
+        const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
 
@@ -154,17 +185,9 @@ const InventoryItemNew = () => {
     }
   };
 
-  // simple sample tabs for preview (reuse MenuTabCard)
-  const sampleA = [
-    { name: "Sample A", description: "Example item A", price: "1.000 BHD", quantity: 10, onSelect: () => {}, isSelected: false },
-  ];
-  const sampleB = [
-    { name: "Box", description: "Packaging box", price: "0.200 BHD", quantity: 100, onSelect: () => {}, isSelected: false },
-  ];
-  const tabs = [
-    { label: "Items", items: sampleA, cardComponent: (item) => <MenuTabCard data={item} /> },
-    { label: "Accessories", items: sampleB, cardComponent: (item) => <MenuTabCard data={item} /> },
-  ];
+  // Helper to build select options
+  const mapOptions = (items, labelKey, valueKey) =>
+    (items || []).map((i) => ({ label: i[labelKey] ?? i.name ?? i.unitName ?? String(i), value: String(i[valueKey] ?? i.id ?? i.unitId ?? "") }));
 
   return (
     <div className="container py-5">
@@ -172,7 +195,7 @@ const InventoryItemNew = () => {
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4">
-          {/* Row 1: text field + image upload */}
+          {/* Row 1: Item Name | Image Upload */}
           <div className="col-12 col-md-6 text-start">
             <InputField label="Item Name" required value={itemName} onChange={setItemName} placeholder="Item name" />
           </div>
@@ -180,84 +203,105 @@ const InventoryItemNew = () => {
             <FileUploadField label="Item Image" onChange={setImageFile} accept="image/*" />
           </div>
 
-          {/* Row 2: text area */}
+          {/* Row 2: Short Description */}
           <div className="col-12 text-start">
             <TextArea label="Short Description" value={shortDescription} onChange={setShortDescription} rows={3} placeholder="Short description" />
           </div>
 
-          {/* Row 3: select field */}
+          {/* Row 3: Supplier select with contact method span */}
+          <div className="col-12 col-md-6 text-start">
+            <label className="form-label">Supplier</label>
+            <div className="d-flex align-items-center gap-3">
+              <SelectField
+                label="" // label rendered above, pass empty to avoid duplicate
+                value={supplierId}
+                onChange={(v) => setSupplierId(v)}
+                options={[
+                  { label: "Select supplier", value: "" },
+                  ...mapOptions(suppliers, "supplierName", "supplierId"),
+                  { label: "Add New Supplier", value: "new" },
+                ]}
+              />
+              <div className="small text-muted" style={{ minWidth: 160 }}>
+                {supplierId && supplierId !== "new" ? (selectedSupplierContactMethod || "No contact info") : supplierId === "new" ? "Adding new supplier" : ""}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 4: new supplier name + contact (only when adding new) */}
+          {supplierId === "new" && (
+            <>
+              <div className="col-12 col-md-6 text-start">
+                <InputField label="New Supplier Name" value={newSupplierName} onChange={setNewSupplierName} placeholder="Supplier name" />
+              </div>
+              <div className="col-12 col-md-6 text-start">
+                <InputField label="New Supplier Contact Method" value={newSupplierContact} onChange={setNewSupplierContact} placeholder="e.g. email or phone" />
+              </div>
+            </>
+          )}
+
+          {/* Row 5: Category | Unit */}
           <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Category"
+              value={categoryId}
+              onChange={(v) => setCategoryId(v)}
+              options={[{ label: "Select category", value: "" }, ...mapOptions(categories, "name", "categoryId")]}
               required
-              value={categoryId ?? ""}
-              onChange={(v) => setCategoryId(v === "" ? null : Number(v))}
-              options={[{ label: "Select category", value: "" }, ...categories.map((c) => ({ label: c.name ?? c.categoryName ?? c.CategoryName, value: String(c.categoryId ?? c.id ?? "") }))]}
             />
           </div>
-
-          {/* Row 4: select field */}
           <div className="col-12 col-md-6 text-start">
             <SelectField
-              label="Subcategory"
-              required={false}
-              value={subCategoryId ?? ""}
-              onChange={(v) => setSubCategoryId(v === "" ? null : Number(v))}
-              options={[{ label: "Select subcategory", value: "" }, ...subCategories.map((s) => ({ label: s.name ?? s.subCategoryName ?? s.SubCategoryName, value: String(s.subCategoryId ?? s.id ?? "") }))]}
+              label="Unit"
+              value={unitId}
+              onChange={(v) => setUnitId(v)}
+              options={[{ label: "Select unit", value: "" }, ...mapOptions(units, "unitName", "unitId")]}
             />
           </div>
 
-          {/* Row 5: two input fields */}
+          {/* Row 6: Quantity with unit displayed */}
           <div className="col-12 col-md-6 text-start">
-            <InputField label="SKU" value={sku} onChange={setSku} placeholder="SKU" />
-          </div>
-          <div className="col-12 col-md-6 text-start">
-            <InputField label="Barcode" value={barcode} onChange={setBarcode} placeholder="Barcode" />
+            <label className="form-label">Quantity</label>
+            <div className="d-flex align-items-center gap-2">
+              <InputField label="" value={quantity} onChange={setQuantity} type="number" placeholder="0.00" />
+              <div className="small text-muted" style={{ minWidth: 80 }}>
+                {unitId ? (units.find((u) => String(u.unitId ?? u.id) === String(unitId))?.unitName ?? "") : ""}
+              </div>
+            </div>
           </div>
 
-          {/* Row 6: two input fields */}
+          {/* Row 7: Cost per unit | Threshold */}
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Reorder Level" type="number" value={reorderLevel} onChange={setReorderLevel} placeholder="0" />
+            <InputField label="Cost per Unit" value={costPerUnit} onChange={setCostPerUnit} type="number" step="0.001" placeholder="0.000" />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Max Stock" type="number" value={maxStock} onChange={setMaxStock} placeholder="0" />
+            <InputField label="Threshold (Reorder level)" value={threshold} onChange={setThreshold} type="number" placeholder="0" />
           </div>
 
-          {/* Row 7: two input fields */}
-          <div className="col-12 col-md-6 text-start">
-            <InputField label="Weight" type="number" step="0.01" value={weight} onChange={setWeight} placeholder="Weight" />
+          {/* Row 8: Switch for On Sale | VAT Category */}
+          <div className="col-12 col-md-6 text-start d-flex align-items-center">
+            <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Unit" value={unit} onChange={setUnit} placeholder="e.g. kg, pcs" />
+            <SelectField
+              label="VAT Category"
+              value={vatCategoryId}
+              onChange={(v) => setVatCategoryId(v)}
+              options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
+            />
           </div>
 
-          {/* Row 8: two input fields */}
-          <div className="col-12 col-md-6 text-start">
-            <InputField label="Cost Price" type="number" step="0.001" value={costPrice} onChange={setCostPrice} placeholder="0.000" />
-          </div>
-          <div className="col-12 col-md-6 text-start">
-            <InputField label="Selling Price" type="number" step="0.001" value={sellingPrice} onChange={setSellingPrice} placeholder="0.000" />
-          </div>
-
-          {/* Row 9: switch + input */}
-          <div className="col-12 col-md-6 text-start d-flex flex-column">
-            <SwitchField label="Active" checked={isActive} onChange={setIsActive} />
-          </div>
-          <div className="col-12 col-md-6 text-start">
-            <InputField label="Opening Quantity" type="number" value={openingQty} onChange={setOpeningQty} placeholder="0.00" />
-          </div>
-
-          {/* Row 10: text area */}
+          {/* Row 9: Product Description */}
           <div className="col-12 text-start">
-            <TextArea label="Notes" value={notes} onChange={setNotes} rows={4} placeholder="Additional notes" />
+            <TextArea label="Product Description" value={productDescription} onChange={setProductDescription} rows={4} placeholder="Full product description" />
           </div>
 
-          {/* Row 11: action buttons */}
+          {/* Row 10: Actions */}
           <div className="col-12 d-flex justify-content-end">
             <FormActions onCancel={() => navigate("/inventory")} submitLabel="Save Item" loading={saving} />
           </div>
 
-          {/* error */}
+          {/* Error */}
           {error && (
             <div className="col-12">
               <div className="alert alert-danger mb-0">{error}</div>

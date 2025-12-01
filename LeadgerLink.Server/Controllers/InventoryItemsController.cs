@@ -154,5 +154,63 @@ namespace LeadgerLink.Server.Controllers
 
             return Ok(new { items, suppliers, categories, totalCount });
         }
+
+        // GET api/inventoryitems/{id}
+        // Returns detailed inventory item info including image as a data URL when binary image is stored.
+        [Authorize]
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<InventoryItemDetailDto>> GetById(int id)
+        {
+            try
+            {
+                var item = await _inventoryRepo.GetWithRelationsAsync(id);
+                if (item == null) return NotFound();
+
+                var dto = new InventoryItemDetailDto
+                {
+                    InventoryItemId = item.InventoryItemId,
+                    InventoryItemName = item.InventoryItemName,
+                    Description = item.Description,
+                    Quantity = item.Quantity,
+                    MinimumQuantity = item.MinimumQuantity,
+                    CostPerUnit = item.CostPerUnit,
+                    UnitName = item.Unit != null ? item.Unit.UnitName : null,
+                    SupplierId = item.SupplierId,
+                    SupplierName = item.Supplier != null ? item.Supplier.SupplierName : null,
+                    CategoryId = item.InventoryItemCategoryId,
+                    CategoryName = item.InventoryItemCategory != null ? item.InventoryItemCategory.InventoryItemCategoryName : null,
+                    StoreId = item.StoreId,
+                    StoreName = item.Store != null ? item.Store.StoreName : null,
+                    CreatedAt = item.CreatedAt,
+                    UpdatedAt = item.UpdatedAt,
+                    CreatedByName = item.User != null ? (item.User.UserFirstname + " " + item.User.UserLastname).Trim() : null,
+                    RelatedProductsCount = item.Products?.Count ?? 0
+                };
+
+                // compute stock level
+                if (dto.Quantity <= 0) dto.StockLevel = "Out of Stock";
+                else if (dto.MinimumQuantity.HasValue && dto.Quantity < dto.MinimumQuantity.Value) dto.StockLevel = "Low Stock";
+                else dto.StockLevel = "In Stock";
+
+                // If image is stored as binary in InventoryItemImage, return as data URL.
+                if (item.InventoryItemImage != null && item.InventoryItemImage.Length > 0)
+                {
+                    var b64 = Convert.ToBase64String(item.InventoryItemImage);
+                    // No reliable MIME type stored — use image/* to let browser detect or client render.
+                    dto.ImageDataUrl = $"data:image/*;base64,{b64}";
+                }
+                else
+                {
+                    dto.ImageDataUrl = null;
+                }
+
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                // keep logging consistent with other controllers (if logger available, could log)
+                return StatusCode(500, "Failed to load inventory item");
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaBoxOpen } from 'react-icons/fa';
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
@@ -6,25 +6,78 @@ import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 
-// Placeholder Products list
-// Static content only — no data fetching or logic.
-export default function ProductsList() {
-  // Filter state (no logic yet)
-  const [source, setSource] = useState('');
 
-  // Pagination placeholders
+export default function ProductsList() {
+  const [sourceFilter, setSourceFilter] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Placeholder rows - will be populated when data fetching is implemented
-  const tableRows = [];
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const sourceOptions = [
+  const SOURCE_OPTIONS = [
     { label: 'All Sources', value: '' },
-    { label: 'Supplier', value: 'supplier' },
-    { label: 'Manufacturer', value: 'manufacturer' },
-    { label: 'Internal', value: 'internal' },
+    { label: 'Inventory Item', value: 'InventoryItem' },
+    { label: 'Recipe', value: 'Recipe' },
   ];
+
+  // fetch products for current store
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch('/api/products/for-current-store', { credentials: 'include' });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || 'Failed to load products');
+        }
+        const json = await res.json();
+        if (!mounted) return;
+        setProducts(json || []);
+      } catch (err) {
+        console.error(err);
+        if (mounted) setError(err.message || 'Failed to load products');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  // client-side filtering + paging (server supports store scoping; result set presumably small)
+  const filtered = products.filter((p) => {
+    if (sourceFilter && String(sourceFilter).trim() !== '') {
+      return String(p.source) === String(sourceFilter);
+    }
+    return true;
+  });
+
+  const total = filtered.length;
+  const page = Math.max(1, currentPage);
+  const start = (page - 1) * entriesPerPage;
+  const paged = filtered.slice(start, start + entriesPerPage);
+
+  // map to table rows
+  const tableRows = paged.map((p) => {
+    const available = !!p.isAvailable;
+    const colorClass = available ? 'stock-green' : 'stock-red';
+    return [
+      // availability indicator (circle)
+      (
+        <div className="stock-cell">
+          <span className={`stock-indicator ${colorClass}`} title={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')} aria-label={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')} role="img" />
+        </div>
+      ),
+      p.productName ?? '',
+      p.source ?? '',
+      p.sellingPrice != null ? `BHD ${Number(p.sellingPrice).toFixed(3)}` : ''
+    ];
+  });
 
   return (
     <div className="container py-5">
@@ -32,9 +85,9 @@ export default function ProductsList() {
         icon={<FaBoxOpen size={28} />}
         title="Products"
         descriptionLines={[
-          'Browse and manage products. Use the source filter to narrow results.',
+          'Browse and manage products. Availability is computed from inventory items or recipe ingredients.',
         ]}
-        actions={[]} // explicitly no action buttons in header
+        actions={[]} // no header actions
       />
 
       <FilterSection
@@ -45,12 +98,7 @@ export default function ProductsList() {
         onEntriesChange={setEntriesPerPage}
       >
         <div className="col-md-4">
-          <FilterSelect
-            label="Source"
-            value={source}
-            onChange={setSource}
-            options={sourceOptions}
-          />
+          <FilterSelect label="Source" value={sourceFilter} onChange={setSourceFilter} options={SOURCE_OPTIONS} />
         </div>
       </FilterSection>
 
@@ -58,15 +106,17 @@ export default function ProductsList() {
         title="Products"
         columns={['Available', 'Product Name', 'Source', 'Selling Price']}
         rows={tableRows}
-        emptyMessage="No products to display for the selected filters."
+        emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
+        // optionally add rowLink if you have a product detail page
+        // rowLink={(_, rowIndex) => `/products/${paged[rowIndex].productId}`}
       />
 
       <PaginationSection
         currentPage={currentPage}
-        totalPages={Math.ceil((tableRows.length || 0) / entriesPerPage)}
+        totalPages={Math.max(1, Math.ceil(total / entriesPerPage))}
         onPageChange={setCurrentPage}
         entriesPerPage={entriesPerPage}
-        totalEntries={tableRows.length}
+        totalEntries={total}
       />
     </div>
   );

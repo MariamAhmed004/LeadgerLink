@@ -4,17 +4,21 @@ import "./listing.css";
 
 /*
   DetailPageAction
-  - Reusable action bar for detail pages (right-aligned).
+  - Reusable action bar for detail pages (right-aligned by default).
   - actions: [{ icon, title, route?, onClick? }]
   - orientation: "vertical" | "horizontal"  (default: "vertical")
+  - align: "end" | "center" | "start" (default: "end")
 */
-const DetailPageAction = ({ actions = [], orientation = "vertical" }) => {
+const DetailPageAction = ({ actions = [], orientation = "vertical", align = "end" }) => {
   if (!actions || actions.length === 0) return null;
 
   const normalized = orientation === "horizontal" ? "horizontal" : "vertical";
+  const alignClass =
+    align === "center" ? "justify-content-center" :
+    align === "start" ? "justify-content-start" : "justify-content-end";
 
   return (
-    <div className="page-actions-wrapper">
+    <div className={`page-actions-wrapper ${alignClass}`}>
       {/* page-actions will layout buttons according to orientation */}
       <div className={`page-actions ${normalized}`}>
         {actions.map((a, i) => {

@@ -3,6 +3,7 @@ import PageHeader from "../../components/Listing/PageHeader";
 import DetailTable from "../../components/Listing/DetailTable";
 import MetadataTable from "../../components/Listing/MetadataTable";
 import DetailPageAction from "../../components/Listing/DetailPageAction";
+import { FaImage } from "react-icons/fa";
 
 /*
  Props:
@@ -41,10 +42,20 @@ const DetailViewWithImage = ({
                 />
               ) : (
                 <div
-                  className="detail-image-placeholder"
-                  style={{ width: "100%", height: 220, display: "inline-block" }}
-                  aria-hidden="true"
-                />
+                  className="detail-image-placeholder d-flex flex-column align-items-center justify-content-center text-muted"
+                  style={{
+                    width: "100%",
+                    height: 280,
+                    display: "inline-block",
+                    borderRadius: 8,
+                    border: "1px dashed rgba(0,0,0,0.06)",
+                    background: "rgba(0,0,0,0.02)"
+                  }}
+                  aria-hidden="false"
+                >
+                  <FaImage size={225} color="rgba(0,0,0,0.35)" />
+                  {image?.alt && <div className="small text-muted mt-2">{image.alt}</div>}
+                </div>
               )}
             </div>
           </div>
@@ -57,7 +68,7 @@ const DetailViewWithImage = ({
       {/* Actions - full width row below everything (horizontal for image page) */}
       <div className="row">
         <div className="col-12">
-          <DetailPageAction actions={actions.length ? actions : headerProps.actions ?? []} orientation="horizontal" />
+                  <DetailPageAction actions={actions.length ? actions : headerProps.actions ?? []} orientation="horizontal" align="center" />
         </div>
       </div>
     </div>

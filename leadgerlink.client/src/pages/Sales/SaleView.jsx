@@ -82,9 +82,14 @@ const SaleView = () => {
     };
   }, [id]);
 
+  // compute id and timestamp for the title
+  const idVal = sale ? firstDefined(sale, "id", "saleId", "SaleId", "Id") ?? id : id;
+  const tsVal = sale ? firstDefined(sale, "timestamp", "Timestamp", "createdAt", "CreatedAt") : null;
+
   // prepare props for DetailViewWithMetadata
   const headerProps = {
     icon: <FaFileInvoice size={28} />,
+    // restored original header title
     title: sale ? `Sale #${firstDefined(sale, "id", "saleId", "Id") ?? id}` : "Sale",
     descriptionLines: sale
       ? [
@@ -95,29 +100,30 @@ const SaleView = () => {
     actions: [], // header actions are optional; keep empty here
   };
 
-  // build main detail rows (label / value)
+  // build main detail rows (label / value) — removed Unique Products and Store ID per request
+  const saleItems = firstDefined(sale, "saleItems", "SaleItems") || [];
   const detailRows = sale
     ? [
-        { label: "Timestamp", value: formatDateTime(firstDefined(sale, "timestamp", "Timestamp")) },
-        { label: "Created By", value: firstDefined(sale, "createdByName", "CreatedByName", "createdBy") || "" },
         { label: "Payment Method", value: firstDefined(sale, "paymentMethodName", "PaymentMethodName") || "" },
         { label: "Total Amount", value: formatMoney(firstDefined(sale, "totalAmount", "amount", "Amount")) },
         { label: "Applied Discount", value: formatMoney(firstDefined(sale, "appliedDiscount", "AppliedDiscount")) },
         { label: "Notes", value: firstDefined(sale, "notes", "Notes") || "" },
+        { label: "Items Count", value: Array.isArray(saleItems) ? saleItems.length : "" },
       ]
     : [];
 
-  // metadata displayed to the side: items count, distinct products, created at/updated at ids etc.
-  const saleItems = firstDefined(sale, "saleItems", "SaleItems") || [];
+  // metadata displayed to the side: created by + created at + updated at
   const metadataRows = sale
     ? [
-        { label: "Items Count", value: Array.isArray(saleItems) ? saleItems.length : "" },
+        { label: "Created By", value: firstDefined(sale, "createdByName", "CreatedByName", "createdBy") || "" },
         {
-          label: "Unique Products",
-          value: Array.isArray(saleItems) ? new Set(saleItems.map((si) => firstDefined(si, "productId", "ProductId", "productId") || firstDefined(si, "product", "Product"))).size : "",
+          label: "Created At",
+          value: formatDateTime(firstDefined(sale, "createdAt", "CreatedAt", "timestamp", "Timestamp")),
         },
-        { label: "Store ID", value: firstDefined(sale, "storeId", "StoreId") || "" },
-        { label: "Sale ID", value: firstDefined(sale, "saleId", "SaleId", "id", "Id") || "" },
+        {
+          label: "Updated At",
+          value: formatDateTime(firstDefined(sale, "updatedAt", "UpdatedAt", "modifiedAt", "ModifiedAt")),
+        },
       ]
     : [];
 
@@ -137,7 +143,10 @@ const SaleView = () => {
   return (
     <DetailViewWithMetadata
       headerProps={headerProps}
-      detail={{ title: "Sale Details", rows: detailRows }}
+      detail={{
+        title: sale ? `Sale #${idVal} made at ${formatDateTime(tsVal)}` : "Sale Details",
+        rows: detailRows,
+      }}
       metadata={{ title: "Summary", rows: metadataRows }}
       actions={footerActions}
     />

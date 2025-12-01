@@ -35,7 +35,7 @@ const DetailViewWithMetadata = ({
         <div className="col-md-5 d-flex align-items-start justify-content-center">
           {/* Keep actions visually aligned; use vertical stacking for non-image page */}
           <div style={{ width: "100%", maxWidth: 420 }}>
-            <DetailPageAction actions={footerActions} orientation="vertical" />
+                      <DetailPageAction actions={footerActions} orientation="vertical" align="center" />
           </div>
         </div>
       </div>

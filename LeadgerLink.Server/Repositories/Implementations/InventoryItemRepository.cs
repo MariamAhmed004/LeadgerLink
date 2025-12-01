@@ -153,5 +153,18 @@ namespace LeadgerLink.Server.Repositories.Implementations
             _context.InventoryItems.Update(item);
             await _context.SaveChangesAsync();
         }
+
+        // Get an inventory item including common relations so controllers can return a detailed DTO.
+        public async Task<InventoryItem?> GetWithRelationsAsync(int inventoryItemId)
+        {
+            return await _context.InventoryItems
+                .Include(ii => ii.Supplier)
+                .Include(ii => ii.Unit)
+                .Include(ii => ii.InventoryItemCategory)
+                .Include(ii => ii.Store)
+                .Include(ii => ii.User)
+                .Include(ii => ii.Products) // include related products to compute counts if needed
+                .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+        }
     }
 }
