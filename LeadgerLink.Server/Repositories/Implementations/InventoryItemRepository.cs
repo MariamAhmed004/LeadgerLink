@@ -166,5 +166,110 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(ii => ii.Products) // include related products to compute counts if needed
                 .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
         }
+
+        // -------------------------
+        // New methods moved from controller
+        // -------------------------
+
+        // Paged listing for a store with filtering & total count
+        public async Task<(IEnumerable<InventoryItemListDto> Items, int TotalCount)> GetPagedForStoreAsync(
+            int storeId,
+            string stockLevel,
+            int? supplierId,
+            int? categoryId,
+            int page,
+            int pageSize)
+        {
+            var q = _context.InventoryItems
+                .Include(ii => ii.Supplier)
+                .Include(ii => ii.InventoryItemCategory)
+                .Include(ii => ii.Unit)
+                .Where(ii => ii.StoreId == storeId)
+                .AsQueryable();
+
+            if (supplierId.HasValue) q = q.Where(ii => ii.SupplierId == supplierId.Value);
+            if (categoryId.HasValue) q = q.Where(ii => ii.InventoryItemCategoryId == categoryId.Value);
+
+            if (!string.IsNullOrWhiteSpace(stockLevel))
+            {
+                var sl = stockLevel.Trim().ToLowerInvariant();
+                if (sl == "instock") q = q.Where(ii => ii.Quantity > 0 && (!ii.MinimumQuantity.HasValue || ii.Quantity >= ii.MinimumQuantity.Value));
+                else if (sl == "lowstock") q = q.Where(ii => ii.MinimumQuantity.HasValue && ii.Quantity < ii.MinimumQuantity.Value);
+                else if (sl == "outofstock") q = q.Where(ii => ii.Quantity <= 0);
+            }
+
+            var totalCount = await q.CountAsync();
+
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 200);
+            var skip = (page - 1) * pageSize;
+
+            var items = await q
+                .OrderByDescending(ii => ii.UpdatedAt)
+                .Skip(skip)
+                .Take(pageSize)
+                .Select(ii => new InventoryItemListDto
+                {
+                    InventoryItemId = ii.InventoryItemId,
+                    InventoryItemName = ii.InventoryItemName,
+                    CategoryId = ii.InventoryItemCategoryId,
+                    CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : null,
+                    SupplierId = ii.SupplierId,
+                    SupplierName = ii.Supplier != null ? ii.Supplier.SupplierName : null,
+                    UnitName = ii.Unit != null ? ii.Unit.UnitName : null,
+                    Quantity = ii.Quantity,
+                    MinimumQuantity = ii.MinimumQuantity,
+                    UpdatedAt = ii.UpdatedAt
+                })
+                .ToListAsync();
+
+            // compute derived stock level for each DTO
+            foreach (var it in items)
+            {
+                if (it.Quantity <= 0) it.StockLevel = "Out of Stock";
+                else if (it.MinimumQuantity.HasValue && it.Quantity < it.MinimumQuantity.Value) it.StockLevel = "Low Stock";
+                else it.StockLevel = "In Stock";
+            }
+
+            return (items, totalCount);
+        }
+
+        // Suppliers for store (projection)
+        public async Task<IEnumerable<object>> GetSuppliersForStoreAsync(int storeId)
+        {
+            var suppliers = await _context.Suppliers
+                .Where(s => s.InventoryItems.Any(ii => ii.StoreId == storeId))
+                .Select(s => new { id = s.SupplierId, name = s.SupplierName })
+                .Distinct()
+                .ToListAsync();
+
+            return suppliers;
+        }
+
+        // Categories for store (projection)
+        public async Task<IEnumerable<object>> GetCategoriesForStoreAsync(int storeId)
+        {
+            var categories = await _context.InventoryItemCategories
+                .Where(c => c.InventoryItems.Any(ii => ii.StoreId == storeId))
+                .Select(c => new { id = c.InventoryItemCategoryId, name = c.InventoryItemCategoryName })
+                .Distinct()
+                .ToListAsync();
+
+            return categories;
+        }
+
+        // Global lookups (units + vat categories). Keep simple and return all saved values.
+        public async Task<(IEnumerable<object> Units, IEnumerable<object> VatCategories)> GetLookupsAsync(int? storeId = null)
+        {
+            var units = await _context.Units
+                .Select(u => new { unitId = u.UnitId, unitName = u.UnitName })
+                .ToListAsync();
+
+            var vatCategories = await _context.VatCategories
+                .Select(v => new { id = v.VatCategoryId, label = v.VatCategoryName, rate = v.VatRate })
+                .ToListAsync();
+
+            return (units, vatCategories);
+        }
     }
 }

@@ -46,5 +46,22 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Get an inventory item with related entities (supplier, unit, category, store, user)
         Task<InventoryItem?> GetWithRelationsAsync(int inventoryItemId);
+
+        // --- New repository operations to move controller logic into repository ---
+        // Returns paged list and total count for a store using optional filters.
+        Task<(IEnumerable<InventoryItemListDto> Items, int TotalCount)> GetPagedForStoreAsync(
+            int storeId,
+            string stockLevel,
+            int? supplierId,
+            int? categoryId,
+            int page,
+            int pageSize);
+
+        // Suppliers & categories used by store (for select lists)
+        Task<IEnumerable<object>> GetSuppliersForStoreAsync(int storeId);
+        Task<IEnumerable<object>> GetCategoriesForStoreAsync(int storeId);
+
+        // Return global lookups (units, vat categories).
+        Task<(IEnumerable<object> Units, IEnumerable<object> VatCategories)> GetLookupsAsync(int? storeId = null);
     }
 }
