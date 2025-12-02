@@ -1,30 +1,35 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Dtos;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
-    // Repository for inventory transfer operations.
-    public interface IInventoryTransferRepository : IRepository<InventoryTransfer>
+    // Repository for inventory transfer operations (read-focused surface).
+    public interface IInventoryTransferRepository
     {
-        // Approve a transfer with the given id by the specified approving user.
-        Task ApproveTransferAsync(int transferId, int approvingUserId);
+        // Count transfers by organization with optional date range.
+        Task<int> CountTransfersByOrganizationAsync(int organizationId, DateTime? from = null, DateTime? to = null);
 
-        // Return count of transfers for an organization.
-        Task<int> CountTransfersByOrganizationAsync(int organizationId);
+        // Return latest transfers that involve the given store (limit by pageSize).
+        Task<IEnumerable<InventoryTransferOverviewDto>> GetLatestForStoreAsync(int storeId, int pageSize);
 
-        // Count transfers for an organization optionally filtered by date range.
-        Task<int> CountTransfersByOrganizationAsync(int organizationId, DateTime? from, DateTime? to);
+        // Returns paged list and total count for current-store listing.
+        // Parameters:
+        // - resolvedStoreId: store id to scope to (null when organization-level listing).
+        // - isOrgAdmin: whether caller is org admin (affects scoping).
+        // - orgId: caller's organization id when applicable.
+        // - flow/status/paging as per controller.
+        Task<(IEnumerable<InventoryTransferListDto> Items, int TotalCount)> GetPagedForCurrentStoreAsync(
+            int? resolvedStoreId,
+            bool isOrgAdmin,
+            int? orgId,
+            string? flow,
+            string? status,
+            int page,
+            int pageSize);
 
-        // Return quarterly inventory movement summaries for an organization.
-        Task<IEnumerable<MonthlyInventoryMovementDto>> GetQuarterlyInventoryMovementsAsync(int organizationId, int year, int quarter);
-
-        // Return a transfer including its items.
-        Task<InventoryTransfer> GetTransferWithItemsAsync(int transferId);
-
-        // Reject a transfer with the given id by the specified rejecting user.
-        Task RejectTransferAsync(int transferId, int rejectingUserId);
+        // Distinct statuses for client filters.
+        Task<IEnumerable<string>> GetStatusesAsync();
     }
 }
