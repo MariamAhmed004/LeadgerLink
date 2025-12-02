@@ -1,176 +1,239 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { FaPlus, FaExternalLinkAlt, FaEnvelope } from "react-icons/fa";
+import { Link } from "react-router-dom";
+
+import PageHeader from "../../components/Listing/PageHeader";
+import FilterSection from "../../components/Listing/FilterSection";
+import FilterSelect from "../../components/Listing/FilterSelect";
+import EntityTable from "../../components/Listing/EntityTable";
+import PaginationSection from "../../components/Listing/PaginationSection";
 
 /*
   OrganizationsList.jsx
-  - Lists organizations with search, pagination and basic actions.
-  - Uses fetch to call a REST endpoint at /api/organizations
-  - Keeps UI simple so it integrates easily into existing app styles.
+  - Lists organizations with search, pagination and filters (status + industry type).
+  - Uses client-side filtering/paging (fetches organizations + optional industry types).
+  - Integrates existing listing components (PageHeader, FilterSection, FilterSelect, EntityTable, PaginationSection).
 */
 
-function OrganizationsList() {
-  const navigate = useNavigate();
+const OrganizationsList = () => {
+  // filters / search
+  const [statusFilter, setStatusFilter] = useState("");
+  const [industryFilter, setIndustryFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [items, setItems] = useState([]);
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [total, setTotal] = useState(0);
+  // pagination
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // data
+  const [organizations, setOrganizations] = useState([]);
+  const [industryOptions, setIndustryOptions] = useState([{ label: "All", value: "" }]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
-  const fetchOrganizations = useCallback(async (signal) => {
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams();
-    if (query) params.append('q', query);
-    params.append('page', String(page));
-    params.append('pageSize', String(pageSize));
-
-    try {
-      const res = await fetch(`/api/organizations?${params.toString()}`, { signal });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || res.statusText);
-      }
-      const json = await res.json();
-      // Expecting shape: { items: [...], total: number }
-      setItems(Array.isArray(json.items) ? json.items : []);
-      setTotal(typeof json.total === 'number' ? json.total : 0);
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message || 'Failed to load organizations');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, query]);
-
+  // load organizations + industry types
   useEffect(() => {
-    const controller = new AbortController();
-    fetchOrganizations(controller.signal);
-    return () => controller.abort();
-  }, [fetchOrganizations]);
-
-  function onSearchSubmit(e) {
-    e.preventDefault();
-    setPage(1);
-    // fetchOrganizations will run due to dependency on query/page via useEffect
-  }
-
-  async function onDelete(id) {
-    if (!window.confirm('Delete this organization?')) return;
-    try {
+    let mounted = true;
+    const load = async () => {
       setLoading(true);
-      const res = await fetch(`/api/organizations/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || res.statusText);
-      }
-      // Refresh list after delete
-      setItems(prev => prev.filter(i => i.id !== id));
-      setTotal(prev => Math.max(0, prev - 1));
-    } catch (err) {
-      setError(err.message || 'Failed to delete');
-    } finally {
-      setLoading(false);
-    }
-  }
+      setError("");
+      try {
+        // fetch organizations
+        const orgRes = await fetch("/api/organizations", { credentials: "include" });
+        if (!orgRes.ok) {
+          const txt = await orgRes.text();
+          throw new Error(txt || "Failed to load organizations");
+        }
+        const orgData = await orgRes.json();
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (!mounted) return;
+
+        // normalize array
+        const orgs = Array.isArray(orgData) ? orgData : (orgData.items || []);
+        setOrganizations(orgs);
+
+        // try to fetch industry types endpoint (fallback to deriving from orgs when unavailable)
+        try {
+          const itRes = await fetch("/api/industrytypes", { credentials: "include" });
+          if (itRes.ok) {
+            const itData = await itRes.json();
+            if (mounted) {
+              const opts = [{ label: "All", value: "" }, ...(Array.isArray(itData) ? itData.map(it => ({ label: it.industryTypeName ?? it.IndustryTypeName ?? it.industry_type_name ?? it.name ?? String(it), value: String(it.industryTypeId ?? it.IndustryTypeId ?? it.industry_type_id ?? it.id ?? "" ) })) : [])];
+              setIndustryOptions(opts);
+            }
+          } else {
+            // fallback below
+            if (mounted) {
+              const fromOrgs = buildIndustryOptionsFromOrgs(orgs);
+              setIndustryOptions(fromOrgs);
+            }
+          }
+        } catch {
+          if (mounted) {
+            const fromOrgs = buildIndustryOptionsFromOrgs(orgs);
+            setIndustryOptions(fromOrgs);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        if (mounted) setError(err.message || "Failed to load organizations");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  // helper: build industry options derived from organizations
+  const buildIndustryOptionsFromOrgs = (orgs) => {
+    const map = new Map();
+    (orgs || []).forEach(o => {
+      const id = String(o.industryType?.industryTypeId ?? o.IndustryType?.IndustryTypeId ?? o.industryTypeId ?? o.IndustryTypeId ?? o.industry_type_id ?? "");
+      const name = o.industryType?.industryTypeName ?? o.IndustryType?.IndustryTypeName ?? o.industryTypeName ?? o.IndustryTypeName ?? o.industry_type_name ?? o.industryType ?? "";
+      if (id || name) {
+        const key = id || name;
+        if (!map.has(key)) map.set(key, { label: name || key, value: key });
+      }
+    });
+    return [{ label: "All", value: "" }, ...Array.from(map.values())];
+  };
+
+  // client-side filtering
+  const filtered = organizations.filter((o) => {
+    // status filter
+    if (statusFilter === "active" && !(o.isActive === true || o.IsActive === true)) return false;
+    if (statusFilter === "inactive" && (o.isActive === true || o.IsActive === true)) return false;
+
+    // industry filter (compare ids or names)
+    if (industryFilter) {
+      const orgIndustryId = String(o.industryType?.industryTypeId ?? o.IndustryType?.IndustryTypeId ?? o.industryTypeId ?? o.IndustryTypeId ?? o.industry_type_id ?? "");
+      const orgIndustryName = String(o.industryType?.industryTypeName ?? o.IndustryType?.IndustryTypeName ?? o.industryTypeName ?? o.IndustryTypeName ?? o.industry_type_name ?? "");
+      if (industryFilter !== orgIndustryId && industryFilter !== orgIndustryName) return false;
+    }
+
+    // search (name, email, industry name)
+    if (searchTerm && String(searchTerm).trim() !== "") {
+      const s = String(searchTerm).trim().toLowerCase();
+      const name = String(o.orgName ?? o.OrgName ?? o.org_name ?? o.OrgName ?? o.name ?? o.Name ?? "").toLowerCase();
+      const email = String(o.email ?? o.Email ?? "").toLowerCase();
+      const industryName = String(o.industryType?.industryTypeName ?? o.IndustryType?.IndustryTypeName ?? o.industryTypeName ?? o.industry_type_name ?? "").toLowerCase();
+      return name.includes(s) || email.includes(s) || industryName.includes(s);
+    }
+
+    return true;
+  });
+
+  const totalEntries = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / entriesPerPage));
+  const page = Math.max(1, currentPage);
+  const paged = filtered.slice((page - 1) * entriesPerPage, page * entriesPerPage);
+
+  // map rows for EntityTable
+  const tableRows = paged.map((o) => {
+    const id = o.orgId ?? o.OrgId ?? o.org_id ?? o.id ?? o.Id;
+    const name = o.orgName ?? o.OrgName ?? o.org_name ?? o.name ?? o.Name ?? "—";
+    const industry = o.industryType?.industryTypeName ?? o.IndustryType?.IndustryTypeName ?? o.industryTypeName ?? o.industry_type_name ?? "-";
+    const email = o.email ?? o.Email ?? "";
+    const website = o.websiteUrl ?? o.WebsiteUrl ?? o.website_url ?? "";
+
+    const statusCell = (o.isActive === true || o.IsActive === true)
+      ? <span className="badge bg-success">Active</span>
+      : <span className="badge bg-secondary">Inactive</span>;
+
+    const emailCell = email
+      ? (<a href={`mailto:${email}`} className="text-decoration-none"><FaEnvelope className="me-1" />{email}</a>)
+      : (<span className="text-muted">—</span>);
+
+    const websiteCell = website
+      ? (() => {
+          // ensure scheme exists
+          const href = String(website).startsWith("http") ? website : `https://${website}`;
+          return (
+            <a href={href} target="_blank" rel="noopener noreferrer" title="Open website">
+              <FaExternalLinkAlt />
+            </a>
+          );
+        })()
+        : <FaPlus title="No website" className="text-muted" />;
+
+    return [
+      statusCell,
+      name, // EntityTable will wrap this cell with a Link because we will set linkColumnName
+      industry,
+      emailCell,
+      websiteCell
+    ];
+  });
 
   return (
-    <div className="organizations-list">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>Organizations</h2>
-        <div>
-          <button type="button" onClick={() => navigate('/organizations/new')}>
-            New Organization
-          </button>
+    <div className="container py-5">
+      <PageHeader
+        icon={<FaPlus size={28} />}
+        title="Organizations"
+        descriptionLines={[
+          "Overview of organizations. Use filters to narrow results.",
+          "Click an organization to view details."
+        ]}
+        actions={[
+          { icon: <FaPlus />, title: "New Organization", route: "/organizations/new" }
+        ]}
+      />
+
+      <FilterSection
+        searchValue={searchTerm}
+        onSearchChange={(v) => { setSearchTerm(v); setCurrentPage(1); }}
+        searchPlaceholder="Search organizations..."
+        entriesValue={entriesPerPage}
+        onEntriesChange={(v) => { setEntriesPerPage(Number(v)); setCurrentPage(1); }}
+      >
+        <div className="col-md-3">
+          <FilterSelect
+            label="Status"
+            value={statusFilter}
+            onChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}
+            options={[
+              { label: "All", value: "" },
+              { label: "Active", value: "active" },
+              { label: "Inactive", value: "inactive" }
+            ]}
+          />
         </div>
-      </header>
 
-      <form onSubmit={onSearchSubmit} style={{ marginTop: 12, marginBottom: 12 }}>
-        <input
-          type="search"
-          placeholder="Search organizations..."
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          aria-label="Search organizations"
-        />
-        <button type="submit" disabled={loading}>Search</button>
-        <button
-          type="button"
-          onClick={() => { setQuery(''); setPage(1); }}
-          disabled={loading || !query}
-        >
-          Clear
-        </button>
-      </form>
-
-      {loading && <div>Loading...</div>}
-      {error && <div role="alert" style={{ color: 'crimson' }}>{error}</div>}
-
-      {!loading && items.length === 0 && <div>No organizations found.</div>}
-
-      {items.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Name</th>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Status</th>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>Created</th>
-              <th style={{ textAlign: 'right', borderBottom: '1px solid #ddd' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map(org => (
-              <tr key={org.id}>
-                <td style={{ padding: '8px 4px' }}>
-                  <Link to={`/organizations/${org.id}`}>{org.name || '—'}</Link>
-                </td>
-                <td style={{ padding: '8px 4px' }}>{org.status || 'Unknown'}</td>
-                <td style={{ padding: '8px 4px' }}>
-                  {org.createdAt ? new Date(org.createdAt).toLocaleDateString() : '—'}
-                </td>
-                <td style={{ padding: '8px 4px', textAlign: 'right' }}>
-                  <Link to={`/organizations/${org.id}`} style={{ marginRight: 8 }}>View</Link>
-                  <Link to={`/organizations/${org.id}/edit`} style={{ marginRight: 8 }}>Edit</Link>
-                  <button type="button" onClick={() => onDelete(org.id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <footer style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          Page {page} of {totalPages} — {total} total
+        <div className="col-md-4">
+          <FilterSelect
+            label="Industry Type"
+            value={industryFilter}
+            onChange={(v) => { setIndustryFilter(v); setCurrentPage(1); }}
+            options={industryOptions}
+          />
         </div>
-        <div>
-          <button
-            type="button"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page <= 1 || loading}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || loading}
-            style={{ marginLeft: 8 }}
-          >
-            Next
-          </button>
-        </div>
-      </footer>
+      </FilterSection>
+
+      <EntityTable
+        title="Organizations"
+        columns={["Status", "Organization Name", "Industry Type", "Email", "Website"]}
+        rows={tableRows}
+        emptyMessage={loading ? "Loading..." : (error ? `Error: ${error}` : "No organizations to display.")}
+        linkColumnName="Organization Name"
+        // rowLink builds URL using the original paged array (paged index correlates to tableRows index)
+        rowLink={(_, rowIndex) => {
+          const o = paged[rowIndex];
+          const id = o?.orgId ?? o?.OrgId ?? o?.org_id ?? o?.id ?? o?.Id;
+          return `/organizations/${id}`;
+        }}
+      />
+
+      <PaginationSection
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={(p) => setCurrentPage(p)}
+        entriesPerPage={entriesPerPage}
+        totalEntries={totalEntries}
+      />
     </div>
   );
-}
+};
 
 export default OrganizationsList;

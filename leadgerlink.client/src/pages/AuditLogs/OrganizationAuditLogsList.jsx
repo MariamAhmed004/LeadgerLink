@@ -1,43 +1,222 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../Context/AuthContext";
+import PageHeader from "../../components/Listing/PageHeader";
+import FilterSection from "../../components/Listing/FilterSection";
+import FilterSelect from "../../components/Listing/FilterSelect";
+import FilterDate from "../../components/Listing/FilterDate";
+import EntityTable from "../../components/Listing/EntityTable";
+import PaginationSection from "../../components/Listing/PaginationSection";
 
-// Placeholder page for Organization Audit Logs
-// Static content only — no data or logic to avoid runtime errors during navigation.
+/*
+  OrganizationAuditLogsList.jsx
+  - Same UI as application logs but scopes queries to the logged in user's OrgId.
+  - Uses /api/auditlogs/overview and /api/auditlogs/count with organizationId param.
+*/
+
+const DEFAULT_PAGE_SIZE = 10;
+
+const getField = (o, ...keys) => {
+  if (!o) return undefined;
+  for (const k of keys) {
+    if (o[k] !== undefined && o[k] !== null) return o[k];
+  }
+  return undefined;
+};
+
 export default function OrganizationAuditLogsList() {
+  const { loggedInUser } = useAuth();
+  const orgId = loggedInUser?.OrgId ?? loggedInUser?.orgId ?? null;
+
+  const [actionFilter, setActionFilter] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const [entriesPerPage, setEntriesPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [actionOptions, setActionOptions] = useState([{ label: "All", value: "" }]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // derive action options scoped to organization
+  useEffect(() => {
+    if (!orgId) return;
+    let mounted = true;
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/auditlogs/overview?page=1&pageSize=50&organizationId=${encodeURIComponent(orgId)}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        const arr = Array.isArray(data) ? data : (data.items || []);
+        const set = new Set();
+        (arr || []).forEach((it) => {
+          const name = getField(it, "actionType", "ActionType") ?? "";
+          if (name) set.add(name);
+        });
+        const opts = [{ label: "All", value: "" }, ...Array.from(set).map((s) => ({ label: s, value: s }))];
+        setActionOptions(opts);
+      } catch (ex) {
+        console.error("Failed to load organization audit action types", ex);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [orgId]);
+
+  // load count + overview scoped to organization
+  useEffect(() => {
+    if (!orgId) return;
+    let mounted = true;
+    const controller = new AbortController();
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const countQs = new URLSearchParams();
+        countQs.append("organizationId", String(orgId));
+        if (actionFilter) countQs.append("actionTypeName", actionFilter);
+        if (from) countQs.append("from", from);
+        if (to) countQs.append("to", to);
+
+        const countRes = await fetch(`/api/auditlogs/count?${countQs.toString()}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!countRes.ok) {
+          const txt = await countRes.text().catch(() => "");
+          throw new Error(txt || "Failed to get audit logs count");
+        }
+        const totalCount = await countRes.json();
+        if (!mounted) return;
+        setTotal(typeof totalCount === "number" ? totalCount : Number(totalCount) || 0);
+
+        const qs = new URLSearchParams();
+        qs.append("page", String(currentPage));
+        qs.append("pageSize", String(entriesPerPage));
+        qs.append("organizationId", String(orgId));
+        if (actionFilter) qs.append("actionTypeName", actionFilter);
+        if (from) qs.append("from", from);
+        if (to) qs.append("to", to);
+
+        const res = await fetch(`/api/auditlogs/overview?${qs.toString()}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(txt || "Failed to load audit logs");
+        }
+        const json = await res.json();
+        if (!mounted) return;
+        const items = Array.isArray(json) ? json : (json.items || json);
+        setRows(items || []);
+      } catch (ex) {
+        if (ex.name !== "AbortError") {
+          console.error(ex);
+          if (mounted) setError(ex.message || "Failed to load audit logs");
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [orgId, actionFilter, from, to, currentPage, entriesPerPage]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / entriesPerPage)), [total, entriesPerPage]);
+
+  const tableRows = (rows || []).map((r) => {
+    const status = getField(r, "actionType", "ActionType") ?? "-";
+    const timestamp = getField(r, "timestamp", "Timestamp") ? new Date(getField(r, "timestamp", "Timestamp")).toLocaleString() : "-";
+    const user = getField(r, "userName", "UserName") ?? "-";
+    const details = getField(r, "details", "Details") ?? "";
+    return [
+      <span className="badge bg-secondary" key="status">{status}</span>,
+      timestamp,
+      user,
+      <pre key="details" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{details}</pre>
+    ];
+  });
+
+  if (!orgId) {
+    return (
+      <div className="container py-5">
+        <PageHeader icon={null} title="Organization Audit Logs" descriptionLines={["Organization not selected or you do not belong to an organization."]} actions={[]} />
+        <div className="alert alert-warning">Organization context not found for the current user.</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="organization-auditlogs-list container py-3">
-      <h2>Organization Audit Logs</h2>
-      <p className="text-muted">This is a placeholder page used to populate navigation. No backend calls or props are required.</p>
+    <div className="container py-5">
+      <PageHeader
+        icon={null}
+        title="Organization Audit Logs"
+        descriptionLines={[
+          "Organization-level audit logs. Use filters to narrow results by action and time range.",
+        ]}
+        actions={[]}
+      />
 
-      <div className="table-responsive">
-        <table className="table table-sm table-striped">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Resource</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>2025-01-01 12:00</td>
-              <td>system@example.test</td>
-              <td>LOGIN</td>
-              <td>Auth</td>
-              <td>Placeholder entry</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="d-flex justify-content-between align-items-center mt-3">
-        <small className="text-muted">Page 1 of 1 — 1 item</small>
-        <div>
-          <button className="btn btn-sm btn-secondary me-2" disabled>Previous</button>
-          <button className="btn btn-sm btn-secondary" disabled>Next</button>
+      <FilterSection
+        searchValue={""}
+        onSearchChange={() => {}}
+        searchPlaceholder=""
+        entriesValue={entriesPerPage}
+        onEntriesChange={(v) => { setEntriesPerPage(Number(v)); setCurrentPage(1); }}
+      >
+        <div className="col-md-4">
+          <FilterSelect
+            label="Status"
+            value={actionFilter}
+            onChange={(v) => { setActionFilter(v); setCurrentPage(1); }}
+            options={actionOptions}
+          />
         </div>
-      </div>
+
+        <div className="col-md-3">
+          <FilterDate value={from} onChange={(v) => { setFrom(v); setCurrentPage(1); }} />
+          <div className="small text-muted">From</div>
+        </div>
+
+        <div className="col-md-3">
+          <FilterDate value={to} onChange={(v) => { setTo(v); setCurrentPage(1); }} />
+          <div className="small text-muted">To</div>
+        </div>
+      </FilterSection>
+
+      <EntityTable
+        title="Organization Audit Logs"
+        columns={["Status", "Timestamp", "User", "Details"]}
+        rows={tableRows}
+        emptyMessage={loading ? "Loading..." : (error ? `Error: ${error}` : "No audit logs to display.")}
+      />
+
+      <PaginationSection
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={(p) => setCurrentPage(p)}
+        entriesPerPage={entriesPerPage}
+        totalEntries={total}
+      />
     </div>
   );
 }

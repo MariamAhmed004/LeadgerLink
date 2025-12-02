@@ -1,4 +1,3 @@
-
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
@@ -22,6 +21,9 @@ namespace LeadgerLink.Server
             // 2) Add Identity DB context (separate)
             builder.Services.AddDbContext<IdentityContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // Register generic repository so IRepository<T> can be resolved (required by controllers that inject IRepository<SomeModel>)
+            builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
             // register repositories
             builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();

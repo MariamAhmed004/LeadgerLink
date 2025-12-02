@@ -50,8 +50,9 @@ const InventoryItemNew = () => {
   const [costPerUnit, setCostPerUnit] = useState("");
   const [threshold, setThreshold] = useState("");
 
-  // On sale + VAT
+  // On sale + VAT + selling price
   const [isOnSale, setIsOnSale] = useState(false);
+  const [sellingPrice, setSellingPrice] = useState("");
   const [vatCategoryId, setVatCategoryId] = useState("");
   const [vatCategories, setVatCategories] = useState([]);
 
@@ -128,25 +129,121 @@ const InventoryItemNew = () => {
     setSelectedSupplierContactMethod(s ? (s.contactMethod ?? s.contact_method ?? s.ContactMethod ?? "") : "");
   }, [supplierId, suppliers]);
 
+  // Basic client-side validation helpers
+  const isTextValid = (v) => {
+    if (v == null) return false;
+    return String(v).trim().length >= 3;
+  };
+
+  const parseNonNegativeNumber = (v) => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(String(v).replace(/,/g, ""));
+    if (!Number.isFinite(n)) return NaN;
+    return n;
+  };
+
+  const validate = () => {
+    const errors = [];
+
+    // Item name required and >= 3 chars
+    if (!isTextValid(itemName)) errors.push("Item Name must be at least 3 characters.");
+
+    // Short description if provided must be >=3
+    if (shortDescription && String(shortDescription).trim().length > 0 && !isTextValid(shortDescription))
+      errors.push("Short description must be at least 3 characters when provided.");
+
+    // Product description if provided must be >=3
+    if (productDescription && String(productDescription).trim().length > 0 && !isTextValid(productDescription))
+      errors.push("Product description must be at least 3 characters when provided.");
+
+    // Supplier validation: either select existing OR provide both new supplier name and contact
+    const hasSelectedSupplier = !!supplierId;
+    const hasNewSupplierName = String(newSupplierName ?? "").trim().length > 0;
+    const hasNewSupplierContact = String(newSupplierContact ?? "").trim().length > 0;
+
+    if (!hasSelectedSupplier) {
+      // If no supplier selected, require both new supplier fields and validate their lengths
+      if (!hasNewSupplierName || !hasNewSupplierContact) {
+        errors.push("Provide an existing supplier or enter both New Supplier Name and New Supplier Contact (each >= 3 chars).");
+      } else {
+        if (!isTextValid(newSupplierName)) errors.push("New Supplier Name must be at least 3 characters.");
+        if (!isTextValid(newSupplierContact)) errors.push("New Supplier Contact must be at least 3 characters.");
+      }
+    } else {
+      // supplier selected: ignore new supplier inputs; no validation needed for new supplier fields
+    }
+
+    // Numeric validations: quantity, costPerUnit, threshold must be non-negative if provided
+    const q = parseNonNegativeNumber(quantity);
+    if (q === NaN) errors.push("Quantity must be a valid number.");
+    else if (q != null && q < 0) errors.push("Quantity cannot be negative.");
+
+    const cpu = parseNonNegativeNumber(costPerUnit);
+    if (cpu === NaN) errors.push("Cost per Unit must be a valid number.");
+    else if (cpu != null && cpu < 0) errors.push("Cost per Unit cannot be negative.");
+
+    const th = parseNonNegativeNumber(threshold);
+    if (th === NaN) errors.push("Threshold must be a valid number.");
+    else if (th != null && th < 0) errors.push("Threshold (minimum quantity) cannot be negative.");
+
+    // Category required
+    if (!categoryId) errors.push("Category must be selected.");
+
+    // If On Sale, validate sellingPrice and VAT selection
+    if (isOnSale) {
+      const sp = parseNonNegativeNumber(sellingPrice);
+      if (sp === NaN) errors.push("Selling price must be a valid number.");
+      else if (sp == null) errors.push("Selling price must be provided when item is set on sale.");
+      else if (sp < 0) errors.push("Selling price cannot be negative.");
+
+      if (!vatCategoryId) errors.push("VAT category must be selected when item is set on sale.");
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    const errors = validate();
+    if (errors.length > 0) {
+      setError(errors.join(" "));
+      return;
+    }
+
     setSaving(true);
 
     const payload = {
-      inventoryItemName: itemName,
-      shortDescription: shortDescription || null,
+      inventoryItemName: String(itemName).trim(),
+      shortDescription: shortDescription ? String(shortDescription).trim() : null,
       supplierId: supplierId ? Number(supplierId) : null,
       // include new supplier fields (server will decide to create if supplierId is null and newSupplier provided)
-      newSupplier: { name: newSupplierName || null, contactMethod: newSupplierContact || null },
+      newSupplier: {
+        name: newSupplierName ? String(newSupplierName).trim() : null,
+        contactMethod: newSupplierContact ? String(newSupplierContact).trim() : null,
+      },
       inventoryItemCategoryId: categoryId ? Number(categoryId) : null,
       unitId: unitId ? Number(unitId) : null,
-      quantity: quantity ? Number(quantity) : 0,
-      costPerUnit: costPerUnit ? Number(costPerUnit) : 0,
-      minimumQuantity: threshold ? Number(threshold) : null,
+      quantity: (() => {
+        const v = parseNonNegativeNumber(quantity);
+        return v == null ? 0 : v;
+      })(),
+      costPerUnit: (() => {
+        const v = parseNonNegativeNumber(costPerUnit);
+        return v == null ? 0 : v;
+      })(),
+      minimumQuantity: (() => {
+        const v = parseNonNegativeNumber(threshold);
+        return v == null ? null : v;
+      })(),
       isOnSale: !!isOnSale,
+      sellingPrice: (() => {
+        const v = parseNonNegativeNumber(sellingPrice);
+        return v == null ? null : v;
+      })(),
       vatCategoryId: vatCategoryId || null,
-      productDescription: productDescription || null,
+      productDescription: productDescription ? String(productDescription).trim() : null,
     };
 
     try {
@@ -286,19 +383,32 @@ const InventoryItemNew = () => {
 
           {/* Row 8: Product details - grouped in titled box */}
           <div className="col-12 mt-5">
-            <TitledGroup title="Product Details" subtitle="Sale flag, VAT and description">
+            <TitledGroup title="Product Details" subtitle="Sale flag, VAT, selling price and description">
               <div className="row gx-3 gy-3">
-                <div className="col-12 col-md-4 mt-5">
-                  <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
+                              <div className="col-12 ">
+                                  <div className="col-12 col-md-4">
+                  <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} /></div>
                 </div>
 
-                <div className="col-12 col-md-8">
-                  <SelectField
+                <div className="col-12 col-md-6">
+                                  
+                                  <SelectField
                     label="VAT Category"
                     value={vatCategoryId}
                     onChange={(v) => setVatCategoryId(v)}
                     options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
                   />
+                </div>
+
+                <div className="col-12 col-md-6">
+                                  <InputField
+                                      label="Selling Price"
+                                      value={sellingPrice}
+                                      onChange={setSellingPrice}
+                                      type="number"
+                                      step="0.001"
+                                      placeholder="0.000"
+                                  />
                 </div>
 
                 <div className="col-12">

@@ -13,10 +13,12 @@ import FAQ from "../pages/GeneralInformation/FAQ";
 import AboutUs from "../pages/GeneralInformation/aboutus";
 import Notifications from "../pages/Notifications";
 import OrganizationsList from "../pages/Organizations/OrganizationsList";
+import OrganizationNew from "../pages/Organizations/OrganizationNew";
 
 import Dashboard from "../pages/Dashboards/Dashboard";
 import Reports from "../pages/Reports";
 import Users from "../pages/Users/UsersList";
+import UserNew from "../pages/Users/UserNew";
 import Sales from "../pages/Sales/SalesList";
 import SaleView from "../pages/Sales/SaleView";
 import InventoryManagement from "../pages/InventoryItems/InventoryItemsList";
@@ -32,6 +34,7 @@ import StoreManagerHome from "../pages/HomePages/StoreManager-Home";
 import StoreEmployeeHome from "../pages/HomePages/StoreEmployee-Home";
 import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfersList";
 import StoresList from "../pages/Stores/StoresList";
+import StoreNew from "../pages/Stores/StoreNew";
 import ProductsList from "../pages/Products/ProductsList";
 import ForgetPassword from "../pages/Login/ForgetPassword";
 import SalesNew from "../pages/Sales/SalesNew";
@@ -50,41 +53,46 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/reports" element={<Reports />} />
       <Route path="/users" element={<Users />} />
-          <Route path="/sales" element={<Sales />} />
-          <Route path="/sales/:id" element={<SaleView />} />
-          <Route path="/inventory" element={<InventoryManagement />} />
-          <Route path="*" element={<NotFound />} />
-          <Route path="/recipes" element={<Recipes />} />
-          <Route path="/privacypolicy" element={<PrivacyPolicy />} />
-          <Route path="/termsofservice" element={<TermsOfService />} />
-          <Route path="/faqs" element={<FAQ />} />
-          <Route path="/aboutus" element={<AboutUs />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/organizations" element={<OrganizationsList />} />
-          <Route path="/applicationauditlogs" element={<ApplicationAuditLogsList />} />
-          <Route path="/applicationauditlogs" element={<ApplicationAuditLogsList />} />
-          <Route path="/organizationauditlogs" element={<OrganizationAuditLogsList />} />
-          <Route path="/accountant-dashboard" element={<AccountantDashboard />} />
-          <Route path="/store-manager-dashboard" element={<StoreManagerDashboard />} />
-          <Route path="/app-admin" element={<ApplicationAdminHome />} />
-          <Route path="/org-admin" element={<OrganizationAdminHome />} />
-          <Route path="/org-accountant" element={<OrganizationAccountantHome />} />
-          <Route path="/store-manager" element={<StoreManagerHome />} />
-          <Route path="/store-employee" element={<StoreEmployeeHome />} />
-          <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
-          <Route path="/stores" element={<StoresList />} />
-          <Route path="/products" element={<ProductsList />} />
-          <Route path="/reset-password" element={<ForgetPassword />} />
+      <Route path="/users/create" element={<UserNew />} />
+      <Route path="/sales" element={<Sales />} />
+      <Route path="/sales/:id" element={<SaleView />} />
+      <Route path="/inventory" element={<InventoryManagement />} />
+      <Route path="*" element={<NotFound />} />
+      <Route path="/recipes" element={<Recipes />} />
+      <Route path="/privacypolicy" element={<PrivacyPolicy />} />
+      <Route path="/termsofservice" element={<TermsOfService />} />
+      <Route path="/faqs" element={<FAQ />} />
+      <Route path="/aboutus" element={<AboutUs />} />
+      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/organizations" element={<OrganizationsList />} />
+      <Route path="/organizations/new" element={<OrganizationNew />} />
 
-          <Route path="/sales/new" element={<SalesNew />} />
-          <Route path="/inventory/new" element={<InventoryNew />} />
-          <Route path="/recipes/new" element={<RecipeNew />} />
+      {/* Stores */}
+      <Route path="/stores" element={<StoresList />} />
+      <Route path="/stores/new" element={<StoreNew />} />
 
-          {/* Restock items page route */}
-          <Route path="/inventory-items/restock" element={<RestockItemsPage />} />
+      <Route path="/applicationauditlogs" element={<ApplicationAuditLogsList />} />
+      <Route path="/organizationauditlogs" element={<OrganizationAuditLogsList />} />
+      <Route path="/accountant-dashboard" element={<AccountantDashboard />} />
+      <Route path="/store-manager-dashboard" element={<StoreManagerDashboard />} />
+      <Route path="/app-admin" element={<ApplicationAdminHome />} />
+      <Route path="/org-admin" element={<OrganizationAdminHome />} />
+      <Route path="/org-accountant" element={<OrganizationAccountantHome />} />
+      <Route path="/store-manager" element={<StoreManagerHome />} />
+      <Route path="/store-employee" element={<StoreEmployeeHome />} />
+      <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
+      <Route path="/products" element={<ProductsList />} />
+      <Route path="/reset-password" element={<ForgetPassword />} />
 
-          {/* Inventory item view */}
-          <Route path="/inventory-items/:id" element={<InventoryItemView />} />
+      <Route path="/sales/new" element={<SalesNew />} />
+      <Route path="/inventory/new" element={<InventoryNew />} />
+      <Route path="/recipes/new" element={<RecipeNew />} />
+
+      {/* Restock items page route */}
+      <Route path="/inventory-items/restock" element={<RestockItemsPage />} />
+
+      {/* Inventory item view */}
+      <Route path="/inventory-items/:id" element={<InventoryItemView />} />
     </Routes>
   );
 };

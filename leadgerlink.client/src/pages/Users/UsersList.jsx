@@ -1,75 +1,239 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
+import { FaPlus } from "react-icons/fa";
+import { useAuth } from "../../Context/AuthContext";
+
+import PageHeader from "../../components/Listing/PageHeader";
+import FilterSection from "../../components/Listing/FilterSection";
+import FilterSelect from "../../components/Listing/FilterSelect";
+import FilterDate from "../../components/Listing/FilterDate";
+import EntityTable from "../../components/Listing/EntityTable";
+import PaginationSection from "../../components/Listing/PaginationSection";
 
 /*
   UsersList.jsx
-  Simple user listing page with search, pagination and basic actions.
-  Adjust API endpoints and routing to match the application.
+  - Uses existing listing components (PageHeader, FilterSection, FilterSelect, FilterDate,
+    EntityTable, PaginationSection).
+  - Fetches users + lookups (stores, organizations) and performs client-side filtering,
+    role-specific column rendering and paging.
+  - Clicking a user row navigates to the user's detail view (NOT edit).
 */
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export default function UsersList() {
+  const { loggedInUser } = useAuth();
+
+  // filters / search
+  const [statusFilter, setStatusFilter] = useState("");
+  const [createdAfter, setCreatedAfter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // pagination
+  const [entriesPerPage, setEntriesPerPage] = useState(DEFAULT_PAGE_SIZE);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // data
   const [users, setUsers] = useState([]);
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(DEFAULT_PAGE_SIZE);
-  const [total, setTotal] = useState(0);
+  const [stores, setStores] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
+  // load users + lookups
   useEffect(() => {
-    const controller = new AbortController();
-    async function fetchUsers() {
+    let mounted = true;
+    const load = async () => {
       setLoading(true);
-      setError(null);
-
-      const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('perPage', String(perPage));
-      if (query.trim()) params.set('q', query.trim());
-
+      setError("");
       try {
-        const res = await fetch(`/api/users?${params.toString()}`, {
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+        // Try endpoint that returns all users; fall back to paged endpoint if needed
+        const endpoints = ["/api/users/all", "/api/users"];
+        let usersData = null;
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep, { credentials: "include" });
+            if (!res.ok) continue;
+            const json = await res.json();
+            // support either array or { items, total }
+            usersData = Array.isArray(json) ? json : (Array.isArray(json.items) ? json.items : json);
+            break;
+          } catch {
+            // try next
+          }
         }
 
-        const payload = await res.json();
-        // Expect payload to have shape: { items: [], total: number }
-        setUsers(Array.isArray(payload.items) ? payload.items : []);
-        setTotal(typeof payload.total === 'number' ? payload.total : 0);
+        if (!mounted) return;
+
+        setUsers(Array.isArray(usersData) ? usersData : []);
+
+        // lookups: stores and organizations, best-effort (ignore failures)
+        try {
+          const [storesRes, orgsRes] = await Promise.all([
+            fetch("/api/stores", { credentials: "include" }),
+            fetch("/api/organizations", { credentials: "include" }),
+          ]);
+
+          if (storesRes.ok) {
+            const sjson = await storesRes.json();
+            if (mounted) setStores(Array.isArray(sjson) ? sjson : (sjson.items || []));
+          }
+
+          if (orgsRes.ok) {
+            const ojson = await orgsRes.json();
+            if (mounted) setOrganizations(Array.isArray(ojson) ? ojson : (ojson.items || []));
+          }
+        } catch {
+          // ignore lookup failures
+        }
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          setError(err.message || 'Failed to load users');
-        }
+        console.error(err);
+        if (mounted) setError(err.message || "Failed to load users");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  // helpers to read common fields with varied casing
+  const getField = (obj, ...keys) => {
+    if (!obj) return undefined;
+    for (const k of keys) {
+      if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+    }
+    return undefined;
+  };
+
+  // role checks
+  const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
+  const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+  const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+  const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
+
+  // client-side filtering
+  const filtered = users.filter((u) => {
+    // status filter
+    const isActive = Boolean(getField(u, "isActive", "IsActive", "active", "Active"));
+    if (statusFilter === "active" && !isActive) return false;
+    if (statusFilter === "inactive" && isActive) return false;
+
+    // createdAfter filter (active by date)
+    if (createdAfter) {
+      const createdAt = getField(u, "createdAt", "CreatedAt", "created_at", "Created");
+      if (!createdAt) return false;
+      const createdDate = new Date(createdAt);
+      const afterDate = new Date(createdAfter);
+      if (!(createdDate >= afterDate)) return false;
     }
 
-    fetchUsers();
-    return () => controller.abort();
-  }, [page, perPage, query]);
+    // search: name, email, phone, role
+    if (searchTerm && String(searchTerm).trim() !== "") {
+      const s = String(searchTerm).trim().toLowerCase();
+      const fullName =
+        String(getField(u, "fullName", "FullName", "name", "Name",
+          (getField(u, "userFirstname") ? `${getField(u, "userFirstname")} ${getField(u, "userLastname")}` : undefined)) ?? "").toLowerCase();
+      const email = String(getField(u, "email", "Email") ?? "").toLowerCase();
+      const phone = String(getField(u, "phone", "Phone") ?? "").toLowerCase();
+      const role = String(getField(u, "role", "Role") ?? "").toLowerCase();
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / perPage)), [total, perPage]);
+      if (!(fullName.includes(s) || email.includes(s) || phone.includes(s) || role.includes(s))) return false;
+    }
+
+    return true;
+  });
+
+  const totalEntries = filtered.length;
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(totalEntries / entriesPerPage)), [totalEntries, entriesPerPage]);
+  const page = Math.max(1, currentPage);
+  const paged = filtered.slice((page - 1) * entriesPerPage, page * entriesPerPage);
+
+  // lookup helpers
+  const findStoreName = (id) => {
+    const s = stores.find((x) => String(getField(x, "storeId", "StoreId", "id") ?? "") === String(id ?? ""));
+    return s ? (getField(s, "storeName", "StoreName", "name") ?? "") : "";
+  };
+  const findOrgName = (id) => {
+    const o = organizations.find((x) => String(getField(x, "orgId", "OrgId", "id") ?? "") === String(id ?? ""));
+    return o ? (getField(o, "orgName", "OrgName", "org_name", "name") ?? "") : "";
+  };
+
+  // build rows according to role
+  const tableRows = paged.map((u) => {
+    const id = getField(u, "userId", "UserId", "id", "Id");
+    const fullName =
+      getField(u, "fullName", "FullName") ??
+      (getField(u, "userFirstname") ? `${getField(u, "userFirstname")} ${getField(u, "userLastname")}` : undefined) ??
+      getField(u, "name", "Name") ??
+      "-";
+    const email = getField(u, "email", "Email") ?? "";
+    const phone = getField(u, "phone", "Phone") ?? getField(u, "phoneNumber", "PhoneNumber") ?? "";
+    const role = getField(u, "role", "Role") ?? getField(u, "userRole", "UserRole") ?? "";
+    const orgId = getField(u, "orgId", "OrgId", "organizationId", "OrganizationId");
+    const storeId = getField(u, "storeId", "StoreId");
+    const createdAt = getField(u, "createdAt", "CreatedAt", "created_at");
+
+    const statusCell = (getField(u, "isActive", "IsActive") === true || getField(u, "active") === true)
+      ? <span className="badge bg-success">Active</span>
+      : <span className="badge bg-secondary">Inactive</span>;
+
+    if (isAppAdmin) {
+      return [
+        statusCell,
+        fullName,
+        findOrgName(orgId) || "-",
+        role || "-",
+        email || "-"
+      ];
+    }
+
+    if (isOrgAdmin || isOrgAccountant) {
+      return [
+        statusCell,
+        fullName,
+        findStoreName(storeId) || "-",
+        role || "-",
+        email || "-"
+      ];
+    }
+
+    if (isStoreManager) {
+      return [
+        statusCell,
+        fullName,
+        email || "-",
+        phone || "-",
+        createdAt ? new Date(createdAt).toLocaleString() : "-"
+      ];
+    }
+
+    // default for other roles: show a compact view similar to org admin
+    return [
+      statusCell,
+      fullName,
+      role || "-",
+      email || "-"
+    ];
+  });
+
+  // Build columns dynamically to match rows above
+  const columns = (() => {
+    if (isAppAdmin) return ["Status", "User Fullname", "Organization", "Role", "Email"];
+    if (isOrgAdmin || isOrgAccountant) return ["Status", "User Fullname", "Store", "Role", "Email"];
+    if (isStoreManager) return ["Status", "User Fullname", "Email", "Phone", "Created At"];
+    return ["Status", "User Fullname", "Role", "Email"];
+  })();
 
   function handleSearchChange(e) {
-    setQuery(e.target.value);
-    setPage(1);
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
   }
 
   function handlePerPageChange(e) {
-    setPerPage(Number(e.target.value) || DEFAULT_PAGE_SIZE);
-    setPage(1);
-  }
-
-  function goToEdit(userId) {
-    // Adjust navigation to match your router (this uses full navigation)
-    window.location.href = `/users/${userId}/edit`;
+    setEntriesPerPage(Number(e.target.value) || DEFAULT_PAGE_SIZE);
+    setCurrentPage(1);
   }
 
   async function handleDelete(userId) {
@@ -83,7 +247,7 @@ export default function UsersList() {
       }
       // Optimistic update
       setUsers((prev) => prev.filter((u) => u.id !== userId));
-      setTotal((t) => Math.max(0, t - 1));
+      setCurrentPage(1);
     } catch (err) {
       window.alert(err.message || 'Failed to delete user');
     } finally {
@@ -92,32 +256,44 @@ export default function UsersList() {
   }
 
   return (
-    <div className="users-list">
-      <header className="users-list__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2>Users</h2>
-        <div>
-          <button type="button" onClick={() => (window.location.href = '/users/create')}>Create User</button>
-        </div>
-      </header>
+    <div className="container py-5">
+      <PageHeader
+        icon={<FaPlus size={28} />}
+        title="Users"
+        descriptionLines={[
+          "Manage application users. Use filters to control the list.",
+          "Columns adapt based on your role."
+        ]}
+        actions={[
+          { icon: <FaPlus />, title: "New User", route: "/users/create" }
+        ]}
+      />
 
-      <div className="users-list__controls" style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          aria-label="Search users"
-          placeholder="Search by name or email..."
-          value={query}
-          onChange={handleSearchChange}
-          style={{ padding: 8, minWidth: 240 }}
-        />
-        <label>
-          Per page:
-          <select value={perPage} onChange={handlePerPageChange} style={{ marginLeft: 8 }}>
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-          </select>
-        </label>
-      </div>
+      <FilterSection
+        searchValue={searchTerm}
+        onSearchChange={(v) => { setSearchTerm(v); setCurrentPage(1); }}
+        searchPlaceholder="Search users..."
+        entriesValue={entriesPerPage}
+        onEntriesChange={(v) => { setEntriesPerPage(Number(v)); setCurrentPage(1); }}
+      >
+        <div className="col-md-3">
+          <FilterSelect
+            label="Status"
+            value={statusFilter}
+            onChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}
+            options={[
+              { label: "All", value: "" },
+              { label: "Active", value: "active" },
+              { label: "Inactive", value: "inactive" }
+            ]}
+          />
+        </div>
+
+        <div className="col-md-3">          {/*<div className="small text-muted">Created after</div>*/}
+
+          <FilterDate value={createdAfter} onChange={(v) => { setCreatedAfter(v); setCurrentPage(1); }} />
+        </div>
+      </FilterSection>
 
       {loading ? (
         <div>Loading users...</div>
@@ -126,47 +302,28 @@ export default function UsersList() {
       ) : users.length === 0 ? (
         <div>No users found.</div>
       ) : (
-        <table className="users-list__table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>ID</th>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Name</th>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Email</th>
-              <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Role</th>
-              <th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td style={{ padding: 8, borderBottom: '1px solid #f0f0f0' }}>{user.id}</td>
-                <td style={{ padding: 8, borderBottom: '1px solid #f0f0f0' }}>{user.name}</td>
-                <td style={{ padding: 8, borderBottom: '1px solid #f0f0f0' }}>{user.email}</td>
-                <td style={{ padding: 8, borderBottom: '1px solid #f0f0f0' }}>{user.role || 'User'}</td>
-                <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>
-                  <button type="button" onClick={() => goToEdit(user.id)} style={{ marginRight: 8 }}>Edit</button>
-                  <button type="button" onClick={() => handleDelete(user.id)} disabled={deletingId === user.id}>
-                    {deletingId === user.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <EntityTable
+          title="Users"
+          columns={columns}
+          rows={tableRows}
+          emptyMessage={loading ? "Loading..." : (error ? `Error: ${error}` : "No users to display.")}
+          linkColumnName="User Fullname"
+          rowLink={(_, rowIndex) => {
+            const u = paged[rowIndex];
+            const id = getField(u, "userId", "UserId", "id", "Id");
+            // Row click links to user DETAILS page (not edit)
+            return `/users/${id}`;
+          }}
+        />
       )}
 
-      <footer className="users-list__pagination" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          Showing {(users.length === 0) ? 0 : (page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>Previous</button>
-          <span style={{ alignSelf: 'center' }}>
-            Page {page} of {totalPages}
-          </span>
-          <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</button>
-        </div>
-      </footer>
+      <PaginationSection
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={(p) => setCurrentPage(p)}
+        entriesPerPage={entriesPerPage}
+        totalEntries={totalEntries}
+      />
     </div>
   );
 }
