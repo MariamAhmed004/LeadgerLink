@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -15,11 +16,13 @@ namespace LeadgerLink.Server.Controllers
     public class NotificationsController : ControllerBase
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly INotificationRepository _repository;
         private readonly ILogger<NotificationsController> _logger;
 
-        public NotificationsController(LedgerLinkDbContext context, ILogger<NotificationsController> logger)
+        public NotificationsController(LedgerLinkDbContext context, INotificationRepository repository, ILogger<NotificationsController> logger)
         {
             _context = context;
+            _repository = repository;
             _logger = logger;
         }
 
@@ -41,51 +44,33 @@ namespace LeadgerLink.Server.Controllers
             var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
             if (domainUser == null) return Ok(Array.Empty<Notification>());
 
-            var items = await _context.Notifications
-                .Include(n => n.NotificationType)
-                .Where(n => n.UserId == domainUser.UserId)
-                .OrderByDescending(n => n.CreatedAt)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return Ok(items);
+            try
+            {
+                var items = await _repository.GetLatestForUserAsync(domainUser.UserId, pageSize);
+                return Ok(items);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load latest notifications for user {UserId}", domainUser.UserId);
+                return StatusCode(500, "Failed to load notifications");
+            }
         }
 
         // GET api/notifications/count
         // Optional query: type (notification type string), from (yyyy-MM-dd), to (yyyy-MM-dd), organizationId (int)
-        // Counts notifications matching filters (server-side).
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count([FromQuery] string? type, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] int? organizationId)
         {
-            var q = _context.Notifications
-                .Include(n => n.NotificationType)
-                .Include(n => n.User)
-                .AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(type))
+            try
             {
-                q = q.Where(n => n.NotificationType != null && n.NotificationType.NotificationTypeName == type);
+                var total = await _repository.CountAsync(type, from, to, organizationId);
+                return Ok(total);
             }
-
-            if (organizationId.HasValue)
+            catch (Exception ex)
             {
-                q = q.Where(n => n.User != null && n.User.OrgId == organizationId.Value);
+                _logger.LogError(ex, "Failed to count notifications");
+                return StatusCode(500, "Failed to count notifications");
             }
-
-            if (from.HasValue)
-            {
-                var fromDate = from.Value.Date;
-                q = q.Where(n => n.CreatedAt >= fromDate);
-            }
-
-            if (to.HasValue)
-            {
-                var toDate = to.Value.Date.AddDays(1).AddTicks(-1);
-                q = q.Where(n => n.CreatedAt <= toDate);
-            }
-
-            var total = await q.CountAsync();
-            return Ok(total);
         }
 
         // Optionally keep other notification endpoints here...

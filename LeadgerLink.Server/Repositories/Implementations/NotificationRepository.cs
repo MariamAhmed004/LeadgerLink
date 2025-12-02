@@ -19,7 +19,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
 
         // Return latest notifications for a specific user.
-        public async Task<IEnumerable<Notification>> GetLatestForUserAsync(int userId, int pageSize = 5)
+        public async Task<List<Notification>> GetLatestForUserAsync(int userId, int pageSize = 5)
         {
             if (pageSize < 1) pageSize = 1;
             const int MaxPageSize = 50;
@@ -48,6 +48,39 @@ namespace LeadgerLink.Server.Repositories.Implementations
             n.IsRead = true;
             n.CreatedAt = n.CreatedAt; // keep timestamp unchanged
             await _context.SaveChangesAsync();
+        }
+
+        // Count notifications based on filters.
+        public async Task<int> CountAsync(string? type, DateTime? from, DateTime? to, int? organizationId)
+        {
+            var q = _context.Notifications
+                .Include(n => n.NotificationType)
+                .Include(n => n.User)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                q = q.Where(n => n.NotificationType != null && n.NotificationType.NotificationTypeName == type);
+            }
+
+            if (organizationId.HasValue)
+            {
+                q = q.Where(n => n.User != null && n.User.OrgId == organizationId.Value);
+            }
+
+            if (from.HasValue)
+            {
+                var fromDate = from.Value.Date;
+                q = q.Where(n => n.CreatedAt >= fromDate);
+            }
+
+            if (to.HasValue)
+            {
+                var toDate = to.Value.Date.AddDays(1).AddTicks(-1);
+                q = q.Where(n => n.CreatedAt <= toDate);
+            }
+
+            return await q.CountAsync();
         }
     }
 }

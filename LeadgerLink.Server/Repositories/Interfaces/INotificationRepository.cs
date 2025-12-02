@@ -1,19 +1,24 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Models;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
-    // Notification-specific queries.
-    public interface INotificationRepository : IRepository<Notification>
+    /// <summary>
+    /// Repository surface for notification read operations used by controllers.
+    /// Keeps controller logic and route behavior unchanged; moves EF queries into repository.
+    /// </summary>
+    public interface INotificationRepository
     {
-        // Return latest notifications for a specific user.
-        Task<IEnumerable<Notification>> GetLatestForUserAsync(int userId, int pageSize = 10);
+        /// <summary>
+        /// Return the latest notifications for a specific user, limited by pageSize (ordered desc by CreatedAt).
+        /// </summary>
+        Task<List<Notification>> GetLatestForUserAsync(int userId, int pageSize);
 
-        // Count unread notifications for a user.
-        Task<int> CountUnreadForUserAsync(int userId);
-
-        // Mark a notification as read for the given user.
-        Task MarkAsReadAsync(int notificationId, int userId);
+        /// <summary>
+        /// Count notifications matching optional filters (type, from/to date range, organization).
+        /// </summary>
+        Task<int> CountAsync(string? type, DateTime? from, DateTime? to, int? organizationId);
     }
 }
