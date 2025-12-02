@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -14,10 +15,12 @@ namespace LeadgerLink.Server.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly IProductRepository _productRepository;
 
-        public ProductsController(LedgerLinkDbContext context)
+        public ProductsController(LedgerLinkDbContext context, IProductRepository productRepository)
         {
             _context = context;
+            _productRepository = productRepository;
         }
 
         // GET api/products/for-current-store
@@ -37,79 +40,8 @@ namespace LeadgerLink.Server.Controllers
 
             var storeId = user.StoreId.Value;
 
-            // Eagerly load related inventory item and recipe -> recipe ingredients -> ingredient inventory item
-            var products = await _context.Products
-                .Include(p => p.InventoryItem)
-                .Include(p => p.Recipe)
-                    .ThenInclude(r => r.RecipeInventoryItems)
-                        .ThenInclude(rii => rii.InventoryItem)
-                .Where(p => p.StoreId == storeId)
-                .OrderBy(p => p.ProductName)
-                .ToListAsync();
-
-            var list = products.Select(p =>
-            {
-                var dto = new ProductListDto
-                {
-                    ProductId = p.ProductId,
-                    ProductName = p.ProductName,
-                    SellingPrice = p.SellingPrice,
-                    InventoryItemId = p.InventoryItemId,
-                    RecipeId = p.RecipeId
-                };
-
-                if (p.InventoryItemId.HasValue)
-                {
-                    dto.Source = "InventoryItem";
-                    var ii = p.InventoryItem;
-                    dto.IsAvailable = ii != null && ii.Quantity > 0m;
-                    dto.AvailabilityMessage = dto.IsAvailable ? "Available" : "Out of stock";
-                }
-                else if (p.RecipeId.HasValue)
-                {
-                    dto.Source = "Recipe";
-                    var recipe = p.Recipe;
-                    if (recipe == null || recipe.RecipeInventoryItems == null || !recipe.RecipeInventoryItems.Any())
-                    {
-                        dto.IsAvailable = false;
-                        dto.AvailabilityMessage = "Recipe or ingredients not found";
-                    }
-                    else
-                    {
-                        // Check each ingredient quantity against the inventory item quantity
-                        string? missing = null;
-                        foreach (var rii in recipe.RecipeInventoryItems)
-                        {
-                            var ingredient = rii.InventoryItem;
-                            // If ingredient record missing or insufficient quantity mark unavailable and note which
-                            if (ingredient == null)
-                            {
-                                missing = $"Missing ingredient (id:{rii.InventoryItemId})";
-                                break;
-                            }
-
-                            // required quantity per recipe entry
-                            var requiredQty = rii.Quantity;
-                            if (ingredient.Quantity < requiredQty)
-                            {
-                                missing = ingredient.InventoryItemName ?? $"Ingredient {rii.InventoryItemId} low";
-                                break;
-                            }
-                        }
-
-                        dto.IsAvailable = string.IsNullOrEmpty(missing);
-                        dto.AvailabilityMessage = dto.IsAvailable ? "Available" : $"Unavailable: {missing}";
-                    }
-                }
-                else
-                {
-                    dto.Source = "Unknown";
-                    dto.IsAvailable = false;
-                    dto.AvailabilityMessage = "No source";
-                }
-
-                return dto;
-            }).ToList();
+            // Delegate product retrieval and mapping to repository (preserves original logic)
+            var list = await _productRepository.GetForStoreAsync(storeId);
 
             return Ok(list);
         }

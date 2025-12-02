@@ -151,21 +151,9 @@ namespace LeadgerLink.Server.Controllers
             }
             else
             {
-                // resolve from authenticated user
-                if (User?.Identity?.IsAuthenticated != true)
-                    return Unauthorized();
-
-                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? User.Identity?.Name;
-
-                if (string.IsNullOrWhiteSpace(email))
-                    return Unauthorized();
-
-                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                if (domainUser == null || !domainUser.StoreId.HasValue)
-                    return Ok(Enumerable.Empty<SaleListDto>());
-
-                resolvedStoreId = domainUser.StoreId.Value;
+                var resolved = await ResolveStoreIdForCurrentUserAsync();
+                if (!resolved.HasValue) return Unauthorized();
+                resolvedStoreId = resolved.Value;
             }
 
             var sales = await _saleRepository.GetSalesByStoreAsync(resolvedStoreId);
@@ -186,24 +174,32 @@ namespace LeadgerLink.Server.Controllers
             }
             else
             {
-                if (User?.Identity?.IsAuthenticated != true)
-                    return Unauthorized();
-
-                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? User.Identity?.Name;
-
-                if (string.IsNullOrWhiteSpace(email))
-                    return Unauthorized();
-
-                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                if (domainUser == null || !domainUser.StoreId.HasValue)
-                    return Ok(Enumerable.Empty<UserListItemDto>());
-
-                resolvedStoreId = domainUser.StoreId.Value;
+                var resolved = await ResolveStoreIdForCurrentUserAsync();
+                if (!resolved.HasValue) return Unauthorized();
+                resolvedStoreId = resolved.Value;
             }
 
             var users = await _userRepository.GetUsersByStoreAsync(resolvedStoreId);
             return Ok(users);
+        }
+
+        // Helper to resolve current authenticated user's store id
+        private async Task<int?> ResolveStoreIdForCurrentUserAsync()
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+                return null;
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(email))
+                return null;
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null || !domainUser.StoreId.HasValue)
+                return null;
+
+            return domainUser.StoreId.Value;
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -91,6 +92,49 @@ namespace LeadgerLink.Server.Controllers
                 .ToListAsync();
 
             return Ok(list);
+        }
+
+        // GET api/recipes/ingredient-utilization/{storeId}
+        [HttpGet("ingredient-utilization/{storeId}")]
+        public async Task<ActionResult<IEnumerable<IngredientUtilizationDto>>> GetIngredientUtilizationPercentage(int storeId)
+        {
+            var result = await _recipeRepository.GetIngredientUtilizationPercentageAsync(storeId);
+            return Ok(result);
+        }
+
+        // GET api/recipes/most-sold/organization/{organizationId}
+        [HttpGet("most-sold/organization/{organizationId}")]
+        public async Task<ActionResult<Recipe>> GetMostSoldRecipeByOrganization(int organizationId)
+        {
+            var recipe = await _recipeRepository.GetMostSoldRecipeByOrganizationAsync(organizationId);
+            if (recipe == null) return NotFound();
+            return Ok(recipe);
+        }
+
+        // GET api/recipes/most-sold/store/{storeId}
+        [HttpGet("most-sold/store/{storeId}")]
+        public async Task<ActionResult<Recipe>> GetMostSoldRecipeByStore(int storeId)
+        {
+            var recipe = await _recipeRepository.GetMostSoldRecipeByStoreAsync(storeId);
+            if (recipe == null) return NotFound();
+            return Ok(recipe);
+        }
+
+        // GET api/recipes/for-store/{storeId}
+        [HttpGet("for-store/{storeId}")]
+        public async Task<ActionResult<IEnumerable<Recipe>>> GetRecipesByStore(int storeId)
+        {
+            var recipes = await _recipeRepository.GetRecipesByStoreAsync(storeId);
+            return Ok(recipes);
+        }
+
+        // GET api/recipes/{recipeId}/with-ingredients
+        [HttpGet("{recipeId}/with-ingredients")]
+        public async Task<ActionResult<Recipe>> GetRecipeWithIngredients(int recipeId)
+        {
+            var recipe = await _recipeRepository.GetRecipeWithIngredientsAsync(recipeId);
+            if (recipe == null) return NotFound();
+            return Ok(recipe);
         }
     }
 }

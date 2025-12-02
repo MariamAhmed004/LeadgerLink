@@ -32,6 +32,10 @@ namespace LeadgerLink.Server
             builder.Services.AddScoped<IInventoryTransferRepository, InventoryTransferRepository>();
             builder.Services.AddScoped<IRecipeRepository, RecipeRepository>();
             builder.Services.AddScoped<IReportRepository, ReportRepository>();
+            builder.Services.AddScoped<IProductRepository, ProductRepository>();
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+            builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
 
             // 3) Add Identity
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()

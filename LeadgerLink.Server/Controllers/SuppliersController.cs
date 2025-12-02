@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -14,10 +15,12 @@ namespace LeadgerLink.Server.Controllers
     public class SuppliersController : ControllerBase
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly IRepository<Supplier> _supplierRepo;
 
-        public SuppliersController(LedgerLinkDbContext context)
+        public SuppliersController(LedgerLinkDbContext context, IRepository<Supplier> supplierRepo)
         {
             _context = context;
+            _supplierRepo = supplierRepo ?? throw new ArgumentNullException(nameof(supplierRepo));
         }
 
         // GET api/suppliers?storeId=5
@@ -37,12 +40,13 @@ namespace LeadgerLink.Server.Controllers
 
                 int resolvedStoreId = user.StoreId.Value;
 
-                // Return suppliers that are either explicitly assigned to the store
-                // or that have inventory items in that store (keeps parity with list-for-current-store)
-                // Include contactMethod and supplierName so client can show contact details and use expected keys.
-                var suppliers = await _context.Suppliers
-                    .Where(s => s.StoreId == resolvedStoreId
-                                || s.InventoryItems.Any(ii => ii.StoreId == resolvedStoreId))
+                // Use generic repository to fetch suppliers for the resolved store.
+                var suppliersEntities = await _supplierRepo.GetWhereAsync(
+                    s => s.StoreId == resolvedStoreId
+                         || s.InventoryItems.Any(ii => ii.StoreId == resolvedStoreId)
+                );
+
+                var suppliers = suppliersEntities
                     .Select(s => new
                     {
                         supplierId = s.SupplierId,
@@ -50,7 +54,7 @@ namespace LeadgerLink.Server.Controllers
                         contactMethod = s.ContactMethod
                     })
                     .Distinct()
-                    .ToListAsync();
+                    .ToList();
 
                 return Ok(suppliers);
             }
