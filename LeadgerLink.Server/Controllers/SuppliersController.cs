@@ -39,10 +39,16 @@ namespace LeadgerLink.Server.Controllers
 
                 // Return suppliers that are either explicitly assigned to the store
                 // or that have inventory items in that store (keeps parity with list-for-current-store)
+                // Include contactMethod and supplierName so client can show contact details and use expected keys.
                 var suppliers = await _context.Suppliers
                     .Where(s => s.StoreId == resolvedStoreId
                                 || s.InventoryItems.Any(ii => ii.StoreId == resolvedStoreId))
-                    .Select(s => new { supplierId = s.SupplierId, name = s.SupplierName })
+                    .Select(s => new
+                    {
+                        supplierId = s.SupplierId,
+                        supplierName = s.SupplierName,
+                        contactMethod = s.ContactMethod
+                    })
                     .Distinct()
                     .ToListAsync();
 

@@ -4,7 +4,8 @@ const FieldWrapper = ({ label, required, helpText, children, className = "" }) =
   return (
     <div className={className}>
       {label && (
-        <label className="form-label">
+        // enforce labels to be left-aligned for all form fields
+        <label className="form-label text-start d-block">
           {label} {required && <span className="text-danger">*</span>}
         </label>
       )}

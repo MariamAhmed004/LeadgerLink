@@ -212,5 +212,64 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to load inventory item");
             }
         }
+
+        // GET api/inventoryitems/lookups
+        // Returns lookup lists that don't have dedicated controllers (Units, VAT categories)
+        // scoped where applicable to the current user's store.
+        [Authorize]
+        [HttpGet("lookups")]
+        public async Task<ActionResult> GetLookupsForCurrentStore()
+        {
+            try
+            {
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (user == null || !user.StoreId.HasValue)
+                {
+                    // Return global lookups (empty/available) when store is not resolved
+                    var allUnits = await _context.Units
+                        .Select(u => new { unitId = u.UnitId, unitName = u.UnitName })
+                        .ToListAsync();
+
+                    var allVat = await _context.VatCategories
+                        .Select(v => new { id = v.VatCategoryId, label = v.VatCategoryName, rate = v.VatRate })
+                        .ToListAsync();
+
+                    return Ok(new { units = allUnits, vatCategories = allVat });
+                }
+
+                var storeId = user.StoreId.Value;
+
+                // Units used by this store (units referenced by inventory items in this store).
+                var units = await _context.Units
+                    .Where(u => u.InventoryItems.Any(ii => ii.StoreId == storeId))
+                    .Select(u => new { unitId = u.UnitId, unitName = u.UnitName })
+                    .Distinct()
+                    .ToListAsync();
+
+                // If no units specifically used by the store, return all units as fallback.
+                if (units.Count == 0)
+                {
+                    units = await _context.Units
+                        .Select(u => new { unitId = u.UnitId, unitName = u.UnitName })
+                        .ToListAsync();
+                }
+
+                // VAT categories are global; return all.
+                var vatCategories = await _context.VatCategories
+                    .Select(v => new { id = v.VatCategoryId, label = v.VatCategoryName, rate = v.VatRate })
+                    .ToListAsync();
+
+                return Ok(new { units, vatCategories });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                return StatusCode(500, "Failed to load lookups");
+            }
+        }
     }
 }

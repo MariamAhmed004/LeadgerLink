@@ -117,7 +117,8 @@ export default function RestockItemsPage() {
 
           {/* Row 1: item select + readonly unit */}
                   <div className="col-12 col-md-6 text-start">
-            <SelectField
+                      <SelectField
+                          searchable
               label="Inventory Item"
               value={selectedItemId}
               onChange={setSelectedItemId}
@@ -167,7 +168,7 @@ export default function RestockItemsPage() {
           {/* Action buttons */}
           <div className="col-12 col-md-6 offset-md-6 d-flex justify-content-end">
             <FormActions
-              onCancel={() => navigate('/inventory-items')}
+              onCancel={() => navigate('/inventory')}
               submitLabel="Save"
               loading={false}
               disabled={!selectedItem || parsedInputQty <= 0}

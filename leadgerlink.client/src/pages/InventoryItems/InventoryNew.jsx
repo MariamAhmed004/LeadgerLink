@@ -9,20 +9,16 @@ import FileUploadField from "../../components/Form/FileUploadField";
 import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import { FaBox } from "react-icons/fa";
+import TitledGroup from "../../components/Form/TitledGroup";
 
 /*
-  Revised Inventory Item form layout per request:
-
-  Row 1: [ Item Name | Image Upload ]
-  Row 2: [ Description (text area) ]
-  Row 3: [ Supplier select (with contact-method span beside) ]
-  Row 4: [ If 'Add new supplier' selected -> Supplier Name | Supplier Contact Method ]
-  Row 5: [ Category select | Unit select ]
-  Row 6: [ Quantity input (show unit label beside) ]
-  Row 7: [ Cost per unit | Threshold (reorder level) ]
-  Row 8: [ Switch: Set On Sale | VAT Category select ]
-  Row 9: [ Product Description (text area) ]
-  Row 10: [ Actions ]
+  Revised Inventory Item form layout:
+  - Keep labels as-is (above inputs).
+  - Supplier select + contact remain as before.
+  - Unit + Cost per Unit share a row.
+  - Quantity + Threshold share the row below them.
+  - Image upload uses FileUploadField's built-in preview (no duplicate preview box).
+  - Switch, VAT and Product Description grouped in a titled box.
 */
 
 const InventoryItemNew = () => {
@@ -35,7 +31,7 @@ const InventoryItemNew = () => {
   const [shortDescription, setShortDescription] = useState("");
 
   // Suppliers
-  const [supplierId, setSupplierId] = useState(""); // "" = none, "new" = add new
+  const [supplierId, setSupplierId] = useState(""); // "" = none
   const [suppliers, setSuppliers] = useState([]);
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierContact, setNewSupplierContact] = useState("");
@@ -68,7 +64,7 @@ const InventoryItemNew = () => {
   useEffect(() => {
     const loadLookups = async () => {
       try {
-        // Suppliers
+        // Suppliers (same as before)
         const supRes = await fetch("/api/suppliers", { credentials: "include" }).catch(() => null);
         if (supRes && supRes.ok) {
           const data = await supRes.json();
@@ -80,7 +76,7 @@ const InventoryItemNew = () => {
           ]);
         }
 
-        // Categories
+        // Categories (same)
         const catRes = await fetch("/api/categories", { credentials: "include" }).catch(() => null);
         if (catRes && catRes.ok) {
           const data = await catRes.json();
@@ -89,21 +85,17 @@ const InventoryItemNew = () => {
           setCategories([{ categoryId: 1, name: "General" }, { categoryId: 2, name: "Perishables" }]);
         }
 
-        // Units
-        const unitRes = await fetch("/api/units", { credentials: "include" }).catch(() => null);
-        if (unitRes && unitRes.ok) {
-          const udata = await unitRes.json();
-          setUnits(udata || []);
+        // Combined lookups for units + vatCategories via inventoryitems controller
+        const lookRes = await fetch("/api/inventoryitems/lookups", { credentials: "include" }).catch(() => null);
+        if (lookRes && lookRes.ok) {
+          const lookData = await lookRes.json();
+          // lookData.units -> [{ unitId, unitName }]
+          // lookData.vatCategories -> [{ id, label, rate }]
+          setUnits(lookData.units || []);
+          setVatCategories(lookData.vatCategories || []);
         } else {
+          // fallback
           setUnits([{ unitId: 1, unitName: "pcs" }, { unitId: 2, unitName: "kg" }]);
-        }
-
-        // VAT categories
-        const vatRes = await fetch("/api/vatcategories", { credentials: "include" }).catch(() => null);
-        if (vatRes && vatRes.ok) {
-          const vdata = await vatRes.json();
-          setVatCategories(vdata || []);
-        } else {
           setVatCategories([
             { id: "none", label: "No VAT" },
             { id: "standard", label: "Standard VAT" },
@@ -111,6 +103,12 @@ const InventoryItemNew = () => {
         }
       } catch (ex) {
         console.error(ex);
+        // safe fallbacks
+        setUnits([{ unitId: 1, unitName: "pcs" }, { unitId: 2, unitName: "kg" }]);
+        setVatCategories([
+          { id: "none", label: "No VAT" },
+          { id: "standard", label: "Standard VAT" },
+        ]);
       }
     };
 
@@ -119,7 +117,7 @@ const InventoryItemNew = () => {
 
   // update selected supplier contact method when supplier changes
   useEffect(() => {
-    if (!supplierId || supplierId === "new") {
+    if (!supplierId) {
       setSelectedSupplierContactMethod("");
       return;
     }
@@ -138,9 +136,9 @@ const InventoryItemNew = () => {
     const payload = {
       inventoryItemName: itemName,
       shortDescription: shortDescription || null,
-      // supplier: either existing id or new supplier details
-      supplierId: supplierId && supplierId !== "new" ? Number(supplierId) : null,
-      newSupplier: supplierId === "new" ? { name: newSupplierName || null, contactMethod: newSupplierContact || null } : null,
+      supplierId: supplierId ? Number(supplierId) : null,
+      // include new supplier fields (server will decide to create if supplierId is null and newSupplier provided)
+      newSupplier: { name: newSupplierName || null, contactMethod: newSupplierContact || null },
       inventoryItemCategoryId: categoryId ? Number(categoryId) : null,
       unitId: unitId ? Number(unitId) : null,
       quantity: quantity ? Number(quantity) : 0,
@@ -189,58 +187,65 @@ const InventoryItemNew = () => {
   const mapOptions = (items, labelKey, valueKey) =>
     (items || []).map((i) => ({ label: i[labelKey] ?? i.name ?? i.unitName ?? String(i), value: String(i[valueKey] ?? i.id ?? i.unitId ?? "") }));
 
+  // lookup display strings
+  const supplierContactDisplay = selectedSupplierContactMethod || "";
+
   return (
     <div className="container py-5">
       <PageHeader icon={<FaBox size={28} />} title="Add Inventory Item" descriptionLines={["Add a new inventory item."]} actions={[]} />
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4">
-          {/* Row 1: Item Name | Image Upload */}
-          <div className="col-12 col-md-6 text-start">
+          {/* Row 1: Item Name */}
+          <div className="col-12 text-start">
             <InputField label="Item Name" required value={itemName} onChange={setItemName} placeholder="Item name" />
           </div>
-          <div className="col-12 col-md-6 text-start">
+
+          {/* Row 2: Image upload (own row) - use FileUploadField's built-in preview */}
+          <div className="col-12 ">
             <FileUploadField label="Item Image" onChange={setImageFile} accept="image/*" />
           </div>
 
-          {/* Row 2: Short Description */}
+          {/* Row 3: Description (full width) */}
           <div className="col-12 text-start">
-            <TextArea label="Short Description" value={shortDescription} onChange={setShortDescription} rows={3} placeholder="Short description" />
+            <TextArea label="Item Description" value={shortDescription} onChange={setShortDescription} rows={3} placeholder="Item description" />
           </div>
 
-          {/* Row 3: Supplier select with contact method span */}
+          {/* Row 4: Supplier select + contact display (same row) */}
           <div className="col-12 col-md-6 text-start">
-            <label className="form-label">Supplier</label>
-            <div className="d-flex align-items-center gap-3">
-              <SelectField
-                label="" // label rendered above, pass empty to avoid duplicate
-                value={supplierId}
-                onChange={(v) => setSupplierId(v)}
-                options={[
-                  { label: "Select supplier", value: "" },
-                  ...mapOptions(suppliers, "supplierName", "supplierId"),
-                  { label: "Add New Supplier", value: "new" },
-                ]}
-              />
-              <div className="small text-muted" style={{ minWidth: 160 }}>
-                {supplierId && supplierId !== "new" ? (selectedSupplierContactMethod || "No contact info") : supplierId === "new" ? "Adding new supplier" : ""}
-              </div>
+            <SelectField
+              searchable
+              label="Supplier"
+              value={supplierId}
+              onChange={(v) => setSupplierId(v)}
+              options={[
+                { label: "Select supplier", value: "" },
+                ...mapOptions(suppliers, "supplierName", "supplierId"),
+              ]}
+            />
+          </div>
+          <div className="col-12 col-md-6 text-start d-flex align-items-end">
+            <div>
+              <div className="form-label mb-1">Supplier Contact</div>
+              <div className="small text-muted">{supplierContactDisplay || "No contact info"}</div>
             </div>
           </div>
 
-          {/* Row 4: new supplier name + contact (only when adding new) */}
-          {supplierId === "new" && (
-            <>
-              <div className="col-12 col-md-6 text-start">
-                <InputField label="New Supplier Name" value={newSupplierName} onChange={setNewSupplierName} placeholder="Supplier name" />
+          {/* Row 4.1: New supplier group */}
+          <div className="col-12">
+            <TitledGroup title="Add New Supplier">
+              <div className="row gx-3 gy-3">
+                <div className="col-12 col-md-6">
+                  <InputField label="New Supplier Name" value={newSupplierName} onChange={setNewSupplierName} placeholder="Supplier name" />
+                </div>
+                <div className="col-12 col-md-6">
+                  <InputField label="New Supplier Contact" value={newSupplierContact} onChange={setNewSupplierContact} placeholder="e.g. email or phone" />
+                </div>
               </div>
-              <div className="col-12 col-md-6 text-start">
-                <InputField label="New Supplier Contact Method" value={newSupplierContact} onChange={setNewSupplierContact} placeholder="e.g. email or phone" />
-              </div>
-            </>
-          )}
+            </TitledGroup>
+          </div>
 
-          {/* Row 5: Category | Unit */}
+          {/* Row 5: Category */}
           <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Category"
@@ -250,6 +255,9 @@ const InventoryItemNew = () => {
               required
             />
           </div>
+          <div className="col-12 col-md-6 text-start">{/* intentionally left empty */}</div>
+
+          {/* Row 6: Unit (left) | Cost per Unit (right) */}
           <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Unit"
@@ -258,45 +266,49 @@ const InventoryItemNew = () => {
               options={[{ label: "Select unit", value: "" }, ...mapOptions(units, "unitName", "unitId")]}
             />
           </div>
-
-          {/* Row 6: Quantity with unit displayed */}
-          <div className="col-12 col-md-6 text-start">
-            <label className="form-label">Quantity</label>
-            <div className="d-flex align-items-center gap-2">
-              <InputField label="" value={quantity} onChange={setQuantity} type="number" placeholder="0.00" />
-              <div className="small text-muted" style={{ minWidth: 80 }}>
-                {unitId ? (units.find((u) => String(u.unitId ?? u.id) === String(unitId))?.unitName ?? "") : ""}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 7: Cost per unit | Threshold */}
           <div className="col-12 col-md-6 text-start">
             <InputField label="Cost per Unit" value={costPerUnit} onChange={setCostPerUnit} type="number" step="0.001" placeholder="0.000" />
+          </div>
+
+          {/* Row 7: Quantity (left) | Threshold (right) */}
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label="Quantity"
+              type="number"
+              value={quantity}
+              onChange={setQuantity}
+              placeholder="0.00"
+            />
           </div>
           <div className="col-12 col-md-6 text-start">
             <InputField label="Threshold (Reorder level)" value={threshold} onChange={setThreshold} type="number" placeholder="0" />
           </div>
 
-          {/* Row 8: Switch for On Sale | VAT Category */}
-          <div className="col-12 col-md-6 text-start d-flex align-items-center">
-            <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
-          </div>
-          <div className="col-12 col-md-6 text-start">
-            <SelectField
-              label="VAT Category"
-              value={vatCategoryId}
-              onChange={(v) => setVatCategoryId(v)}
-              options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
-            />
+          {/* Row 8: Product details - grouped in titled box */}
+          <div className="col-12 mt-5">
+            <TitledGroup title="Product Details" subtitle="Sale flag, VAT and description">
+              <div className="row gx-3 gy-3">
+                <div className="col-12 col-md-4 mt-5">
+                  <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
+                </div>
+
+                <div className="col-12 col-md-8">
+                  <SelectField
+                    label="VAT Category"
+                    value={vatCategoryId}
+                    onChange={(v) => setVatCategoryId(v)}
+                    options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
+                  />
+                </div>
+
+                <div className="col-12">
+                  <TextArea label="Product Description" value={productDescription} onChange={setProductDescription} rows={4} placeholder="Full product description" />
+                </div>
+              </div>
+            </TitledGroup>
           </div>
 
-          {/* Row 9: Product Description */}
-          <div className="col-12 text-start">
-            <TextArea label="Product Description" value={productDescription} onChange={setProductDescription} rows={4} placeholder="Full product description" />
-          </div>
-
-          {/* Row 10: Actions */}
+          {/* Row 9: Actions */}
           <div className="col-12 d-flex justify-content-end">
             <FormActions onCancel={() => navigate("/inventory")} submitLabel="Save Item" loading={saving} />
           </div>
