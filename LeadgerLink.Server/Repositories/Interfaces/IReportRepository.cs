@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
-    // Repository for report queries that return scalar metrics.
+    // Repository for report queries that return scalar metrics and file generation.
     public interface IReportRepository
     {
         // Get cost of goods sold for a store for the given year and month.
@@ -34,5 +34,11 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Get profit margin for a store for the given year and month.
         Task<decimal> GetProfitMarginByStoreForMonthAsync(int storeId, int year, int month);
+
+        // Placeholder report generation APIs (return raw file bytes).
+        // Implementations should later generate the requested report and return file bytes.
+        // For now these will return empty files (placeholders).
+        Task<byte[]> GenerateReportPdfAsync(string reportId, int? organizationId = null, int? storeId = null);
+        Task<byte[]> GenerateReportCsvAsync(string reportId, int? organizationId = null, int? storeId = null);
     }
 }//end IReportRepository

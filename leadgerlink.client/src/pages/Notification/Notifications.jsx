@@ -128,93 +128,103 @@ export default function Notifications() {
           </h1>
         </div>
 
-        <div style={{ display: "flex", gap: 24, padding: 20 }}>
-          {/* Main list */}
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div>
-                <button
-                  type="button"
-                  onClick={() => void fetchNotifications(10)}
-                  disabled={loading || saving}
-                  className="btn btn-outline-secondary me-2"
-                >
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void markAllAsRead()}
-                  disabled={saving || notifications.length === 0}
-                  className="btn btn-outline-secondary"
-                >
-                  Mark all read
-                </button>
+        {/*
+          Use an overflow wrapper to allow horizontal scrolling when viewport is narrow.
+          Inner container uses inline-flex so children keep their widths and cause horizontal scroll
+          rather than collapsing and cutting off content.
+        */}
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "inline-flex", gap: 24, padding: 20, width: "100%", alignItems: "flex-start" }}>
+            {/* Main list */}
+            <div style={{ flex: "1 1 auto", minWidth: 320, maxWidth: "100%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => void fetchNotifications(10)}
+                    disabled={loading || saving}
+                    className="btn btn-outline-secondary me-2"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void markAllAsRead()}
+                    disabled={saving || notifications.length === 0}
+                    className="btn btn-outline-secondary"
+                  >
+                    Mark all read
+                  </button>
+                </div>
               </div>
+
+              {loading && <p>Loading notifications…</p>}
+              {error && (
+                <div role="alert" style={{ color: "var(--danger, #c00)" }}>
+                  <p>Unable to load notifications: {error}</p>
+                  <button type="button" onClick={() => void fetchNotifications(10)}>Retry</button>
+                </div>
+              )}
+
+              {!loading && !error && filtered.length === 0 && <p>No notifications</p>}
+
+              {!loading && !error && filtered.length > 0 && (
+                <ul style={{ listStyle: "none", padding: 0 }}>
+                  {filtered.map((n) => (
+                    <NotificationItem key={n.id} item={n} onMarkRead={markAsRead} />
+                  ))}
+                </ul>
+              )}
             </div>
 
-            {loading && <p>Loading notifications…</p>}
-            {error && (
-              <div role="alert" style={{ color: "var(--danger, #c00)" }}>
-                <p>Unable to load notifications: {error}</p>
-                <button type="button" onClick={() => void fetchNotifications(10)}>Retry</button>
+            {/* Right-side filters */}
+            <aside
+              className="mt-5 border rounded p-3"
+              style={{ flex: "0 0 300px", width: 300 }}
+            >
+              <div style={{ marginBottom: 12 }}>
+                <InputField
+                  label={null}
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search notifications..."
+                  className="mb-2"
+                />
               </div>
-            )}
 
-            {!loading && !error && filtered.length === 0 && <p>No notifications</p>}
+              <div style={{ marginTop: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Filter By:</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className={`btn ${filterRead === "all" ? "btn-primary" : "btn-outline-secondary"}`}
+                    onClick={() => setFilterRead("all")}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${filterRead === "read" ? "btn-primary" : "btn-outline-secondary"}`}
+                    onClick={() => setFilterRead("read")}
+                  >
+                    Read
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${filterRead === "unread" ? "btn-primary" : "btn-outline-secondary"}`}
+                    onClick={() => setFilterRead("unread")}
+                  >
+                    Unread
+                  </button>
+                </div>
+              </div>
 
-            {!loading && !error && filtered.length > 0 && (
-              <ul style={{ listStyle: "none", padding: 0 }}>
-                {filtered.map((n) => (
-                  <NotificationItem key={n.id} item={n} onMarkRead={markAsRead} />
-                ))}
-              </ul>
-            )}
+              <div style={{ marginTop: 16 }}>
+                <label style={{ display: "block", marginBottom: 6 }}>Date</label>
+                <InputField label={null} type="date" value={filterDate} onChange={setFilterDate} />
+              </div>
+            </aside>
           </div>
-
-          {/* Right-side filters */}
-          <aside className="mt-5 border rounded p-3" style={{ width: 300 }}>
-            <div style={{ marginBottom: 12 }}>
-              <InputField
-                label={null}
-                value={search}
-                onChange={setSearch}
-                placeholder="Search notifications..."
-                className="mb-2"
-              />
-            </div>
-
-            <div style={{ marginTop: 8, marginBottom: 8 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>Filter By:</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  className={`btn ${filterRead === "all" ? "btn-primary" : "btn-outline-secondary"}`}
-                  onClick={() => setFilterRead("all")}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${filterRead === "read" ? "btn-primary" : "btn-outline-secondary"}`}
-                  onClick={() => setFilterRead("read")}
-                >
-                  Read
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${filterRead === "unread" ? "btn-primary" : "btn-outline-secondary"}`}
-                  onClick={() => setFilterRead("unread")}
-                >
-                  Unread
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <label style={{ display: "block", marginBottom: 6 }}>Date</label>
-              <InputField label={null} type="date" value={filterDate} onChange={setFilterDate} />
-            </div>
-          </aside>
         </div>
       </div>
     </main>
