@@ -14,6 +14,7 @@ import AboutUs from "../pages/GeneralInformation/aboutus";
 import Notifications from "../pages/Notifications";
 import OrganizationsList from "../pages/Organizations/OrganizationsList";
 import OrganizationNew from "../pages/Organizations/OrganizationNew";
+import OrganizationView from "../pages/Organizations/OrganizationView";
 
 import Dashboard from "../pages/Dashboards/Dashboard";
 import Reports from "../pages/Reports";
@@ -57,6 +58,12 @@ const AppRoutes = () => {
       <Route path="/sales" element={<Sales />} />
       <Route path="/sales/:id" element={<SaleView />} />
       <Route path="/inventory" element={<InventoryManagement />} />
+
+      {/* Organizations */}
+      <Route path="/organizations" element={<OrganizationsList />} />
+      <Route path="/organizations/new" element={<OrganizationNew />} />
+      <Route path="/organizations/:id" element={<OrganizationView />} />
+
       <Route path="*" element={<NotFound />} />
       <Route path="/recipes" element={<Recipes />} />
       <Route path="/privacypolicy" element={<PrivacyPolicy />} />
@@ -64,13 +71,6 @@ const AppRoutes = () => {
       <Route path="/faqs" element={<FAQ />} />
       <Route path="/aboutus" element={<AboutUs />} />
       <Route path="/notifications" element={<Notifications />} />
-      <Route path="/organizations" element={<OrganizationsList />} />
-      <Route path="/organizations/new" element={<OrganizationNew />} />
-
-      {/* Stores */}
-      <Route path="/stores" element={<StoresList />} />
-      <Route path="/stores/new" element={<StoreNew />} />
-
       <Route path="/applicationauditlogs" element={<ApplicationAuditLogsList />} />
       <Route path="/organizationauditlogs" element={<OrganizationAuditLogsList />} />
       <Route path="/accountant-dashboard" element={<AccountantDashboard />} />
@@ -83,7 +83,6 @@ const AppRoutes = () => {
       <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
       <Route path="/products" element={<ProductsList />} />
       <Route path="/reset-password" element={<ForgetPassword />} />
-
       <Route path="/sales/new" element={<SalesNew />} />
       <Route path="/inventory/new" element={<InventoryNew />} />
       <Route path="/recipes/new" element={<RecipeNew />} />

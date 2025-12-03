@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Dtos;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -13,29 +15,62 @@ namespace LeadgerLink.Server.Controllers
     public class OrganizationsController : ControllerBase
     {
         private readonly IOrganizationRepository _repository;
+        private readonly IRepository<IndustryType> _industryRepo;
         private readonly ILogger<OrganizationsController> _logger;
 
-        public OrganizationsController(IOrganizationRepository repository, ILogger<OrganizationsController> logger)
+        public OrganizationsController(
+            IOrganizationRepository repository,
+            IRepository<IndustryType> industryRepo,
+            ILogger<OrganizationsController> logger)
         {
             _repository = repository;
+            _industryRepo = industryRepo ?? throw new ArgumentNullException(nameof(industryRepo));
             _logger = logger;
         }
 
         // GET: api/organizations
+        // Returns a projection appropriate for the client listing (includes industry type name + counts).
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Organization>>> GetAll()
+        public async Task<ActionResult<IEnumerable<OrganizationListDto>>> GetAll()
         {
-            var items = await _repository.GetAllAsync();
+            var items = await _repository.GetListAsync();
             return Ok(items);
         }
 
-        // GET: api/organizations/{id}
-        [HttpGet("{id:int}")]
-        public async Task<ActionResult<Organization>> GetById(int id)
+        // NEW: GET api/organizations/industrytypes
+        // Returns lightweight industry type list for client-side filters.
+        [HttpGet("industrytypes")]
+        public async Task<ActionResult<IEnumerable<object>>> GetIndustryTypes()
         {
-            var org = await _repository.GetByIdAsync(id);
-            if (org == null) return NotFound();
-            return Ok(org);
+            try
+            {
+                var list = await _industryRepo.GetAllAsync();
+                var result = list
+                    .Select(i => new
+                    {
+                        industryTypeId = i.IndustryTypeId,
+                        industryTypeName = i.IndustryTypeName
+                    })
+                    .OrderBy(x => x.industryTypeName)
+                    .ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load industry types");
+                return StatusCode(500, "Failed to load industry types");
+            }
+        }
+
+        // GET: api/organizations/{id}
+        // Use repository projection that returns OrganizationDetailDto (includes counts and admin name).
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<OrganizationDetailDto>> GetById(int id)
+        {
+            var dto = await _repository.GetDetailByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
         // GET: api/organizations/by-user/{userId}
@@ -54,7 +89,6 @@ namespace LeadgerLink.Server.Controllers
             if (model == null) return BadRequest();
 
             model.CreatedAt = DateTime.UtcNow;
-            
 
             var created = await _repository.AddAsync(model);
             return CreatedAtAction(nameof(GetById), new { id = created.OrgId }, created);
@@ -83,17 +117,6 @@ namespace LeadgerLink.Server.Controllers
             return NoContent();
         }
 
-        // DELETE: api/organizations/{id}
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var existing = await _repository.GetByIdAsync(id);
-            if (existing == null) return NotFound();
-
-            await _repository.Delete(existing);
-            return NoContent();
-        }
-
         // GET: api/organizations/count
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count()
@@ -102,6 +125,5 @@ namespace LeadgerLink.Server.Controllers
             var total = await _repository.CountAsync(o => true);
             return Ok(total);
         }
-
     }
 }

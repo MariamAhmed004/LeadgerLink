@@ -63,5 +63,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return global lookups (units, vat categories).
         Task<(IEnumerable<object> Units, IEnumerable<object> VatCategories)> GetLookupsAsync(int? storeId = null);
+
+        // Return a DTO shaped for API consumption (avoids serializing EF navigation cycles)
+        Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId);
     }
 }

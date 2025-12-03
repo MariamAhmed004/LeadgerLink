@@ -330,18 +330,12 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // Optional: GET api/inventoryitems/{id}
-        [HttpGet("{id}")]
-        public async Task<ActionResult> GetById(string id)
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult> GetById(int id)
         {
-            // If id cannot be parsed to int, respond NotFound so callers don't get a 400 from model binding.
-            if (!int.TryParse(id, out var intId))
-            {
-                return NotFound();
-            }
-
-            var item = await _inventoryRepo.GetWithRelationsAsync(intId);
-            if (item == null) return NotFound();
-            return Ok(item);
+            var dto = await _inventoryRepo.GetDetailByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
     }
 }

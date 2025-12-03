@@ -271,5 +271,41 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return (units, vatCategories);
         }
+
+        // Add this method inside the InventoryItemRepository class (use existing _context).
+        // Requires: using LeadgerLink.Server.Dtos; using Microsoft.EntityFrameworkCore;
+        public async Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId)
+        {
+            return await _context.InventoryItems
+                .Where(i => i.InventoryItemId == inventoryItemId)
+                .Select(i => new InventoryItemDetailDto
+                {
+                    InventoryItemId = i.InventoryItemId,
+                    InventoryItemName = i.InventoryItemName,
+                    Description = i.Description,
+                    Quantity = i.Quantity,
+                    MinimumQuantity = i.MinimumQuantity,
+                    CostPerUnit = i.CostPerUnit,
+                    UnitName = i.Unit != null ? i.Unit.UnitName : null,
+                    SupplierId = i.SupplierId,
+                    SupplierName = i.Supplier != null ? i.Supplier.SupplierName : null,
+                    CategoryId = i.InventoryItemCategoryId,
+                    CategoryName = i.InventoryItemCategory != null ? i.InventoryItemCategory.InventoryItemCategoryName : null,
+                    StoreId = i.StoreId,
+                    StoreName = i.Store != null ? i.Store.StoreName : null,
+                    StockLevel = (i.Quantity <= 0) ? "Out of Stock" :
+                                 (i.MinimumQuantity.HasValue && i.Quantity < i.MinimumQuantity.Value) ? "Low Stock" :
+                                 "In Stock",
+                    ImageDataUrl = i.InventoryItemImage != null && i.InventoryItemImage.Length > 0
+                                   ? $"data:image;base64,{Convert.ToBase64String(i.InventoryItemImage)}"
+                                   : null,
+                    CreatedByName = i.User != null ? ((i.User.UserFirstname ?? "") + " " + (i.User.UserLastname ?? "")).Trim() : null,
+                    CreatedAt = i.CreatedAt,
+                    UpdatedAt = i.UpdatedAt,
+                    RelatedProductsCount = i.Products != null ? i.Products.Count() : 0
+                })
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+        }
     }
 }
