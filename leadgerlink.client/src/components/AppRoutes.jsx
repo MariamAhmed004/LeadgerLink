@@ -78,9 +78,10 @@ import Recipes from "../pages/Recipes/RecipesList";
 import RecipeNew from "../pages/Recipes/RecipeNew";
 
 // -----------------------------
-// Notifications / Misc
+// Notifications
 // -----------------------------
-import Notifications from "../pages/Notifications";
+import Notifications from "../pages/Notification/Notifications";
+import NotificationView from "../pages/Notification/NotificationView";
 
 const AppRoutes = () => {
   return (
@@ -162,9 +163,10 @@ const AppRoutes = () => {
       <Route path="/recipes/new" element={<RecipeNew />} />
 
       {/* ---------------------------
-          Notifications / Misc
+          Notifications
           --------------------------- */}
-      <Route path="/notifications" element={<Notifications />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/notifications/:id" element={<NotificationView />} />
 
       {/* ---------------------------
           Fallback / Not found

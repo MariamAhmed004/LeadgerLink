@@ -20,5 +20,15 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         /// Count notifications matching optional filters (type, from/to date range, organization).
         /// </summary>
         Task<int> CountAsync(string? type, DateTime? from, DateTime? to, int? organizationId);
+
+        /// <summary>
+        /// Return a single notification by id for the provided user (null when not found or not owned by the user).
+        /// </summary>
+        Task<Notification?> GetByIdForUserAsync(int notificationId, int userId);
+
+        /// <summary>
+        /// Mark a notification as read for the given user.
+        /// </summary>
+        Task MarkAsReadAsync(int notificationId, int userId);
     }
 }

@@ -42,17 +42,97 @@ namespace LeadgerLink.Server.Controllers
             if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
             var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (domainUser == null) return Ok(Array.Empty<Notification>());
+            if (domainUser == null) return Ok(Array.Empty<object>());
 
             try
             {
                 var items = await _repository.GetLatestForUserAsync(domainUser.UserId, pageSize);
-                return Ok(items);
+
+                // map to lightweight shape to avoid cycles / expose only needed fields
+                var dto = items.Select(n => new
+                {
+                    notificationId = n.NotificationId,
+                    subject = n.Subject,
+                    message = n.Message,
+                    createdAt = n.CreatedAt,
+                    isRead = n.IsRead,
+                    userId = n.UserId,
+                    notificationType = n.NotificationType != null ? new { notificationTypeName = n.NotificationType.NotificationTypeName } : null
+                }).ToList();
+
+                return Ok(dto);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load latest notifications for user {UserId}", domainUser.UserId);
                 return StatusCode(500, "Failed to load notifications");
+            }
+        }
+
+        // GET api/notifications/{id}
+        // Return the notification detail for the current user (repository used for retrieval)
+        [Authorize]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            if (!User.Identity?.IsAuthenticated ?? true) return Unauthorized();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return NotFound();
+
+            try
+            {
+                var n = await _repository.GetByIdForUserAsync(id, domainUser.UserId);
+                if (n == null) return NotFound();
+
+                var dto = new
+                {
+                    notificationId = n.NotificationId,
+                    subject = n.Subject,
+                    message = n.Message,
+                    createdAt = n.CreatedAt,
+                    isRead = n.IsRead,
+                    userId = n.UserId,
+                    notificationTypeName = n.NotificationType != null ? n.NotificationType.NotificationTypeName : null
+                };
+
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load notification {NotificationId} for user {UserId}", id, domainUser.UserId);
+                return StatusCode(500, "Failed to load notification");
+            }
+        }
+
+        // POST api/notifications/{id}/read
+        // Mark the notification as read for the current user
+        [Authorize]
+        [HttpPost("{id:int}/read")]
+        public async Task<IActionResult> MarkAsRead(int id)
+        {
+            if (!User.Identity?.IsAuthenticated ?? true) return Unauthorized();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return NotFound();
+
+            try
+            {
+                await _repository.MarkAsReadAsync(id, domainUser.UserId);
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to mark notification {NotificationId} read for user {UserId}", id, domainUser.UserId);
+                return StatusCode(500, "Failed to mark notification as read");
             }
         }
 

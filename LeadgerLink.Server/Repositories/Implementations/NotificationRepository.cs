@@ -46,7 +46,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var n = await _context.Notifications.FirstOrDefaultAsync(x => x.NotificationId == notificationId && x.UserId == userId);
             if (n == null) return;
             n.IsRead = true;
-            n.CreatedAt = n.CreatedAt; // keep timestamp unchanged
             await _context.SaveChangesAsync();
         }
 
@@ -81,6 +80,17 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
 
             return await q.CountAsync();
+        }
+
+        // Return single notification by id for the specified user (includes NotificationType navigation)
+        public async Task<Notification?> GetByIdForUserAsync(int notificationId, int userId)
+        {
+            return await _context.Notifications
+                .Include(n => n.NotificationType)
+                .Include(n => n.User)
+                .Where(n => n.NotificationId == notificationId && n.UserId == userId)
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
         }
     }
 }

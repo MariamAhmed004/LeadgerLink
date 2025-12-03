@@ -4,6 +4,7 @@ using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 namespace LeadgerLink.Server
 {
@@ -54,8 +55,19 @@ namespace LeadgerLink.Server
             });
 
 
-            builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+            // Configure controllers + global JSON options to avoid object cycles during serialization.
+            // Using ReferenceHandler.IgnoreCycles prevents the JsonSerializer from throwing on navigation cycles.
+            builder.Services.AddControllers()
+                .AddJsonOptions(opts =>
+                {
+                    opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+                    // optional: increase depth if you expect deeper graphs
+                    opts.JsonSerializerOptions.MaxDepth = 64;
+                    // optional: do not emit nulls if you prefer
+                    // opts.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+                });
+
+            // Learn more about configuring Swagger/OpenAPI
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
