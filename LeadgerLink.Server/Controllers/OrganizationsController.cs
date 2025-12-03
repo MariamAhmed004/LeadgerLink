@@ -84,14 +84,42 @@ namespace LeadgerLink.Server.Controllers
 
         // POST: api/organizations
         [HttpPost]
-        public async Task<ActionResult<Organization>> Create([FromBody] Organization model)
+        public async Task<ActionResult<OrganizationDetailDto>> Create(
+            [FromBody][Bind("OrgName,Email,Phone,IndustryTypeId,RegestirationNumber,EstablishmentDate,WebsiteUrl,IsActive")] OrganizationDetailDto dto)
         {
-            if (model == null) return BadRequest();
+            if (dto == null) return BadRequest("Request body is required.");
 
-            model.CreatedAt = DateTime.UtcNow;
+            if (string.IsNullOrWhiteSpace(dto.OrgName) ||
+                string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Phone))
+            {
+                return BadRequest("OrgName, Email and Phone are required.");
+            }
+
+            if (!dto.IndustryTypeId.HasValue)
+            {
+                return BadRequest("IndustryTypeId is required.");
+            }
+
+            var industry = await _industryRepo.GetByIdAsync(dto.IndustryTypeId.Value);
+            if (industry == null) return BadRequest("Selected industry type does not exist.");
+
+            var model = new Organization
+            {
+                OrgName = dto.OrgName!.Trim(),
+                Email = dto.Email!.Trim(),
+                Phone = dto.Phone!.Trim(),
+                IndustryTypeId = dto.IndustryTypeId.Value,
+                RegestirationNumber = string.IsNullOrWhiteSpace(dto.RegestirationNumber) ? null : dto.RegestirationNumber!.Trim(),
+                EstablishmentDate = dto.EstablishmentDate,
+                WebsiteUrl = string.IsNullOrWhiteSpace(dto.WebsiteUrl) ? null : dto.WebsiteUrl!.Trim(),
+                IsActive = dto is { } && dto.StoresCount >= 0 ? true : true, // keep current defaulting behavior
+                CreatedAt = DateTime.UtcNow
+            };
 
             var created = await _repository.AddAsync(model);
-            return CreatedAtAction(nameof(GetById), new { id = created.OrgId }, created);
+            var detail = await _repository.GetDetailByIdAsync(created.OrgId);
+            return CreatedAtAction(nameof(GetById), new { id = created.OrgId }, detail);
         }
 
         // PUT: api/organizations/{id}

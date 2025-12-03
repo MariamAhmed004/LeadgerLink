@@ -9,6 +9,10 @@ namespace LeadgerLink.Server.Dtos
         public string? OrgName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+
+        // ADDED: allow client to specify industry id when creating/updating
+        public int? IndustryTypeId { get; set; }
+
         public string? IndustryTypeName { get; set; }
         public string? RegestirationNumber { get; set; }
         public DateTime? EstablishmentDate { get; set; }

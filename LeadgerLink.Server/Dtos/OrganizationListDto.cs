@@ -9,6 +9,13 @@ namespace LeadgerLink.Server.Dtos
         public string? OrgName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
+
+        // Added: website URL to show in the list.
+        public string? WebsiteUrl { get; set; }
+
+        // Added: expose active flag so client can use it directly
+        public bool IsActive { get; set; }
+
         public string? IndustryTypeName { get; set; }
         public DateTime CreatedAt { get; set; }
 

@@ -48,7 +48,7 @@ public partial class Organization
 
     [ForeignKey("IndustryTypeId")]
     [InverseProperty("Organizations")]
-    public virtual IndustryType IndustryType { get; set; } = null!;
+    public virtual IndustryType? IndustryType { get; set; } 
 
     [InverseProperty("Org")]
     public virtual ICollection<Store> Stores { get; set; } = new List<Store>();

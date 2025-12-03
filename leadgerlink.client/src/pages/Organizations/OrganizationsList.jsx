@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { FaPlus, FaExternalLinkAlt, FaEnvelope } from "react-icons/fa";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSection from "../../components/Listing/FilterSection";
@@ -15,6 +16,25 @@ import PaginationSection from "../../components/Listing/PaginationSection";
 */
 
 const OrganizationsList = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // success alert state
+  const [successMsg, setSuccessMsg] = useState("");
+
+  // show success message if navigated from create page
+  useEffect(() => {
+    if (location?.state?.created) {
+      const name = location.state.createdName ?? "Organization";
+      setSuccessMsg(`"${name}" added successfully.`);
+      // clear history state so refresh/navigation doesn't show the alert again
+      navigate(location.pathname, { replace: true, state: {} });
+      // auto-dismiss after 5s
+      const t = setTimeout(() => setSuccessMsg(""), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [location, navigate]);
+
   const [statusFilter, setStatusFilter] = useState("");
   const [industryFilter, setIndustryFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -157,6 +177,15 @@ const OrganizationsList = () => {
         ]}
         actions={[ { icon: <FaPlus />, title: "New Organization", route: "/organizations/new" } ]}
       />
+
+      {/* success alert */}
+      {successMsg && (
+        <div className="row">
+          <div className="col-12">
+            <div className="alert alert-success">{successMsg}</div>
+          </div>
+        </div>
+      )}
 
       <FilterSection
         searchValue={searchTerm}

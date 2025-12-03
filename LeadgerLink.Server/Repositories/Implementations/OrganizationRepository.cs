@@ -35,7 +35,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .FirstOrDefaultAsync();
         }
 
-        // Return list projection for organizations (includes industry type name and counts)
+        // Return list projection for organizations (includes industry type name, website and counts)
         public async Task<IEnumerable<OrganizationListDto>> GetListAsync()
         {
             var q = _context.Organizations
@@ -45,6 +45,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     OrgName = o.OrgName,
                     Email = o.Email,
                     Phone = o.Phone,
+                    WebsiteUrl = o.WebsiteUrl, // populate website here
+                    IsActive = o.IsActive,     // populate active flag
                     IndustryTypeName = o.IndustryType != null ? o.IndustryType.IndustryTypeName : null,
                     CreatedAt = o.CreatedAt,
                     StoresCount = o.Stores != null ? o.Stores.Count() : 0,
