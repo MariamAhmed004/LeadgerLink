@@ -59,6 +59,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 {
                     UserId = u.UserId,
                     FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim(),
+                    // new discrete fields
+                    FirstName = u.UserFirstname,
+                    LastName = u.UserLastname,
+                    // new store name mapping (nullable)
+                    StoreName = u.Store != null ? u.Store.StoreName : null,
                     Email = u.Email,
                     Phone = u.Phone,
                     Role = u.Role != null ? u.Role.RoleTitle : null,
@@ -81,6 +86,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 {
                     UserId = u.UserId,
                     FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim(),
+                    // new discrete fields
+                    FirstName = u.UserFirstname,
+                    LastName = u.UserLastname,
+                    // new store name mapping
+                    StoreName = u.Store != null ? u.Store.StoreName : null,
                     Email = u.Email,
                     Phone = u.Phone,
                     Role = u.Role != null ? u.Role.RoleTitle : null,

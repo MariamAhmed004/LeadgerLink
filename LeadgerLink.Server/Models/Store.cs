@@ -82,7 +82,12 @@ public partial class Store
     [InverseProperty("Store")]
     public virtual ICollection<Supplier> Suppliers { get; set; } = new List<Supplier>();
 
+    // existing mapping: store.UserId -> User.Stores (stores this user owns)
     [ForeignKey("UserId")]
     [InverseProperty("Stores")]
     public virtual User? User { get; set; }
+
+    // NEW: inverse collection for users who belong to this store (User.Store -> Store.Users)
+    [InverseProperty("Store")]
+    public virtual ICollection<User> Users { get; set; } = new List<User>();
 }

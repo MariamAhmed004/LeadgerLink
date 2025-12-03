@@ -1,208 +1,340 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../Context/AuthContext';
+import InputField from '../components/Form/InputField';
 
-/*
-  Profile view template (replaces previous Sign Up template).
-  - Default layout mirrors the former sign-up card.
-  - Uses mocked user data for display and inline editing.
-  - No external data sources or database logic included — replace mocks with real data fetch/update later.
+/* Profile client mapping aligned to backend camelCase JSON:
+   server now includes storeName; map dto.storeName into local state.
 */
 
-const Profile = () => {
-  // Mocked user data (replace with real fetch from API / context)
-  const [user, setUser] = useState({
-    avatar: '/images/avatar-placeholder.png', // replace with actual avatar URL
-    name: 'Jane Doe',
-    email: 'jane.doe@example.com',
-    role: 'Branch Manager',
-    phone: '+973 17XX XXXX',
-    address: 'XXX Manama Avenue, Manama, MA 1203, Bahrain',
-  });
+const formatDateReadable = (iso) => {
+  try {
+    const d = iso ? new Date(iso) : new Date();
+    return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit' }) + ' ' + d.toLocaleDateString();
+  } catch {
+    return iso;
+  }
+};
 
+const getInitials = (firstName, lastName) => {
+  const a = (firstName || '').trim();
+  const b = (lastName || '').trim();
+  if (!a && !b) return '';
+  if (!b) return a.slice(0, 2).toUpperCase();
+  return (a.charAt(0) + b.charAt(0)).toUpperCase();
+};
+
+const getAvatarColor = () => '#c6c4c0';
+
+const Profile = () => {
+  const navigate = useNavigate();
+  const { loggedInUser, loading: authLoading } = useAuth();
+
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(user);
-  const [status, setStatus] = useState(''); // success / error messages (mocked)
+  const [resetting, setResetting] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const [user, setUser] = useState({
+    userId: null,
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: '',
+    organizationName: '',
+    storeName: '',
+    phone: '',
+    createdAt: null,
+  });
+  const [draft, setDraft] = useState({ ...user });
+
+  // load user detail once auth context is ready
+  useEffect(() => {
+    let mounted = true;
+
+    const loadDetail = async (id) => {
+      setLoading(true);
+      setStatus('');
+      try {
+        const res = await fetch(`/api/users/${id}`, { credentials: 'include' });
+        if (!res.ok) {
+          if (res.status === 404) {
+            setStatus('User not found.');
+            return;
+          }
+          const txt = await res.text().catch(() => null);
+          throw new Error(txt || `Failed to load user (status ${res.status})`);
+        }
+
+        const dto = await res.json();
+        if (!mounted) return;
+
+        // prefer discrete firstName/lastName; fallback to splitting fullName
+        let firstName = dto.firstName || '';
+        let lastName = dto.lastName || '';
+        if (!firstName && !lastName) {
+          const full = dto.fullName || '';
+          const parts = (full || '').trim().split(' ');
+          firstName = parts.length > 0 ? parts[0] : '';
+          lastName = parts.length > 1 ? parts.slice(1).join(' ') : '';
+        }
+
+        const mapped = {
+          userId: dto.userId ?? id,
+          firstName,
+          lastName,
+          email: dto.email || '',
+          role: dto.role || '',
+          organizationName: dto.organizationName || '',
+          storeName: dto.storeName || '', // <- now populated server-side
+          phone: dto.phone || '',
+          createdAt: dto.createdAt || null,
+        };
+
+        setUser(mapped);
+        setDraft(mapped);
+        setStatus('');
+      } catch (err) {
+        console.error(err);
+        if (mounted) setStatus(err?.message || 'Failed to load profile.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      const isAuth = !!loggedInUser?.isAuthenticated;
+      const id = loggedInUser?.userId ?? null;
+      if (!isAuth || !id) {
+        setLoading(false);
+        setStatus('Not authenticated.');
+        return;
+      }
+      loadDetail(id);
+    }
+
+    return () => { mounted = false; };
+  }, [authLoading, loggedInUser]);
 
   const startEdit = () => {
-    setDraft(user);
+    setDraft({ ...user });
     setStatus('');
     setEditing(true);
   };
 
   const cancelEdit = () => {
-    setDraft(user);
+    setDraft({ ...user });
     setStatus('');
     setEditing(false);
   };
 
-  const handleChange = (e) => {
-    setDraft({
-      ...draft,
-      [e.target.name]: e.target.value,
-    });
+  const setField = (name, value) => {
+    setDraft((d) => ({ ...d, [name]: value }));
   };
 
   const saveProfile = async (e) => {
-    e?.preventDefault();
-    // TODO: Replace with real update call (API / context)
+    e?.preventDefault?.();
+    setStatus('');
+    if (!user.userId) return setStatus('User id missing.');
+
     try {
-      // simulate save
-      await new Promise((r) => setTimeout(r, 600));
-      setUser(draft);
-      setStatus('Profile updated successfully (mock).');
+      const payload = {
+        firstName: draft.firstName,
+        lastName: draft.lastName,
+        phone: draft.phone,
+      };
+
+      const res = await fetch(`/api/users/${user.userId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+
+      // optimistic update
+      setUser((u) => ({ ...u, ...payload }));
+      setDraft((d) => ({ ...d, ...payload }));
+      setStatus('Profile updated.');
       setEditing(false);
     } catch (err) {
-      setStatus('Failed to update profile (mock).');
       console.error(err);
+      setStatus(err?.message || 'Failed to save profile.');
     }
   };
 
-  const handleChangePassword = () => {
-    // TODO: Open change-password flow/modal
-    setStatus('Change password flow not implemented in template.');
+  const handleResetPassword = async () => {
+    if (resetting) return;
+    if (!user?.email) return setStatus('Email missing.');
+
+    setResetting(true);
+    setStatus('Initiating password reset...');
+
+    try {
+      await fetch('/api/users/request-password-reset', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, userId: user.userId }),
+      }).catch(() => null);
+
+      navigate('/reset-password', { state: { email: user.email, userId: user.userId } });
+      setStatus('');
+    } catch (err) {
+      console.error(err);
+      setStatus('Failed to initiate reset. Server endpoint may be missing.');
+    } finally {
+      setResetting(false);
+    }
   };
+
+  const initials = getInitials(user.firstName, user.lastName);
+  const bg = getAvatarColor();
+
+  const subtitleParts = [];
+  if (user.role) subtitleParts.push(user.role);
+    if (user.storeName) subtitleParts.push(user.storeName);
+    if (user.organizationName) subtitleParts.push(user.organizationName);
+  const subtitle = subtitleParts.join(' , ');
+
+  // action button minimum width for consistent appearance
+  const actionBtnMinWidth = 160;
 
   return (
     <div className="container py-5">
-      <div className="row justify-content-center align-items-start">
-        {/* Avatar / decorative column */}
-        <div className="col-md-3 d-none d-md-flex justify-content-center pe-3">
-          <div className="text-center">
-            <img
-              src={user.avatar}
-              alt="User avatar"
-              style={{
-                width: '160px',
-                height: '160px',
-                objectFit: 'cover',
-                borderRadius: '12px',
-                boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-              }}
-            />
-            <div className="mt-3">
+      <div className="row align-items-start mb-4">
+        {/* Avatar as circular div with initials (preserve color choice) */}
+        <div className="col-auto d-flex align-items-center">
+          <div
+            role="img"
+            aria-label={`Avatar for ${user.firstName} ${user.lastName}`}
+            style={{
+              width: 96,
+              height: 96,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: bg,
+              color: '#222',
+              fontSize: 28,
+              fontWeight: 600,
+              userSelect: 'none',
+            }}
+          >
+            {initials}
+          </div>
+        </div>
+
+        {/* Name + conditional subtitle */}
+        <div className="col text-start">
+          <h1 className="fw-bold mb-1" style={{ fontSize: '2.2rem', fontStyle: 'italic' }}>
+            {user.firstName} {user.lastName}
+          </h1>
+          {subtitle && (
+            <div className="fw-semibold text-secondary mb-1" style={{ fontStyle: 'italic' }}>
+              {subtitle}
+            </div>
+          )}
+          <div className="text-muted" style={{ fontStyle: 'italic' }}>
+            Created At {formatDateReadable(user.createdAt)}
+          </div>
+        </div>
+
+        {/* Actions: Edit + Reset Password */}
+        <div className="col-auto d-flex flex-column align-items-start" style={{ minWidth: actionBtnMinWidth }}>
+          {!editing ? (
+            <>
               <button
-                className="btn btn-outline-primary btn-sm"
-                onClick={() => setStatus('Avatar upload not implemented in template.')}
+                className="btn btn-dark mb-2 w-100"
+                onClick={startEdit}
+                disabled={loading}
+                style={{ minWidth: actionBtnMinWidth }}
               >
-                Change Avatar
+                Edit Details
+              </button>
+              <button
+                className="btn btn-danger w-100"
+                onClick={handleResetPassword}
+                disabled={resetting || loading}
+                aria-disabled={resetting || loading}
+                style={{ minWidth: actionBtnMinWidth }}
+              >
+                {resetting ? 'Starting Reset...' : 'Reset Password'}
+              </button>
+            </>
+          ) : (
+            <div className="d-flex gap-2">
+              <button
+                className="btn btn-primary"
+                onClick={saveProfile}
+                style={{ minWidth: actionBtnMinWidth }}
+              >
+                Save
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={cancelEdit}
+                style={{ minWidth: actionBtnMinWidth }}
+              >
+                Cancel
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Profile card */}
-        <div className="col-12 col-md-9">
-          <div className="card shadow-sm border-primary" style={{ maxWidth: '95%', margin: '0 auto' }}>
-            <div className="card-body" style={{ padding: '2rem' }}>
-              <h2 className="mb-4 text-primary text-center"><strong>Profile</strong></h2>
-
-              {/* Status messages (mock) */}
-              {status && (
-                <div className="mb-3">
-                  <div className="alert alert-info py-2">{status}</div>
-                </div>
-              )}
-
-              {/* Profile details / edit form */}
-              <form onSubmit={saveProfile}>
-                <div className="mb-3 row align-items-center">
-                  <label className="col-sm-4 col-form-label text-start">Full Name</label>
-                  <div className="col-sm-8">
-                    {editing ? (
-                      <input
-                        name="name"
-                        value={draft.name}
-                        onChange={handleChange}
-                        className="form-control"
-                      />
-                    ) : (
-                      <div className="form-control-plaintext">{user.name}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mb-3 row align-items-center">
-                  <label className="col-sm-4 col-form-label text-start">Email</label>
-                  <div className="col-sm-8">
-                    {editing ? (
-                      <input
-                        type="email"
-                        name="email"
-                        value={draft.email}
-                        onChange={handleChange}
-                        className="form-control"
-                      />
-                    ) : (
-                      <div className="form-control-plaintext">{user.email}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mb-3 row align-items-center">
-                  <label className="col-sm-4 col-form-label text-start">Role</label>
-                  <div className="col-sm-8">
-                    <div className="form-control-plaintext">{user.role}</div>
-                  </div>
-                </div>
-
-                <div className="mb-3 row align-items-center">
-                  <label className="col-sm-4 col-form-label text-start">Phone</label>
-                  <div className="col-sm-8">
-                    {editing ? (
-                      <input
-                        name="phone"
-                        value={draft.phone}
-                        onChange={handleChange}
-                        className="form-control"
-                      />
-                    ) : (
-                      <div className="form-control-plaintext">{user.phone}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mb-3 row">
-                  <label className="col-sm-4 col-form-label text-start">Address</label>
-                  <div className="col-sm-8">
-                    {editing ? (
-                      <textarea
-                        name="address"
-                        value={draft.address}
-                        onChange={handleChange}
-                        rows={3}
-                        className="form-control"
-                      />
-                    ) : (
-                      <div className="form-control-plaintext">{user.address}</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="d-flex gap-2 mt-3">
-                  {editing ? (
-                    <>
-                      <button type="submit" className="btn btn-primary">Save</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={cancelEdit}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button type="button" className="btn btn-primary" onClick={startEdit}>Edit Profile</button>
-                      <button type="button" className="btn btn-outline-secondary" onClick={handleChangePassword}>Change Password</button>
-                    </>
-                  )}
-                </div>
-              </form>
-
-              <hr className="mt-4" />
-
-              <div className="small text-muted">
-                {/* Guidance note for implementers */}
-                This is a profile view template. Replace the mocked state and handlers with real authentication/context and API calls.
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
+
+      {/* Form fields - two column */}
+      <form onSubmit={saveProfile}>
+        {status && (
+          <div className="mb-3">
+            <div className="alert alert-info py-2">{status}</div>
+          </div>
+        )}
+
+        <div className="row gx-4 gy-4">
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label={<em>First Name</em>}
+              value={draft.firstName}
+              onChange={(v) => setField('firstName', v)}
+              readOnly={!editing}
+            />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label={<em>Last Name</em>}
+              value={draft.lastName}
+              onChange={(v) => setField('lastName', v)}
+              readOnly={!editing}
+            />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label={<em>Email</em>}
+              type="email"
+              value={user.email}
+              readOnly
+              disabled
+            />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label={<em>Phone Number</em>}
+              value={draft.phone}
+              onChange={(v) => setField('phone', v)}
+              readOnly={!editing}
+            />
+          </div>
+        </div>
+      </form>
     </div>
   );
 };

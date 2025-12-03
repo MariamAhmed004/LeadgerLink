@@ -69,7 +69,7 @@ public partial class User
     [InverseProperty("Users")]
     public virtual Role Role { get; set; } = null!;
 
-    // NEW: navigation to Organization so projections can access Org.OrgName
+    // navigation to Organization so projections can access Org.OrgName
     [ForeignKey("OrgId")]
     [InverseProperty("Users")]
     public virtual Organization? Organization { get; set; }
@@ -77,6 +77,13 @@ public partial class User
     [InverseProperty("User")]
     public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
 
+    // existing: stores owned/managed by this user (Store.User -> User.Stores)
     [InverseProperty("User")]
     public virtual ICollection<Store> Stores { get; set; } = new List<Store>();
+
+    // NEW: navigation to the Store this user belongs to (StoreId FK).
+    // This maps the user's StoreId -> Store and is inverse to Store.Users collection.
+    [ForeignKey("StoreId")]
+    [InverseProperty("Users")]
+    public virtual Store? Store { get; set; }
 }

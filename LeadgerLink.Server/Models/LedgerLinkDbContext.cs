@@ -267,6 +267,12 @@ public partial class LedgerLinkDbContext : DbContext
                 .HasForeignKey(u => u.OrgId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_user_organization");
+
+            entity.HasOne(u => u.Store)
+                .WithMany(s => s.Users)
+                .HasForeignKey(u => u.StoreId)
+                .HasConstraintName("FK_user_store")
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         OnModelCreatingPartial(modelBuilder);
