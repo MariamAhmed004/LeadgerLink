@@ -10,7 +10,7 @@ import PaginationSection from "../../components/Listing/PaginationSection";
   ApplicationAuditLogsList.jsx
   - Uses /api/auditlogs/overview and /api/auditlogs/count.
   - Filters: action type (status) and timestamp range (from/to).
-  - Table columns: Status, Timestamp, User, Details.
+  - Table columns: Status, Timestamp (navigates to details via EntityTable rowLink), User, Details.
 */
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -146,9 +146,12 @@ export default function ApplicationAuditLogsList() {
 
   const tableRows = (rows || []).map((r) => {
     const status = getField(r, "actionType", "ActionType") ?? "-";
-    const timestamp = getField(r, "timestamp", "Timestamp") ? new Date(getField(r, "timestamp", "Timestamp")).toLocaleString() : "-";
+    const rawTimestamp = getField(r, "timestamp", "Timestamp");
+    const timestamp = rawTimestamp ? new Date(rawTimestamp).toLocaleString() : "-";
     const user = getField(r, "userName", "UserName") ?? "-";
     const details = getField(r, "details", "Details") ?? "";
+
+    // timestamp is plain value; EntityTable will make the cell a link via linkColumnName + rowLink
     return [
       <span className="badge bg-secondary" key="status">{status}</span>,
       timestamp,
@@ -199,6 +202,12 @@ export default function ApplicationAuditLogsList() {
         title="Application Audit Logs"
         columns={["Status", "Timestamp", "User", "Details"]}
         rows={tableRows}
+        linkColumnName="Timestamp"
+        rowLink={(_, rowIndex) => {
+          const item = rows[rowIndex];
+          const id = getField(item, "auditLogId", "AuditLogId", "audit_log_id");
+          return id ? `/auditlogs/${id}` : null;
+        }}
         emptyMessage={loading ? "Loading..." : (error ? `Error: ${error}` : "No audit logs to display.")}
       />
 

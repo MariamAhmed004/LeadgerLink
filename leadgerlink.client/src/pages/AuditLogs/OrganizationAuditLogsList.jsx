@@ -11,6 +11,8 @@ import PaginationSection from "../../components/Listing/PaginationSection";
   OrganizationAuditLogsList.jsx
   - Same UI as application logs but scopes queries to the logged in user's OrgId.
   - Uses /api/auditlogs/overview and /api/auditlogs/count with organizationId param.
+  - Timestamp column is now the link column; EntityTable's `linkColumnName` + `rowLink`
+    are used so the default table-row-link styles/hover behavior apply.
 */
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -143,9 +145,11 @@ export default function OrganizationAuditLogsList() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / entriesPerPage)), [total, entriesPerPage]);
 
+  // Build rows: timestamp is plain text (EntityTable will render it as a link via linkColumnName + rowLink)
   const tableRows = (rows || []).map((r) => {
     const status = getField(r, "actionType", "ActionType") ?? "-";
-    const timestamp = getField(r, "timestamp", "Timestamp") ? new Date(getField(r, "timestamp", "Timestamp")).toLocaleString() : "-";
+    const rawTimestamp = getField(r, "timestamp", "Timestamp");
+    const timestamp = rawTimestamp ? new Date(rawTimestamp).toLocaleString() : "-";
     const user = getField(r, "userName", "UserName") ?? "-";
     const details = getField(r, "details", "Details") ?? "";
     return [
@@ -207,6 +211,13 @@ export default function OrganizationAuditLogsList() {
         title="Organization Audit Logs"
         columns={["Status", "Timestamp", "User", "Details"]}
         rows={tableRows}
+        // instruct EntityTable to render the "Timestamp" column as a link using rowLink
+        linkColumnName="Timestamp"
+        rowLink={(_, rowIndex) => {
+          const item = rows[rowIndex];
+          const id = getField(item, "auditLogId", "AuditLogId", "audit_log_id");
+          return id ? `/auditlogs/${id}` : null;
+        }}
         emptyMessage={loading ? "Loading..." : (error ? `Error: ${error}` : "No audit logs to display.")}
       />
 
