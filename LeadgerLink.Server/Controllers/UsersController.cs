@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Identity;
@@ -31,20 +32,22 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // GET: api/users
+        // Return a lightweight projection (reuses UserDetailDto) for the list endpoint.
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetAll()
+        public async Task<ActionResult<IEnumerable<UserDetailDto>>> GetAll()
         {
-            var users = await _userRepository.GetAllAsync();
-            return Ok(users);
+            var list = await _userRepository.GetListAsync();
+            return Ok(list);
         }
 
         // GET: api/users/{id}
+        // Return DTO projection to ensure view has only required scalars (avoids cycles)
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<User>> GetById(int id)
+        public async Task<ActionResult<UserDetailDto>> GetById(int id)
         {
-            var user = await _userRepository.GetByIdAsync(id);
-            if (user == null) return NotFound();
-            return Ok(user);
+            var dto = await _userRepository.GetDetailByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
         // GET: api/users/count
@@ -105,7 +108,9 @@ namespace LeadgerLink.Server.Controllers
 
             var created = await _userRepository.AddAsync(domainUser);
 
-            return CreatedAtAction(nameof(GetById), new { id = created.UserId }, created);
+            // return DTO for created resource (consistent with GetById)
+            var createdDto = await _userRepository.GetDetailByIdAsync(created.UserId);
+            return CreatedAtAction(nameof(GetById), new { id = created.UserId }, createdDto);
         }
     }
 }

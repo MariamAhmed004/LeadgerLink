@@ -52,4 +52,7 @@ public partial class Organization
 
     [InverseProperty("Org")]
     public virtual ICollection<Store> Stores { get; set; } = new List<Store>();
+
+    [InverseProperty("Organization")]
+    public virtual ICollection<User> Users { get; set; } = new List<User>();
 }

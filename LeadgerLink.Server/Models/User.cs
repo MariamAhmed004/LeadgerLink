@@ -69,6 +69,11 @@ public partial class User
     [InverseProperty("Users")]
     public virtual Role Role { get; set; } = null!;
 
+    // NEW: navigation to Organization so projections can access Org.OrgName
+    [ForeignKey("OrgId")]
+    [InverseProperty("Users")]
+    public virtual Organization? Organization { get; set; }
+
     [InverseProperty("User")]
     public virtual ICollection<Sale> Sales { get; set; } = new List<Sale>();
 

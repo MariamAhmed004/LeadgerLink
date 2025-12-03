@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Dtos;
+using System;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -48,6 +49,47 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 });
 
             return await q.ToListAsync();
+        }
+
+        // Return projection suitable for users listing reusing UserDetailDto (fields optional)
+        public async Task<IEnumerable<UserDetailDto>> GetListAsync()
+        {
+            var q = _context.Users
+                .Select(u => new UserDetailDto
+                {
+                    UserId = u.UserId,
+                    FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim(),
+                    Email = u.Email,
+                    Phone = u.Phone,
+                    Role = u.Role != null ? u.Role.RoleTitle : null,
+                    OrganizationName = u.Organization != null ? u.Organization.OrgName : null,
+                    IsActive = u.IsActive,
+                    CreatedAt = u.CreatedAt
+                })
+                .AsNoTracking()
+                .OrderBy(u => u.FullName);
+
+            return await q.ToListAsync();
+        }
+
+        // Return a projection suitable for the user detail page.
+        public async Task<UserDetailDto?> GetDetailByIdAsync(int userId)
+        {
+            return await _context.Users
+                .Where(u => u.UserId == userId)
+                .Select(u => new UserDetailDto
+                {
+                    UserId = u.UserId,
+                    FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim(),
+                    Email = u.Email,
+                    Phone = u.Phone,
+                    Role = u.Role != null ? u.Role.RoleTitle : null,
+                    OrganizationName = u.Organization != null ? u.Organization.OrgName : null,
+                    IsActive = u.IsActive,
+                    CreatedAt = u.CreatedAt
+                })
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
         }
     }
 }

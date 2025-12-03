@@ -10,12 +10,10 @@ import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
 
 /*
-  UsersList.jsx
-  - Uses existing listing components (PageHeader, FilterSection, FilterSelect, FilterDate,
-    EntityTable, PaginationSection).
-  - Fetches users + lookups (stores, organizations) and performs client-side filtering,
-    role-specific column rendering and paging.
-  - Clicking a user row navigates to the user's detail view (NOT edit).
+  UsersList.jsx (clean)
+  - Uses canonical API field names only (server should return these):
+    { userId, userFirstname, userLastname, email, phone, role, organizationName, isActive, createdAt }
+  - Concatenate first + last name for display.
 */
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -34,61 +32,36 @@ export default function UsersList() {
 
   // data
   const [users, setUsers] = useState([]);
-  const [stores, setStores] = useState([]);
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [deletingId, setDeletingId] = useState(null);
 
-  // load users + lookups
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
-        // Try endpoint that returns all users; fall back to paged endpoint if needed
-        const endpoints = ["/api/users/all", "/api/users"];
-        let usersData = null;
-        for (const ep of endpoints) {
-          try {
-            const res = await fetch(ep, { credentials: "include" });
-            if (!res.ok) continue;
-            const json = await res.json();
-            // support either array or { items, total }
-            usersData = Array.isArray(json) ? json : (Array.isArray(json.items) ? json.items : json);
-            break;
-          } catch {
-            // try next
-          }
-        }
+        const [usersRes, orgsRes] = await Promise.all([
+          fetch("/api/users", { credentials: "include" }),
+          fetch("/api/organizations", { credentials: "include" })
+        ]);
 
         if (!mounted) return;
 
-        setUsers(Array.isArray(usersData) ? usersData : []);
+        if (!usersRes.ok) throw new Error("Failed to load users");
+        const usersJson = await usersRes.json();
+        const usersArr = Array.isArray(usersJson) ? usersJson : (usersJson.items || []);
+        setUsers(usersArr);
 
-        // lookups: stores and organizations, best-effort (ignore failures)
-        try {
-          const [storesRes, orgsRes] = await Promise.all([
-            fetch("/api/stores", { credentials: "include" }),
-            fetch("/api/organizations", { credentials: "include" }),
-          ]);
-
-          if (storesRes.ok) {
-            const sjson = await storesRes.json();
-            if (mounted) setStores(Array.isArray(sjson) ? sjson : (sjson.items || []));
-          }
-
-          if (orgsRes.ok) {
-            const ojson = await orgsRes.json();
-            if (mounted) setOrganizations(Array.isArray(ojson) ? ojson : (ojson.items || []));
-          }
-        } catch {
-          // ignore lookup failures
+        if (orgsRes.ok) {
+          const orgsJson = await orgsRes.json();
+          const orgsArr = Array.isArray(orgsJson) ? orgsJson : (orgsJson.items || []);
+          setOrganizations(orgsArr);
         }
-      } catch (err) {
-        console.error(err);
-        if (mounted) setError(err.message || "Failed to load users");
+      } catch (ex) {
+        console.error(ex);
+        if (mounted) setError(ex.message || "Failed to load data");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -98,48 +71,31 @@ export default function UsersList() {
     return () => { mounted = false; };
   }, []);
 
-  // helpers to read common fields with varied casing
-  const getField = (obj, ...keys) => {
-    if (!obj) return undefined;
-    for (const k of keys) {
-      if (obj[k] !== undefined && obj[k] !== null) return obj[k];
-    }
-    return undefined;
+  // lookup helpers using canonical names
+  const findOrgName = (orgId) => {
+    const o = organizations.find((x) => x.orgId === orgId || x.OrgId === orgId);
+    return o ? (o.orgName ?? o.OrgName ?? "") : "";
   };
 
-  // role checks
-  const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
-  const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
-  const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
-  const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
-
-  // client-side filtering
+  // client-side filtering using canonical fields only
   const filtered = users.filter((u) => {
-    // status filter
-    const isActive = Boolean(getField(u, "isActive", "IsActive", "active", "Active"));
-    if (statusFilter === "active" && !isActive) return false;
-    if (statusFilter === "inactive" && isActive) return false;
+    // expect u.isActive, u.createdAt, u.userFirstname, u.userLastname, u.email, u.phone, u.role
+    if (statusFilter === "active" && u.isActive !== true) return false;
+    if (statusFilter === "inactive" && u.isActive === true) return false;
 
-    // createdAfter filter (active by date)
     if (createdAfter) {
-      const createdAt = getField(u, "createdAt", "CreatedAt", "created_at", "Created");
-      if (!createdAt) return false;
-      const createdDate = new Date(createdAt);
-      const afterDate = new Date(createdAfter);
-      if (!(createdDate >= afterDate)) return false;
+      const created = u.createdAt ? new Date(u.createdAt) : null;
+      if (!created) return false;
+      if (!(created >= new Date(createdAfter))) return false;
     }
 
-    // search: name, email, phone, role
-    if (searchTerm && String(searchTerm).trim() !== "") {
-      const s = String(searchTerm).trim().toLowerCase();
-      const fullName =
-        String(getField(u, "fullName", "FullName", "name", "Name",
-          (getField(u, "userFirstname") ? `${getField(u, "userFirstname")} ${getField(u, "userLastname")}` : undefined)) ?? "").toLowerCase();
-      const email = String(getField(u, "email", "Email") ?? "").toLowerCase();
-      const phone = String(getField(u, "phone", "Phone") ?? "").toLowerCase();
-      const role = String(getField(u, "role", "Role") ?? "").toLowerCase();
-
-      if (!(fullName.includes(s) || email.includes(s) || phone.includes(s) || role.includes(s))) return false;
+    if (searchTerm && searchTerm.trim() !== "") {
+      const s = searchTerm.trim().toLowerCase();
+      const name = (((u.userFirstname ?? "") + " " + (u.userLastname ?? "")).trim()).toLowerCase();
+      const email = (u.email ?? "").toLowerCase();
+      const phone = String(u.phone ?? "").toLowerCase();
+      const role = (u.role ?? "").toLowerCase();
+      return name.includes(s) || email.includes(s) || phone.includes(s) || role.includes(s);
     }
 
     return true;
@@ -150,40 +106,31 @@ export default function UsersList() {
   const page = Math.max(1, currentPage);
   const paged = filtered.slice((page - 1) * entriesPerPage, page * entriesPerPage);
 
-  // lookup helpers
-  const findStoreName = (id) => {
-    const s = stores.find((x) => String(getField(x, "storeId", "StoreId", "id") ?? "") === String(id ?? ""));
-    return s ? (getField(s, "storeName", "StoreName", "name") ?? "") : "";
-  };
-  const findOrgName = (id) => {
-    const o = organizations.find((x) => String(getField(x, "orgId", "OrgId", "id") ?? "") === String(id ?? ""));
-    return o ? (getField(o, "orgName", "OrgName", "org_name", "name") ?? "") : "";
-  };
-
-  // build rows according to role
+  // build rows (canonical fields) - full name concatenated from first + last
   const tableRows = paged.map((u) => {
-    const id = getField(u, "userId", "UserId", "id", "Id");
-    const fullName =
-      getField(u, "fullName", "FullName") ??
-      (getField(u, "userFirstname") ? `${getField(u, "userFirstname")} ${getField(u, "userLastname")}` : undefined) ??
-      getField(u, "name", "Name") ??
-      "-";
-    const email = getField(u, "email", "Email") ?? "";
-    const phone = getField(u, "phone", "Phone") ?? getField(u, "phoneNumber", "PhoneNumber") ?? "";
-    const role = getField(u, "role", "Role") ?? getField(u, "userRole", "UserRole") ?? "";
-    const orgId = getField(u, "orgId", "OrgId", "organizationId", "OrganizationId");
-    const storeId = getField(u, "storeId", "StoreId");
-    const createdAt = getField(u, "createdAt", "CreatedAt", "created_at");
+      const id = u.userId;
+      const fullName = u.fullName ?? "-";
+    const email = u.email ?? "";
+    const phone = u.phone ?? "";
+    const role = u.role ?? "";
+    const orgName = u.organizationName ?? findOrgName(u.orgId) ?? "-";
+    const createdAt = u.createdAt ? new Date(u.createdAt).toLocaleString() : "-";
 
-    const statusCell = (getField(u, "isActive", "IsActive") === true || getField(u, "active") === true)
+    const statusCell = u.isActive === true
       ? <span className="badge bg-success">Active</span>
       : <span className="badge bg-secondary">Inactive</span>;
+
+    // Columns vary by role like before, but use canonical fields only
+    const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
+    const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+    const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+    const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
 
     if (isAppAdmin) {
       return [
         statusCell,
         fullName,
-        findOrgName(orgId) || "-",
+        orgName,
         role || "-",
         email || "-"
       ];
@@ -193,7 +140,7 @@ export default function UsersList() {
       return [
         statusCell,
         fullName,
-        findStoreName(storeId) || "-",
+        u.storeName ?? "-", // optional: server may include storeName; otherwise store id not shown
         role || "-",
         email || "-"
       ];
@@ -205,11 +152,10 @@ export default function UsersList() {
         fullName,
         email || "-",
         phone || "-",
-        createdAt ? new Date(createdAt).toLocaleString() : "-"
+        createdAt
       ];
     }
 
-    // default for other roles: show a compact view similar to org admin
     return [
       statusCell,
       fullName,
@@ -218,42 +164,17 @@ export default function UsersList() {
     ];
   });
 
-  // Build columns dynamically to match rows above
   const columns = (() => {
+    const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
+    const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+    const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+    const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
+
     if (isAppAdmin) return ["Status", "User Fullname", "Organization", "Role", "Email"];
     if (isOrgAdmin || isOrgAccountant) return ["Status", "User Fullname", "Store", "Role", "Email"];
     if (isStoreManager) return ["Status", "User Fullname", "Email", "Phone", "Created At"];
     return ["Status", "User Fullname", "Role", "Email"];
   })();
-
-  function handleSearchChange(e) {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  }
-
-  function handlePerPageChange(e) {
-    setEntriesPerPage(Number(e.target.value) || DEFAULT_PAGE_SIZE);
-    setCurrentPage(1);
-  }
-
-  async function handleDelete(userId) {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    setDeletingId(userId);
-
-    try {
-      const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-      if (!res.ok) {
-        throw new Error(`Delete failed: ${res.status}`);
-      }
-      // Optimistic update
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-      setCurrentPage(1);
-    } catch (err) {
-      window.alert(err.message || 'Failed to delete user');
-    } finally {
-      setDeletingId(null);
-    }
-  }
 
   return (
     <div className="container py-5">
@@ -289,8 +210,7 @@ export default function UsersList() {
           />
         </div>
 
-        <div className="col-md-3">          {/*<div className="small text-muted">Created after</div>*/}
-
+        <div className="col-md-3">
           <FilterDate value={createdAfter} onChange={(v) => { setCreatedAfter(v); setCurrentPage(1); }} />
         </div>
       </FilterSection>
@@ -310,8 +230,7 @@ export default function UsersList() {
           linkColumnName="User Fullname"
           rowLink={(_, rowIndex) => {
             const u = paged[rowIndex];
-            const id = getField(u, "userId", "UserId", "id", "Id");
-            // Row click links to user DETAILS page (not edit)
+            const id = u.userId;
             return `/users/${id}`;
           }}
         />
