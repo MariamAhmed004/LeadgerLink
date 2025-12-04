@@ -139,17 +139,17 @@ const SalesNew = () => {
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4 ">
           {/* Timestamp (half row) - label appears above input via TimestampField */}
-                  <div className="col-12 col-md-6 text-start">
+          <div className="col-12 col-md-6 text-start">
             <TimestampField label="Timestamp" value={timestamp} onChange={setTimestamp} required />
           </div>
 
-          {/* Tabbed menu full width */}
-          <div className="col-12">
-            <TabbedMenu tabs={tabs} />
-          </div>
+          {/* Tabbed menu full width - make menu area taller and scrollable */}
+                  <div className="col-12">
+                      <TabbedMenu tabs={tabs} />
+                  </div>
 
           {/* Total Amount and Applied Discount - labels on top */}
-                  <div className="col-12 col-md-6 text-start">
+          <div className="col-12 col-md-6 text-start">
             <InputField
               label="Total Amount"
               required
@@ -162,7 +162,7 @@ const SalesNew = () => {
             />
           </div>
 
-                  <div className="col-12 col-md-6 text-start">
+          <div className="col-12 col-md-6 text-start">
             <InputField
               label="Applied Discount"
               required={false}
@@ -176,7 +176,7 @@ const SalesNew = () => {
           </div>
 
           {/* Payment method + actions */}
-                  <div className="col-12 col-md-6 text-start">
+          <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Payment Method"
               required
