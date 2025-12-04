@@ -25,5 +25,39 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Where(s => s.OrgId == organizationId)
                 .ToListAsync();
         }
+
+        // Return single store by id including commonly needed navigation properties.
+        public async Task<Store?> GetByIdWithRelationsAsync(int id)
+        {
+            return await _context.Stores
+                .Include(s => s.User)               // store.User -> branch manager / owner
+                .Include(s => s.OperationalStatus) // human friendly status name
+                .Include(s => s.Org)               // organization if needed
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.StoreId == id);
+        }
+
+        // Return operational statuses as lightweight projections for client selects
+        public async Task<IEnumerable<object>> GetOperationalStatusesAsync()
+        {
+            return await _context.OperationalStatuses
+                .Select(os => new
+                {
+                    operationalStatusId = os.OperationalStatusId,
+                    operationalStatusName = os.OperationalStatusName
+                })
+                .AsNoTracking()
+                .ToListAsync<object>();
+        }
+
+        // Return all stores including User and OperationalStatus relations (used for listing projection).
+        public async Task<IEnumerable<Store>> GetAllWithRelationsAsync()
+        {
+            return await _context.Stores
+                .Include(s => s.User)
+                .Include(s => s.OperationalStatus)
+                .AsNoTracking()
+                .ToListAsync();
+        }
     }
 }

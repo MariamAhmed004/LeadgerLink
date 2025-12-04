@@ -225,7 +225,10 @@ public partial class LedgerLinkDbContext : DbContext
 
         modelBuilder.Entity<Store>(entity =>
         {
-            entity.Property(e => e.StoreId).ValueGeneratedNever();
+            entity.Property(e => e.StoreId)
+                  .HasColumnName("store_id")
+                  .ValueGeneratedOnAdd()
+                  .UseIdentityColumn();
 
             entity.HasOne(d => d.OperationalStatus).WithMany(p => p.Stores)
                 .OnDelete(DeleteBehavior.ClientSetNull)

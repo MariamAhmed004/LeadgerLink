@@ -11,6 +11,7 @@ public partial class Store
 {
     [Key]
     [Column("store_id")]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int StoreId { get; set; }
 
     [Column("store_name")]
@@ -64,11 +65,11 @@ public partial class Store
 
     [ForeignKey("OperationalStatusId")]
     [InverseProperty("Stores")]
-    public virtual OperationalStatus OperationalStatus { get; set; } = null!;
+    public virtual OperationalStatus? OperationalStatus { get; set; }
 
     [ForeignKey("OrgId")]
     [InverseProperty("Stores")]
-    public virtual Organization Org { get; set; } = null!;
+    public virtual Organization? Org { get; set; }
 
     [InverseProperty("Store")]
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FaPlus } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSection from "../../components/Listing/FilterSection";
@@ -10,16 +10,20 @@ import PaginationSection from "../../components/Listing/PaginationSection";
 
 /*
   StoresList.jsx
-  - Lists stores with status filter, paging and overview columns:
-    Status (operational status), Store Name, Location, Working Hours, Store Manager
-  - Uses existing listing components to match app style.
-  - Attempts to fetch operational statuses from /api/operationalstatuses,
-    falls back to deriving options from returned stores.
+  - Uses /api/stores (now returns lightweight projection including managerName and operationalStatusName)
+  - Uses /api/stores/operationalstatuses for filter select
+  - Shows transient success alert when navigated back from create
 */
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export default function StoresList() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // flash success (when navigated back with state)
+  const [success, setSuccess] = useState("");
+
   // filters / search
   const [statusFilter, setStatusFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,6 +38,20 @@ export default function StoresList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // show success when navigated back with state { created: true, createdName }
+  useEffect(() => {
+    const state = location.state;
+    if (state && state.created) {
+      const name = state.createdName ?? "Store";
+      setSuccess(`"${name}" created.`);
+      // clear location state so refresh / navigation won't re-show the alert
+      navigate(location.pathname, { replace: true, state: {} });
+      const t = setTimeout(() => setSuccess(""), 4000);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   // load stores and operational statuses
   useEffect(() => {
     let mounted = true;
@@ -41,7 +59,7 @@ export default function StoresList() {
       setLoading(true);
       setError("");
       try {
-        // fetch stores
+        // fetch stores (controller now returns projection with managerName and operationalStatusName)
         const res = await fetch("/api/stores", { credentials: "include" });
         if (!res.ok) {
           const txt = await res.text();
@@ -53,16 +71,16 @@ export default function StoresList() {
         const arr = Array.isArray(data) ? data : (data.items || []);
         setStores(arr);
 
-        // try to fetch operational statuses (best-effort)
+        // fetch operational statuses from stores controller endpoint
         try {
-          const sres = await fetch("/api/operationalstatuses", { credentials: "include" });
+          const sres = await fetch("/api/stores/operationalstatuses", { credentials: "include" });
           if (sres.ok) {
             const sdata = await sres.json();
             if (mounted) {
               const opts = [
                 { label: "All", value: "" },
                 ...(Array.isArray(sdata)
-                  ? sdata.map((s) => ({ label: s.operationalStatusName ?? s.OperationalStatusName ?? s.operational_status_name ?? s.name ?? String(s), value: String(s.operationalStatusId ?? s.OperationalStatusId ?? s.operational_status_id ?? s.id ?? "") }))
+                  ? sdata.map((s) => ({ label: s.operationalStatusName, value: String(s.operationalStatusId) }))
                   : []),
               ];
               setStatusOptions(opts);
@@ -91,39 +109,30 @@ export default function StoresList() {
   const deriveStatusOptionsFromStores = (arr) => {
     const map = new Map();
     (arr || []).forEach((s) => {
-      const id = String(s.operationalStatus?.operationalStatusId ?? s.OperationalStatus?.OperationalStatusId ?? s.operationalStatusId ?? s.OperationalStatusId ?? s.operational_status_id ?? "");
-      const name = s.operationalStatus?.operationalStatusName ?? s.OperationalStatus?.OperationalStatusName ?? s.operationalStatusName ?? s.operational_status_name ?? s.operationalStatus ?? "";
+      const id = String(s.operationalStatusId ?? s.operational_status_id ?? s.operationalStatus?.operationalStatusId ?? "");
+      const name = s.operationalStatusName ?? s.operational_status_name ?? s.operationalStatus?.operationalStatusName ?? "";
       const key = id || name;
       if (key && !map.has(key)) map.set(key, { label: name || key, value: key });
     });
     return [{ label: "All", value: "" }, ...Array.from(map.values())];
   };
 
-  // helper to flexibly read fields with different naming conventions
-  const getField = (obj, ...keys) => {
-    if (!obj) return undefined;
-    for (const k of keys) {
-      if (obj[k] !== undefined && obj[k] !== null) return obj[k];
-    }
-    return undefined;
-  };
-
   // client-side filtering
   const filtered = (stores || []).filter((st) => {
     // status filter: compare by id or name
     if (statusFilter) {
-      const stStatusId = String(getField(st, "operationalStatusId", "OperationalStatusId", "operational_status_id") ?? "");
-      const stStatusName = String(getField(st, "operationalStatus")?.operationalStatusName ?? getField(st, "operationalStatusName") ?? getField(st, "OperationalStatusName") ?? "");
+      const stStatusId = String(st.operationalStatusId ?? st.operationalStatus?.operationalStatusId ?? "");
+      const stStatusName = String(st.operationalStatusName ?? st.operationalStatus?.operationalStatusName ?? "");
       if (statusFilter !== stStatusId && statusFilter !== stStatusName) return false;
     }
 
     // search: store name, location, manager name
     if (searchTerm && String(searchTerm).trim() !== "") {
       const s = String(searchTerm).trim().toLowerCase();
-      const name = String(getField(st, "storeName", "StoreName", "store_name", "name") ?? "").toLowerCase();
-      const location = String(getField(st, "location", "Location") ?? "").toLowerCase();
-      const manager = String(getField(st, "user")?.userFirstname ? `${getField(st, "user").userFirstname} ${getField(st, "user").userLastname}` : getField(st, "managerName") ?? getField(st, "manager") ?? "" ).toLowerCase();
-      if (!(name.includes(s) || location.includes(s) || manager.includes(s))) return false;
+      const name = String(st.storeName ?? "").toLowerCase();
+      const locationField = String(st.location ?? "").toLowerCase();
+      const manager = String(st.managerName ?? st.userName ?? "").toLowerCase();
+      if (!(name.includes(s) || locationField.includes(s) || manager.includes(s))) return false;
     }
 
     return true;
@@ -136,17 +145,11 @@ export default function StoresList() {
 
   // map to EntityTable rows
   const tableRows = paged.map((st) => {
-    const id = getField(st, "storeId", "StoreId", "id");
-    const statusName = getField(st, "operationalStatus")?.operationalStatusName ?? getField(st, "operationalStatusName") ?? getField(st, "OperationalStatusName") ?? "-";
-    const storeName = getField(st, "storeName", "StoreName", "store_name", "name") ?? "-";
-    const location = getField(st, "location", "Location") ?? "-";
-    const workingHours = getField(st, "workingHours", "WorkingHours") ?? "-";
-
-    // manager name: try nested user, fallback to user fields
-    const manager =
-      (st.user && (st.user.userFirstname || st.user.userLastname))
-        ? `${getField(st.user, "userFirstname") ?? ""} ${getField(st.user, "userLastname") ?? ""}`.trim()
-        : getField(st, "managerName") ?? getField(st, "manager") ?? "-";
+    const statusName = st.operationalStatusName ?? "-";
+    const storeName = st.storeName ?? "-";
+    const location = st.location ?? "-";
+    const workingHours = st.workingHours ?? "-";
+    const manager = st.managerName ?? st.userName ?? "-";
 
     const statusCell = <span className={`badge ${statusName && statusName.toLowerCase().includes("open") ? "bg-success" : "bg-secondary"}`}>{statusName}</span>;
 
@@ -173,6 +176,13 @@ export default function StoresList() {
         ]}
       />
 
+      {/* Success alert shown when navigated back after create */}
+      {success && (
+        <div className="mb-3">
+          <div className="alert alert-success mb-0">{success}</div>
+        </div>
+      )}
+
       <FilterSection
         searchValue={searchTerm}
         onSearchChange={(v) => { setSearchTerm(v); setCurrentPage(1); }}
@@ -198,8 +208,7 @@ export default function StoresList() {
         linkColumnName="Store Name"
         rowLink={(_, rowIndex) => {
           const st = paged[rowIndex];
-          const id = getField(st, "storeId", "StoreId", "id");
-          return `/stores/${id}`;
+          return `/stores/${st.storeId}`;
         }}
       />
 
