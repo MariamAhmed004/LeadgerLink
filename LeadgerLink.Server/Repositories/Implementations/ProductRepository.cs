@@ -99,5 +99,35 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return list;
         }
+
+        // New: detailed product projection
+        public async Task<ProductDetailDto?> GetDetailByIdAsync(int productId)
+        {
+            var q = _context.Products
+                .Where(p => p.ProductId == productId)
+                .Include(p => p.Recipe)
+                .Include(p => p.InventoryItem)
+                .Include(p => p.Store)
+                .AsNoTracking();
+
+            var dto = await q.Select(p => new ProductDetailDto
+            {
+                ProductId = p.ProductId,
+                ProductName = p.ProductName,
+                SellingPrice = p.SellingPrice,
+                CostPrice = p.CostPrice,
+                StoreId = p.StoreId,
+                StoreName = p.Store != null ? p.Store.StoreName : null,
+                IsRecipe = p.RecipeId.HasValue,
+                RecipeId = p.RecipeId,
+                InventoryItemId = p.InventoryItemId,
+                RecipeName = p.Recipe != null ? p.Recipe.RecipeName : null,
+                InventoryItemName = p.InventoryItem != null ? p.InventoryItem.InventoryItemName : null,
+                Description = p.Description,
+                VatCategoryId = p.VatCategoryId
+            }).FirstOrDefaultAsync();
+
+            return dto;
+        }
     }
 }

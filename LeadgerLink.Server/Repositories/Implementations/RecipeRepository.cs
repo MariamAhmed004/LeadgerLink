@@ -112,5 +112,42 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     .ThenInclude(rii => rii.InventoryItem)
                 .FirstOrDefaultAsync(r => r.RecipeId == recipeId);
         }
+
+        // Return detailed recipe DTO including ingredients and related product info.
+        public async Task<RecipeDetailDto?> GetDetailByIdAsync(int recipeId)
+        {
+            var q = _context.Recipes
+                .Where(r => r.RecipeId == recipeId)
+                .Include(r => r.CreatedByNavigation)
+                .Include(r => r.Store)
+                .Include(r => r.Products)
+                .Include(r => r.RecipeInventoryItems)
+                    .ThenInclude(rii => rii.InventoryItem)
+                .AsNoTracking();
+
+            var dto = await q.Select(r => new RecipeDetailDto
+            {
+                RecipeId = r.RecipeId,
+                RecipeName = r.RecipeName,
+                Description = r.Instructions,
+                StoreId = r.StoreId,
+                StoreName = r.Store != null ? r.Store.StoreName : null,
+                CreatedByName = r.CreatedByNavigation != null ? ((r.CreatedByNavigation.UserFirstname ?? "") + " " + (r.CreatedByNavigation.UserLastname ?? "")).Trim() : null,
+                CreatedAt = r.CreatedAt,
+                UpdatedAt = r.UpdatedAt,
+                Image = r.Image,
+                IsOnSale = r.Products.Any(),
+                RelatedProductId = r.Products.FirstOrDefault() != null ? (int?)r.Products.FirstOrDefault()!.ProductId : null,
+                Ingredients = r.RecipeInventoryItems.Select(rii => new RecipeIngredientDto
+                {
+                    RecipeInventoryItemId = rii.RecipeInventoryItemId,
+                    InventoryItemId = rii.InventoryItemId,
+                    InventoryItemName = rii.InventoryItem != null ? rii.InventoryItem.InventoryItemName : null,
+                    Quantity = rii.Quantity
+                }).ToList()
+            }).FirstOrDefaultAsync();
+
+            return dto;
+        }
     }
 }

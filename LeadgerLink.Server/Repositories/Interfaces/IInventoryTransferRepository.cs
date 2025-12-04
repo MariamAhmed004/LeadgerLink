@@ -31,5 +31,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Distinct statuses for client filters.
         Task<IEnumerable<string>> GetStatusesAsync();
+
+        // Return detailed transfer by id including related entities and transfer items.
+        Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId);
     }
 }

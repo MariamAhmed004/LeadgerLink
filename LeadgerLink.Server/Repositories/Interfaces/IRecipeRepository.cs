@@ -22,5 +22,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return a recipe including its ingredient entries.
         Task<Recipe> GetRecipeWithIngredientsAsync(int recipeId);
+
+        // Return detailed recipe projection including ingredients, creator, image, and related product info
+        Task<RecipeDetailDto?> GetDetailByIdAsync(int recipeId);
     }
 }//end IRecipeRepository

@@ -130,11 +130,19 @@ namespace LeadgerLink.Server.Controllers
 
         // GET api/recipes/{recipeId}/with-ingredients
         [HttpGet("{recipeId}/with-ingredients")]
-        public async Task<ActionResult<Recipe>> GetRecipeWithIngredients(int recipeId)
+        public async Task<ActionResult> GetRecipeWithIngredients(int recipeId)
         {
-            var recipe = await _recipeRepository.GetRecipeWithIngredientsAsync(recipeId);
-            if (recipe == null) return NotFound();
-            return Ok(recipe);
+            try
+            {
+                var dto = await _recipeRepository.GetDetailByIdAsync(recipeId);
+                if (dto == null) return NotFound();
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                // log and return 500
+                return StatusCode(500, "Failed to load recipe details");
+            }
         }
     }
 }

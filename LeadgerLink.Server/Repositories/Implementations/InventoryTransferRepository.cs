@@ -201,5 +201,50 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return statuses;
         }
+
+        public async Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId)
+        {
+            var q = _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .Include(t => t.InventoryTransferStatus)
+                .Include(t => t.Driver)
+                .Include(t => t.RequestedByNavigation)
+                .Include(t => t.ApprovedByNavigation)
+                .Include(t => t.TransferItems)
+                    .ThenInclude(it => it.InventoryItem)
+                .Include(t => t.TransferItems)
+                    .ThenInclude(it => it.Recipe)
+                .AsNoTracking()
+                .Where(t => t.InventoryTransferId == inventoryTransferId);
+
+            var result = await q.Select(t => new InventoryTransferDetailDto
+            {
+                TransferId = t.InventoryTransferId,
+                FromStoreName = t.FromStoreNavigation != null ? t.FromStoreNavigation.StoreName : null,
+                ToStoreName = t.ToStoreNavigation != null ? t.ToStoreNavigation.StoreName : null,
+                TransferDate = t.TransferDate,
+                Status = t.InventoryTransferStatus != null ? t.InventoryTransferStatus.TransferStatus : null,
+                RequestedAt = t.RequestedAt,
+                RecievedAt = t.RecievedAt,
+                Notes = t.Notes,
+                RequestedByName = t.RequestedByNavigation != null ? ((t.RequestedByNavigation.UserFirstname ?? "") + " " + (t.RequestedByNavigation.UserLastname ?? "")).Trim() : null,
+                ApprovedByName = t.ApprovedByNavigation != null ? ((t.ApprovedByNavigation.UserFirstname ?? "") + " " + (t.ApprovedByNavigation.UserLastname ?? "")).Trim() : null,
+                DriverName = t.Driver != null ? t.Driver.DriverName : null,
+                DriverEmail = t.Driver != null ? t.Driver.DriverEmail : null,
+                Items = t.TransferItems.Select(it => new InventoryTransferItemDto
+                {
+                    TransferItemId = it.TransferItemId,
+                    InventoryItemId = it.InventoryItemId,
+                    InventoryItemName = it.InventoryItem != null ? it.InventoryItem.InventoryItemName : null,
+                    Quantity = it.Quantity,
+                    IsRequested = it.IsRequested,
+                    RecipeId = it.RecipeId,
+                    RecipeName = it.Recipe != null ? it.Recipe.RecipeName : null
+                }).ToList()
+            }).FirstOrDefaultAsync();
+
+            return result;
+        }
     }
 }

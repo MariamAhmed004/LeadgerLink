@@ -45,5 +45,14 @@ namespace LeadgerLink.Server.Controllers
 
             return Ok(list);
         }
+
+        // GET api/products/{id}
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult> GetById(int id)
+        {
+            var dto = await _productRepository.GetDetailByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
+        }
     }
 }

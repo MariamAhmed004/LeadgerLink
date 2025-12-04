@@ -150,5 +150,22 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to load transfer statuses");
             }
         }
+
+        // GET api/inventorytransfers/{id}
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult> GetById(int id)
+        {
+            try
+            {
+                var dto = await _repository.GetDetailByIdAsync(id);
+                if (dto == null) return NotFound();
+                return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load inventory transfer {Id}", id);
+                return StatusCode(500, "Failed to load inventory transfer");
+            }
+        }
     }
 }
