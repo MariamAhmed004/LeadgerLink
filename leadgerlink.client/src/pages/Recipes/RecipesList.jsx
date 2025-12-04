@@ -90,14 +90,16 @@ const RecipesManagement = () => {
   const paginated = filtered.slice((currentPage - 1) * entriesPerPage, currentPage * entriesPerPage);
 
   // build rows expected by EntityTable
+  // NOTE: do not inject <Link/> here — use EntityTable's rowLink prop and set linkColumnName to "Recipe Name"
   const tableRows = paginated.map((r) => {
     const inSale = !!(r.inSale ?? r.InSale);
     const price = r.sellingPrice ?? r.SellingPrice ?? null; // DTO may not provide price yet
     const addedBy = r.createdByName ?? r.CreatedByName ?? "-";
+    const recipeName = r.recipeName ?? r.RecipeName ?? "-";
 
     return [
       inSale ? <span className="badge bg-success">Yes</span> : <span className="badge bg-secondary">No</span>,
-      <Link key={r.recipeId ?? r.RecipeId} to={`/recipes/${r.recipeId ?? r.RecipeId}`}>{r.recipeName ?? r.RecipeName ?? "-"}</Link>,
+      recipeName,
       price != null ? `BHD ${Number(price).toFixed(3)}` : "-",
       addedBy
     ];
@@ -144,6 +146,12 @@ const RecipesManagement = () => {
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No recipes to display.')}
         linkColumnName="Recipe Name"
+        // Use the current page's `paginated` array to resolve the underlying recipe id for the clicked row
+        rowLink={(_, rowIndex) => {
+          const item = paginated[rowIndex];
+          const id = item?.recipeId ?? item?.RecipeId ?? "";
+          return id ? `/recipes/${id}` : "/recipes";
+        }}
       />
 
       <PaginationSection

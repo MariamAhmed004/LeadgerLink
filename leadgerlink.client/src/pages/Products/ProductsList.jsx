@@ -106,9 +106,9 @@ export default function ProductsList() {
         title="Products"
         columns={['Available', 'Product Name', 'Source', 'Selling Price']}
         rows={tableRows}
-        emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
-        // optionally add rowLink if you have a product detail page
-        // rowLink={(_, rowIndex) => `/products/${paged[rowIndex].productId}`}
+              emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
+              linkColumnName="Product Name"
+         rowLink={(_, rowIndex) => `/products/${paged[rowIndex].productId}`}
       />
 
       <PaginationSection

@@ -151,6 +151,13 @@ export default function InventoryTransfersList() {
           'Driver',
         ]}
         rows={tableRows}
+        // Use "Requested On" column as the link column - rowLink builds route from the original data item
+        linkColumnName="Requested On"
+        rowLink={(_, rowIndex) => {
+          const t = rowsData[rowIndex] || {};
+          const id = t.transferId ?? t.id ?? t.inventoryTransferId ?? "";
+            return id ? `/inventory/transfers/${id}` : "";
+        }}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory transfers to display for the selected filters.')}
       />
 

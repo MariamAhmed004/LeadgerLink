@@ -62,20 +62,32 @@ import SaleView from "../pages/Sales/SaleView";
 // -----------------------------
 // Inventory / Stores / Products
 // -----------------------------
+
+// Inventory Items
 import InventoryManagement from "../pages/InventoryItems/InventoryItemsList";
 import InventoryNew from "../pages/InventoryItems/InventoryNew";
 import InventoryItemView from "../pages/InventoryItems/InventoryItemView";
 import RestockItemsPage from "../pages/InventoryItems/RestockItemsPage";
+
+// Inventory Transfers
 import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfersList";
+import InventoryTransferView from "../pages/InventoryTransfers/InventoryTransferView";
+
+// Stores
 import StoresList from "../pages/Stores/StoresList";
 import StoreNew from "../pages/Stores/StoreNew";
+import StoreView from "../pages/Stores/StoreView";
+
+// Products
 import ProductsList from "../pages/Products/ProductsList";
+import ProductView from "../pages/Products/ProductView";
 
 // -----------------------------
 // Recipes
 // -----------------------------
 import Recipes from "../pages/Recipes/RecipesList";
 import RecipeNew from "../pages/Recipes/RecipeNew";
+import RecipeView from "../pages/Recipes/RecipeView";
 
 // -----------------------------
 // Notifications
@@ -151,23 +163,35 @@ const AppRoutes = () => {
       {/* ---------------------------
           Inventory / Stores / Products
           --------------------------- */}
+
+          {/*Inventory Items*/}
       <Route path="/inventory" element={<InventoryManagement />} />
       <Route path="/inventory/new" element={<InventoryNew />} />
       <Route path="/inventory-items/restock" element={<RestockItemsPage />} />
-      <Route path="/inventory-items/:id" element={<InventoryItemView />} />
-      <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
+          <Route path="/inventory-items/:id" element={<InventoryItemView />} />
+
+          {/*Inventory Transfers*/}
+          <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
+          <Route path="/inventory/transfers/:id" element={<InventoryTransferView />} />
+
+          {/*Stores*/}
       <Route path="/stores/" element={<StoresList />} />
-      <Route path="/stores/new" element={<StoreNew />} />
-      <Route path="/products" element={<ProductsList />} />
+          <Route path="/stores/new" element={<StoreNew />} />
+          <Route path="/stores/:id" element={<StoreView />} />
+
+          {/*Products*/}
+          <Route path="/products" element={<ProductsList />} />
+          <Route path="/products/:id" element={<ProductView />} />
 
       {/* ---------------------------
           Recipes
           --------------------------- */}
       <Route path="/recipes" element={<Recipes />} />
           <Route path="/recipes/new" element={<RecipeNew />} />
+          <Route path="/recipes/:id" element={<RecipeView />} />
+
 
           { /*Reports*/}
-          
           <Route path="/reports" element={<Reports />} />
 
       {/* ---------------------------

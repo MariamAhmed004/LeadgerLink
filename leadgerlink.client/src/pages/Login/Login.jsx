@@ -51,10 +51,11 @@ export default function Login() {
   };
 
   return (
-    <div className="login-page d-flex flex-wrap text-start">
-      {/* Left: Form Section */}
-      <div className="colored-section p-5 flex-grow-1">
-        <div className="login-form-section p-5 flex-grow-1">
+    <div className="login-page d-flex flex-wrap text-start" style={{ minHeight: "100vh" }}>
+      {/* Left: Form Section - center contents both horizontally and vertically */}
+      <div className="colored-section p-5 d-flex align-items-center justify-content-center flex-grow-1">
+        {/* Constrain the form width so it centers nicely */}
+        <div className="login-form-section p-4" style={{ width: "100%", maxWidth: 520 }}>
           {/* Tabs (centered, larger, bolder, no borders) */}
           <div className="d-flex mb-4 gap-4 fw-bold fs-4 justify-content-center mb-5">
             <button
