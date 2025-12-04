@@ -85,3 +85,4 @@ DocumentLayout.backup.json
 **/*.suo
 **/*.v2
 /leadgerlink.client/obj/Debug/package.g.props
+/leadgerlink.client/obj/Debug/leadgerlink.client.esproj.FileListAbsolute.txt
