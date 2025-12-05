@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { FaExchangeAlt, FaArrowDown, FaArrowUp } from 'react-icons/fa';
+import { FaExchangeAlt, FaArrowDown, FaArrowUp, FaPlus } from 'react-icons/fa';
+import { useAuth } from '../../Context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
@@ -9,6 +11,12 @@ import PaginationSection from '../../components/Listing/PaginationSection';
 
 // Inventory Transfers list
 export default function InventoryTransfersList() {
+  const { loggedInUser } = useAuth();
+  const navigate = useNavigate();
+
+  const isEmployee = (loggedInUser?.roles || []).includes("Store Employee");
+  const isStoreManager = (loggedInUser?.roles || []).includes("Store Manager");
+
   // Filters
   const [transferFlow, setTransferFlow] = useState('');
   const [transferStatus, setTransferStatus] = useState('');
@@ -94,11 +102,50 @@ export default function InventoryTransfersList() {
         ? <span className="text-danger" title="Out"><FaArrowUp size={18} /></span>
         : (t.inOut ?? 'N/A');
 
+    // Determine transfer id
+    const id = t.transferId ?? t.id ?? t.inventoryTransferId ?? "";
+
+    // Status rendering with role + direction specific CTA buttons
+    const statusLower = String(t.status ?? '').toLowerCase();
+    const inOutLower = String(t.inOut ?? '').toLowerCase();
+
+    let statusCell = t.status ?? '';
+
+    // Store Manager: if transfer is OUT and requested -> show approve button
+    if (isStoreManager && inOutLower === 'out' && statusLower === 'requested' && id) {
+      statusCell = (
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={() => navigate(`/inventory/transfers/approve/${id}`)}
+          title="Approve transfer"
+        >
+          Pending - Click to approve
+        </button>
+      );
+    }
+    // Store Employee: if transfer is IN and DRAFT -> show fill button
+    else if (isEmployee && inOutLower === 'in' && statusLower === 'draft' && id) {
+      statusCell = (
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={() => navigate(`/inventory/transfers/fill/${id}`)}
+          title="Fill transfer"
+        >
+          Draft - Click to fill
+        </button>
+      );
+    } else {
+      // default: show plain status text (preserve original behavior)
+      statusCell = t.status ?? '';
+    }
+
     return [
       inOutCell,
       t.requestedAt ? new Date(t.requestedAt).toLocaleString() : '',
       t.storeInvolved ?? '',
-      t.status ?? '',
+      statusCell,
       t.driverName ?? 'Not assigned'
     ];
   });
@@ -112,7 +159,8 @@ export default function InventoryTransfersList() {
           'Following are inventory transfer requests between organization stores:',
           'Click on the request date of the transfer to view its details',
         ]}
-        actions={[]} // explicitly no action buttons in header
+        // Show "New Transfer Request" action only for non-employees
+        actions={isEmployee ? [] : [{ icon: <FaPlus />, title: 'New Transfer Request', route: '/inventory/transfers/new' } ]}
       />
 
       <FilterSection
@@ -156,7 +204,7 @@ export default function InventoryTransfersList() {
         rowLink={(_, rowIndex) => {
           const t = rowsData[rowIndex] || {};
           const id = t.transferId ?? t.id ?? t.inventoryTransferId ?? "";
-            return id ? `/inventory/transfers/${id}` : "";
+          return id ? `/inventory/transfers/${id}` : "";
         }}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory transfers to display for the selected filters.')}
       />

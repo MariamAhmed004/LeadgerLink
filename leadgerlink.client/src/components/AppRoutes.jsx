@@ -73,6 +73,9 @@ import RestockItemsPage from "../pages/InventoryItems/RestockItemsPage";
 // Inventory Transfers
 import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfersList";
 import InventoryTransferView from "../pages/InventoryTransfers/InventoryTransferView";
+import InventoryTransferNew from "../pages/InventoryTransfers/InventoryTransferNew";
+import InventoryTransferApprove from "../pages/InventoryTransfers/InventoryTransferApprove";
+import InventoryTransferFill from "../pages/InventoryTransfers/InventoryTransferFill";
 
 // Stores
 import StoresList from "../pages/Stores/StoresList";
@@ -82,6 +85,7 @@ import StoreView from "../pages/Stores/StoreView";
 // Products
 import ProductsList from "../pages/Products/ProductsList";
 import ProductView from "../pages/Products/ProductView";
+import ProductEdit from "../pages/Products/ProductEdit";
 
 // -----------------------------
 // Recipes
@@ -174,6 +178,9 @@ const AppRoutes = () => {
 
           {/*Inventory Transfers*/}
           <Route path="/inventory/transfers" element={<InventoryTransfersList />} />
+          <Route path="/inventory/transfers/new" element={<InventoryTransferNew />} />
+          <Route path="/inventory/transfers/approve/:id" element={<InventoryTransferApprove />} />
+          <Route path="/inventory/transfers/fill/:id" element={<InventoryTransferFill />} />
           <Route path="/inventory/transfers/:id" element={<InventoryTransferView />} />
 
           {/*Stores*/}
@@ -183,6 +190,7 @@ const AppRoutes = () => {
 
           {/*Products*/}
           <Route path="/products" element={<ProductsList />} />
+          <Route path="/products/edit/:id" element={<ProductEdit />} />
           <Route path="/products/:id" element={<ProductView />} />
 
       {/* ---------------------------
