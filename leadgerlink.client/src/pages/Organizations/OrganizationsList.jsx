@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FaPlus, FaExternalLinkAlt, FaEnvelope } from "react-icons/fa";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-
+import { BiSolidBuildings } from "react-icons/bi";
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSection from "../../components/Listing/FilterSection";
 import FilterSelect from "../../components/Listing/FilterSelect";
@@ -169,11 +169,11 @@ const OrganizationsList = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaPlus size={28} />}
+              icon={<BiSolidBuildings size={55} />}
         title="Organizations"
         descriptionLines={[
-          "Overview of organizations. Use filters to narrow results.",
-          "Click an organization to view details."
+          "Following organization are contracted with LedgerLink:",
+          "Click on the organization name to view its details"
         ]}
         actions={[ { icon: <FaPlus />, title: "New Organization", route: "/organizations/new" } ]}
       />

@@ -172,9 +172,9 @@ const StoreNew = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaStore size={28} />}
+        icon={<FaStore size={55} />}
         title="Add Store"
-        descriptionLines={["Create a new store record. Fill the form and save."]}
+              descriptionLines={["Fill in the form to create a store under your organization", "You can create users for the created store later, and select a store manager from previously added user or create an account after you create the store. "]}
         actions={[]}
       />
 

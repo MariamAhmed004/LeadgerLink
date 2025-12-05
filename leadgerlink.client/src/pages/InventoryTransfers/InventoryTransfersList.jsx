@@ -106,11 +106,11 @@ export default function InventoryTransfersList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaExchangeAlt size={28} />}
+        icon={<FaExchangeAlt size={45} />}
         title="Inventory Transfers"
         descriptionLines={[
-          'View and manage inventory transfers between stores.',
-          'Use the filters to narrow results.',
+          'Following are inventory transfer requests between organization stores:',
+          'Click on the request date of the transfer to view its details',
         ]}
         actions={[]} // explicitly no action buttons in header
       />

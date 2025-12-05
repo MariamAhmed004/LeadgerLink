@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FaPlus } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
-
+import { FaBookBookmark } from "react-icons/fa6";
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSection from "../../components/Listing/FilterSection";
 import FilterSelect from "../../components/Listing/FilterSelect";
@@ -108,11 +108,11 @@ const RecipesManagement = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaPlus size={28} />}
+              icon={<FaBookBookmark size={35} />}
         title="Recipes"
         descriptionLines={[
-          "Manage recipes and their sale status.",
-          "Use the filter to show only recipes that are on sale or not.",
+          "Following are the Recipes added:",
+          "Click on the recipe name to view its details, selling price is only for items on sale",
         ]}
         actions={[
           {

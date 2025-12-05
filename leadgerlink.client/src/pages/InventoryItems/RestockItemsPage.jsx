@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaTruck } from 'react-icons/fa';
-
+import { MdOutlineInventory } from "react-icons/md";
 import PageHeader from '../../components/Listing/PageHeader';
 import FormBody from '../../components/Form/FormBody';
 import SelectField from '../../components/Form/SelectField';
@@ -93,10 +92,10 @@ export default function RestockItemsPage() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaTruck size={28} />}
+              icon={<MdOutlineInventory size={55} />}
         title="Restock Items"
         descriptionLines={[
-          'Add stock to an existing inventory item. Select an item, enter quantity and save.',
+            'Fill In the form to increase the quantity of an item that is registered in the store.', "You can increase quantities of items previously registered in the inventory. \n For each item you want to restock add the quantity added then save it." 
         ]}
         actions={[]}
       />

@@ -2,6 +2,7 @@ import React from "react";
 import PageHeader from "../../components/Listing/PageHeader";
 import Section from "../../components/Dashboards/Section";
 import ChartWrapper from "../../components/Dashboards/ChartWrapper";
+import { MdPieChart } from "react-icons/md";
 
 /*
   StoreManagerDashboard.jsx
@@ -101,9 +102,9 @@ export default function StoreManagerDashboard() {
   return (
     <div className="container py-4">
       <PageHeader
-        icon={null}
-        title="Branch Dashboard"
-        descriptionLines={["Operational snapshot for the selected store. Use sections below to add real charts and cards."]}
+              icon={<MdPieChart size={55} />}
+        title="Store Dashboard"
+        descriptionLines={["View overall of the store performance."]}
         actions={[]}
       />
 

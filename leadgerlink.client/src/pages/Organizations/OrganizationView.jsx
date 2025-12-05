@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaBuilding, FaArrowLeft, FaEdit } from "react-icons/fa";
+import { FaArrowLeft, FaEdit } from "react-icons/fa";
 import PageHeader from "../../components/Listing/PageHeader";
 import DetailTable from "../../components/Listing/DetailTable";
 import DetailPageAction from "../../components/Listing/DetailPageAction";
+import { BiSolidBuildings } from "react-icons/bi";
 
 /*
   OrganizationView.jsx
@@ -77,9 +78,9 @@ export default function OrganizationView() {
   const nameVal = org ? (org.orgName ?? "") : "";
 
   const headerProps = {
-    icon: <FaBuilding size={28} />,
-    title: org ? `organization#${idVal} ${nameVal}` : "Organization",
-    descriptionLines: org ? [org.orgName ?? "Organization details"] : ["Organization details"],
+      icon: <BiSolidBuildings size={55} />,
+    title: org ? `Organization#${idVal} ${nameVal}` : "Organization",
+      descriptionLines: org ? [org.organizationAdminName ?? "Organization details"] : ["Organization details"],
     actions: []
   };
 

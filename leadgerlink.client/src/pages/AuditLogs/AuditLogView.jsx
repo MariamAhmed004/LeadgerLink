@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { FaClipboardList, FaArrowLeft } from "react-icons/fa";
+import { FaArrowLeft } from "react-icons/fa";
 import PageHeader from "../../components/Listing/PageHeader";
 import DetailTable from "../../components/Listing/DetailTable";
 import DetailPageAction from "../../components/Listing/DetailPageAction";
-
+import { HiOutlineDocumentSearch } from "react-icons/hi";
 /*
   AuditLogView.jsx
   - Detail view for a single audit log.
@@ -101,7 +101,7 @@ export default function AuditLogView() {
   const recordedAt = log ? fmtDate(log.timestamp ?? log.Timestamp) : "";
 
   const headerProps = {
-    icon: <FaClipboardList size={28} />,
+      icon: <HiOutlineDocumentSearch size={55} />,
     title: headerTitle,
     descriptionLines: [log ? `${log.actionType ?? log.ActionType ?? ""}` : ""],
     actions: []
@@ -112,7 +112,7 @@ export default function AuditLogView() {
   ];
 
   const detailRows = log ? [
-    { label: "Title", value: `auditlog#${idVal} recorded at ${recordedAt}` },
+    { label: "Title", value: `Auditlog#${idVal} recorded at ${recordedAt}` },
     { label: "Action Type", value: log.actionType ?? log.ActionType ?? "" },
     { label: "Level", value: log.auditLogLevel ?? log.AuditLogLevel ?? "" },
     { label: "User", value: user ? (user.fullName ?? `${user.userFirstname ?? ""} ${user.userLastname ?? ""}`.trim()) : (log.userName ?? log.UserName ?? "—") },

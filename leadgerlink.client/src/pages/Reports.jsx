@@ -117,7 +117,7 @@ export default function Reports() {
 
   return (
     <div className="container py-5">
-      <PageHeader icon={<FaFileAlt size={28} />} title="Reports Generation" descriptionLines={["Following are all reports that you can generate from LedgerLink:", "Click on the format of the report you want to generate"]} actions={[]} />
+      <PageHeader icon={<FaFileAlt size={28} />} title="Reports Generation" descriptionLines={["Following are all reports that you can generate from LedgerLink:", "Click on the format of the report you want to generate, for more information about a report click the info button"]} actions={[]} />
 
       {error && <div className="alert alert-danger my-3">{error}</div>}
 

@@ -5,6 +5,7 @@ import Section from "../../components/Dashboards/Section";
 import DashboardCard from "../../components/Dashboards/DashboardCard";
 import ChartWrapper from "../../components/Dashboards/ChartWrapper";
 import HomePageTable from "../../components/homepages/HomePageTable";
+import { MdPieChart } from "react-icons/md";
 
 /*
   AccountantDashboard.jsx
@@ -33,9 +34,9 @@ export default function AccountantDashboard() {
   return (
     <div className="container py-4">
       <PageHeader
-        icon={null}
+              icon={<MdPieChart size={55} />}
         title="Accountant Dashboard"
-        descriptionLines={["Financial & inventory overview for the organization. Use filters to scope by branch."]}
+        descriptionLines={["Following overview of the organization stores details, you can filter the first section to store specific detials."]}
         actions={[]}
       />
 
@@ -43,7 +44,7 @@ export default function AccountantDashboard() {
       
       <div className="row align-items-center my-3 mt-5 ">
         <div className="col-12 col-md-8 text-end">
-          <h4 className="mb-0">Filter Details to per branch</h4>
+          <h4 className="mb-0">Filter Details to per store</h4>
         </div>
         <div className="col-12 col-md-4 d-flex justify-content-md-start mt-4 ">
           <FilterSelect

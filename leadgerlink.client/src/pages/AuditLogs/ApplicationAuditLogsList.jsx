@@ -5,6 +5,7 @@ import FilterSelect from "../../components/Listing/FilterSelect";
 import FilterDate from "../../components/Listing/FilterDate";
 import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
+import { HiOutlineDocumentSearch } from "react-icons/hi";
 
 /*
   ApplicationAuditLogsList.jsx
@@ -163,10 +164,11 @@ export default function ApplicationAuditLogsList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={null}
+              icon={<HiOutlineDocumentSearch size={55} />}
         title="Application Audit Logs"
         descriptionLines={[
-          "Application-level audit logs. Use filters to narrow results by action and time range.",
+            "Following are the LedgerLink application-level audit logs:",
+          "Click on the timestamp to view the log details"
         ]}
         actions={[]}
       />
@@ -180,7 +182,7 @@ export default function ApplicationAuditLogsList() {
       >
         <div className="col-md-4">
           <FilterSelect
-            label="Status"
+            label="Log Type"
             value={actionFilter}
             onChange={(v) => { setActionFilter(v); setCurrentPage(1); }}
             options={actionOptions}
@@ -200,7 +202,7 @@ export default function ApplicationAuditLogsList() {
 
       <EntityTable
         title="Application Audit Logs"
-        columns={["Status", "Timestamp", "User", "Details"]}
+        columns={["Log Type", "Timestamp", "User", "Details"]}
         rows={tableRows}
         linkColumnName="Timestamp"
         rowLink={(_, rowIndex) => {

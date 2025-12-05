@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus, FaStore } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import PageHeader from "../../components/Listing/PageHeader";
@@ -165,11 +165,11 @@ export default function StoresList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaPlus size={28} />}
+              icon={<FaStore size={55} />}
         title="Stores"
         descriptionLines={[
-          "Overview of stores. Use the status filter to narrow results.",
-          "Click a store name to view details."
+          "Following are all stores registered under the organization:",
+          "Click on the store name to view its details"
         ]}
         actions={[
           { icon: <FaPlus />, title: "New Store", route: "/stores/new" }

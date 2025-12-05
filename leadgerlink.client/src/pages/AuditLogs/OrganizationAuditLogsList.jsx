@@ -6,6 +6,7 @@ import FilterSelect from "../../components/Listing/FilterSelect";
 import FilterDate from "../../components/Listing/FilterDate";
 import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
+import { HiOutlineDocumentSearch } from "react-icons/hi";
 
 /*
   OrganizationAuditLogsList.jsx
@@ -163,7 +164,8 @@ export default function OrganizationAuditLogsList() {
   if (!orgId) {
     return (
       <div className="container py-5">
-        <PageHeader icon={null} title="Organization Audit Logs" descriptionLines={["Organization not selected or you do not belong to an organization."]} actions={[]} />
+            <PageHeader icon={<HiOutlineDocumentSearch size={55} />} title="Organization Audit Logs" descriptionLines={["Following are the your organization-level audit logs:",
+                "Click on the timestamp to view the log details"]} actions={[]} />
         <div className="alert alert-warning">Organization context not found for the current user.</div>
       </div>
     );
@@ -172,11 +174,10 @@ export default function OrganizationAuditLogsList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={null}
+              icon={<HiOutlineDocumentSearch size={55} />}
         title="Organization Audit Logs"
-        descriptionLines={[
-          "Organization-level audit logs. Use filters to narrow results by action and time range.",
-        ]}
+              descriptionLines={["Following are the your organization-level audit logs:",
+                  "Click on the timestamp to view the log details"]}
         actions={[]}
       />
 
@@ -189,7 +190,7 @@ export default function OrganizationAuditLogsList() {
       >
         <div className="col-md-4">
           <FilterSelect
-            label="Status"
+            label="Log Type"
             value={actionFilter}
             onChange={(v) => { setActionFilter(v); setCurrentPage(1); }}
             options={actionOptions}
@@ -209,7 +210,7 @@ export default function OrganizationAuditLogsList() {
 
       <EntityTable
         title="Organization Audit Logs"
-        columns={["Status", "Timestamp", "User", "Details"]}
+        columns={["Log Type", "Timestamp", "User", "Details"]}
         rows={tableRows}
         // instruct EntityTable to render the "Timestamp" column as a link using rowLink
         linkColumnName="Timestamp"

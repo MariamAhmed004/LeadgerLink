@@ -131,7 +131,7 @@ const SalesNew = () => {
       <PageHeader
         icon={<FaFileInvoice size={28} />}
         title="Create Sale"
-        descriptionLines={["Create a new sale. Use the fields below to capture basic information."]}
+              descriptionLines={["Fill In the following fields to add the sale entry", "Find Recipe Products in the Recipes tab, and Inventory Items Product in Others tab Add the Applied Discount in % or BHD amount "]}
         actions={[]}
       />
 

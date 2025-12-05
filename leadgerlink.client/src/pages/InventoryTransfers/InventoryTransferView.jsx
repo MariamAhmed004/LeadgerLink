@@ -61,7 +61,7 @@ const InventoryTransferView = () => {
   };
 
   const headerProps = {
-    icon: <FaExchangeAlt size={28} />,
+    icon: <FaExchangeAlt size={45} />,
     title: transfer ? `Transfer ${transfer.transferId}` : "View Transfer",
     descriptionLines: [],
   };

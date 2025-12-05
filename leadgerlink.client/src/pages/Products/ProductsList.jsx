@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { FaBoxOpen } from 'react-icons/fa';
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
 import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
+import { BiSolidPackage } from "react-icons/bi";
 
 
 export default function ProductsList() {
@@ -82,10 +82,10 @@ export default function ProductsList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaBoxOpen size={28} />}
+              icon={<BiSolidPackage size={55} />}
         title="Products"
         descriptionLines={[
-          'Browse and manage products. Availability is computed from inventory items or recipe ingredients.',
+            'Following are the products added previously:', "Click on the product name to view its details"
         ]}
         actions={[]} // no header actions
       />

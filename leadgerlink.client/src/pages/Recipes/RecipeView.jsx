@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { FaUtensils, FaPencilAlt } from "react-icons/fa";
+import { FaPencilAlt } from "react-icons/fa";
 import { useParams, Link } from "react-router-dom";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
+import { FaBookBookmark } from "react-icons/fa6";
 
 /*
   Recipe view
@@ -58,7 +59,7 @@ const RecipeView = () => {
   // Note: actions are intentionally NOT set on headerProps; they are provided
   // separately to DetailViewWithImage as requested.
   const headerProps = {
-    icon: <FaUtensils size={28} />,
+      icon: <FaBookBookmark size={35} />,
     title: recipe ? `Recipe ${recipe.recipeId}` : "View Recipe",
     descriptionLines: [],
   };

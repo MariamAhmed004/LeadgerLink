@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaUser, FaArrowLeft, FaEdit } from "react-icons/fa";
+import { FaArrowLeft, FaEdit } from "react-icons/fa";
 import PageHeader from "../../components/Listing/PageHeader";
 import DetailTable from "../../components/Listing/DetailTable";
 import DetailPageAction from "../../components/Listing/DetailPageAction";
+import { HiUsers } from "react-icons/hi";
 
 /*
   UserView.jsx
@@ -66,9 +67,9 @@ export default function UserView() {
   const nameVal = user ? (user.fullName ?? "") : "";
 
   const headerProps = {
-    icon: <FaUser size={28} />,
+      icon: <HiUsers size={55} />,
     title: user ? `User#${idVal} ${nameVal}` : "User",
-    descriptionLines: user ? [user.fullName ?? "User details"] : ["User details"],
+    descriptionLines: "",
     actions: []
   };
 

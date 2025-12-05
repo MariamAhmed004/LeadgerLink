@@ -10,6 +10,7 @@ import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import { FaBox } from "react-icons/fa";
 import TitledGroup from "../../components/Form/TitledGroup";
+import { MdOutlineInventory } from "react-icons/md";
 
 /*
   Revised Inventory Item form layout:
@@ -289,7 +290,7 @@ const InventoryItemNew = () => {
 
   return (
     <div className="container py-5">
-      <PageHeader icon={<FaBox size={28} />} title="Add Inventory Item" descriptionLines={["Add a new inventory item."]} actions={[]} />
+          <PageHeader icon={<MdOutlineInventory size={55} />} title="Add Inventory Item" descriptionLines={["Fill In the form to add a new item to the entry.", "You can add an image optionally \n If the supplier is added before you can select it from the list, if not add it \n You can set the item on sale and input the VAT Category "]} actions={[]} />
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4">

@@ -69,9 +69,9 @@ const StoreView = () => {
   }, [id]);
 
   const headerProps = {
-    icon: <FaStore size={28} />,
+    icon: <FaStore size={55} />,
       title: store ? `Store#${store.storeId} ${store.storeName}` : (loading ? "Loading..." : "Store"),
-    descriptionLines: store ? [store.location || ""] : []
+    descriptionLines:[]
   };
 
   const detail = {

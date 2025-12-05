@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUtensils, FaPlus } from "react-icons/fa";
-
+import { FaPlus } from "react-icons/fa";
+import { FaBookBookmark } from "react-icons/fa6";
 import PageHeader from "../../components/Listing/PageHeader";
 import FormBody from "../../components/Form/FormBody";
 import InputField from "../../components/Form/InputField";
@@ -137,10 +137,10 @@ const RecipeNew = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaUtensils size={28} />}
+              icon={<FaBookBookmark size={35} />}
         title="Create Recipe"
         descriptionLines={[
-          "Define a new recipe, select ingredients and optionally put it on sale.",
+            "Fill in the form to add a recipe:", "The recipe will be utilized to enter sales if it is on sale, and for managing inventory items (deducting and calculating values)"
               ]}
               actions={[]}
      

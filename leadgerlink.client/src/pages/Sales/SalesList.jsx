@@ -117,11 +117,11 @@ const SalesListPage = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaFileInvoice size={28} />}
+        icon={<FaFileInvoice size={55} />}
         title="Sales"
         descriptionLines={[
-          "View and manage recorded sales. Use filters to narrow results.",
-          "Create new sales records or inspect existing transactions.",
+          "Following sales are made in from newest to oldest:",
+          "Click on the sale timestamp to view its details",
         ]}
         actions={[
           {

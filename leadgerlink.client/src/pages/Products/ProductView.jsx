@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { FaBoxOpen, FaPencilAlt } from "react-icons/fa";
+import {  FaPencilAlt } from "react-icons/fa";
 import { useParams } from "react-router-dom";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
+import { BiSolidPackage } from "react-icons/bi";
 
 /*
   ProductView (data-backed)
@@ -51,7 +52,7 @@ const ProductView = () => {
   }, [id]);
 
   const headerProps = {
-    icon: <FaBoxOpen size={28} />,
+      icon: <BiSolidPackage size={55} />,
     title: product ? `Product ${product.productId}` : "View Product",
     descriptionLines: []
   };

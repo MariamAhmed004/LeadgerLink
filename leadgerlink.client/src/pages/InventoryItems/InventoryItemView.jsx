@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaBox, FaArrowLeft, FaEdit } from "react-icons/fa";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
+import { MdOutlineInventory } from "react-icons/md";
 
 // Helper to read multiple possible property names from server DTOs
 const firstDefined = (obj, ...keys) => {
@@ -95,7 +96,7 @@ export default function InventoryItemView() {
       : "In Stock";
 
   const headerProps = {
-    icon: <FaBox size={28} />,
+      icon: <MdOutlineInventory size={55} />,
     title: item ? `Inventory Item` : "Inventory Item",
     descriptionLines: item
       ? [

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaUserPlus } from "react-icons/fa";
-
+import { HiUsers } from "react-icons/hi";
 import PageHeader from "../../components/Listing/PageHeader";
 import FormBody from "../../components/Form/FormBody";
 import InputField from "../../components/Form/InputField";
@@ -171,9 +171,9 @@ export default function UserNew() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaUserPlus size={28} />}
+              icon={<HiUsers size={55} />}
         title="Add User"
-        descriptionLines={["Create a new user account. Fill the fields and save."]}
+              descriptionLines={["Following details are needed to create a new user:", "You can create a user for created organization."]}
         actions={[]}
       />
 

@@ -5,6 +5,7 @@ import FilterSection from '../../components/Listing/FilterSection';
 import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
+import { MdOutlineInventory } from "react-icons/md";
 
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
@@ -191,11 +192,11 @@ const InventoryItemsListPage = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaTruck size={28} />}
+              icon={<MdOutlineInventory size={55} />}
         title="Inventory Items"
         descriptionLines={[
-          'Manage inventory items, suppliers and stock levels.',
-          'Use filters to narrow the listing. Create or restock items using the actions.',
+          'Following are the Inventory Items registered in the organization stores:',
+          'Click on the item name to view its details',
         ]}
         actions={[
             { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory/new', onClick: handleNewInventory },

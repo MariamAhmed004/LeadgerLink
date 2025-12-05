@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaBuilding, FaPlus } from "react-icons/fa";
-
+import { BiSolidBuildings } from "react-icons/bi";
 import PageHeader from "../../components/Listing/PageHeader";
 import FormBody from "../../components/Form/FormBody";
 import InputField from "../../components/Form/InputField";
@@ -141,10 +140,11 @@ const OrganizationNew = () => {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaBuilding size={28} />}
+              icon={<BiSolidBuildings size={55} />}
         title="Add Organization"
         descriptionLines={[
-          "Create a new organization record. Fill the form and save.",
+            "Following organization are contracted with LedgerLink:",
+          "Click on the organization name to view its details"
         ]}
         actions={[]}
       />

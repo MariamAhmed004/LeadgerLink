@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FaPlus } from "react-icons/fa";
 import { useAuth } from "../../Context/AuthContext";
-
+import { HiUsers } from "react-icons/hi";
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSection from "../../components/Listing/FilterSection";
 import FilterSelect from "../../components/Listing/FilterSelect";
@@ -179,11 +179,11 @@ export default function UsersList() {
   return (
     <div className="container py-5">
       <PageHeader
-        icon={<FaPlus size={28} />}
+              icon={<HiUsers size={55} />}
         title="Users"
         descriptionLines={[
-          "Manage application users. Use filters to control the list.",
-          "Columns adapt based on your role."
+          "Following are all users registered in LedgerLink:",
+          "Click on the user name to view its details"
         ]}
         actions={[
           { icon: <FaPlus />, title: "New User", route: "/users/create" }
