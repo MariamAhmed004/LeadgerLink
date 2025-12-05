@@ -22,11 +22,13 @@ const OrganizationsList = () => {
   // success alert state
   const [successMsg, setSuccessMsg] = useState("");
 
-  // show success message if navigated from create page
+  // show success message if navigated from create or edit page
   useEffect(() => {
-    if (location?.state?.created) {
-      const name = location.state.createdName ?? "Organization";
-      setSuccessMsg(`"${name}" added successfully.`);
+    const state = location?.state ?? {};
+    if (state.created || state.updated) {
+      const name = state.createdName ?? state.updatedName ?? "Organization";
+      const msg = state.created ? `"${name}" added successfully.` : `"${name}" updated successfully.`;
+      setSuccessMsg(msg);
       // clear history state so refresh/navigation doesn't show the alert again
       navigate(location.pathname, { replace: true, state: {} });
       // auto-dismiss after 5s

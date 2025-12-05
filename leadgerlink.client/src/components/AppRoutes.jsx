@@ -44,6 +44,7 @@ import UserView from "../pages/Users/UserView";
 import OrganizationsList from "../pages/Organizations/OrganizationsList";
 import OrganizationNew from "../pages/Organizations/OrganizationNew";
 import OrganizationView from "../pages/Organizations/OrganizationView";
+import OrganizationEdit from "../pages/Organizations/OrganizationEdit";
 
 // -----------------------------
 // Audit Logs
@@ -144,7 +145,8 @@ const AppRoutes = () => {
           --------------------------- */}
       <Route path="/organizations" element={<OrganizationsList />} />
       <Route path="/organizations/new" element={<OrganizationNew />} />
-      <Route path="/organizations/:id" element={<OrganizationView />} />
+          <Route path="/organizations/:id" element={<OrganizationView />} />
+          <Route path="/organizations/edit/:id" element={<OrganizationEdit />} />
 
       {/* ---------------------------
           Audit Logs
