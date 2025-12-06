@@ -1,0 +1,233 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import PageHeader from "../../components/Listing/PageHeader";
+import FormBody from "../../components/Form/FormBody";
+import TabbedMenu from "../../components/Form/TabbedMenu";
+import MenuTabCard from "../../components/Form/MenuTabCard";
+import { FaFileInvoice } from "react-icons/fa";
+import TimestampField from "../../components/Form/TimestampField";
+import InputField from "../../components/Form/InputField";
+import SelectField from "../../components/Form/SelectField";
+import FormActions from "../../components/Form/FormActions";
+import InputWithButton from "../../components/Form/InputWithButton";
+import InfoModal from "../../components/Ui/InfoModal";
+import TextArea from "../../components/Form/TextArea";
+
+const SaleEdit = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [timestamp, setTimestamp] = useState(new Date());
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [appliedDiscount, setAppliedDiscount] = useState("");
+  const [discountIsPercent, setDiscountIsPercent] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [recipes, setRecipes] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [selection, setSelection] = useState([]);
+
+  const parseNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const totalAmount = selection.reduce((sum, it) => {
+    const priceNum = typeof it.price === "string" ? Number((it.price.match(/[0-9.]+/) || [0])[0]) : Number(it.price || 0);
+    const qtyNum = Number(it.quantity || 0);
+    if (!Number.isFinite(priceNum) || !Number.isFinite(qtyNum)) return sum;
+    return sum + priceNum * qtyNum;
+  }, 0);
+
+  const discountValue = parseNum(appliedDiscount);
+  const discountDeduction = discountIsPercent ? (totalAmount * (discountValue / 100)) : discountValue;
+  const amountPaid = Math.max(0, Number((totalAmount - discountDeduction).toFixed(3)));
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        // load payment methods + products
+        const [pmRes, prodRes, saleRes] = await Promise.all([
+          fetch("/api/sales/payment-methods", { credentials: "include" }),
+          fetch("/api/products/for-current-store", { credentials: "include" }),
+          fetch(`/api/sales/${encodeURIComponent(id)}`, { credentials: "include" })
+        ]);
+
+        if (pmRes.ok) {
+          const pm = await pmRes.json();
+          setPaymentMethods(pm || []);
+        }
+
+        if (!saleRes.ok) {
+          const txt = await saleRes.text().catch(() => null);
+          throw new Error(txt || `Failed to load sale (${saleRes.status})`);
+        }
+        const sale = await saleRes.json();
+
+        // set core fields
+        setTimestamp(sale.timestamp ? new Date(sale.timestamp) : new Date());
+        setPaymentMethodId(sale.paymentMethodId ? String(sale.paymentMethodId) : "");
+        setAppliedDiscount(sale.appliedDiscount != null ? String(Number(sale.appliedDiscount)) : "");
+        setNotes(sale.notes || "");
+
+        // load products and pre-select quantities based on sale items
+        if (prodRes.ok) {
+          const list = await prodRes.json();
+          const arr = Array.isArray(list) ? list : (list.items || []);
+          const rec = [];
+          const oth = [];
+
+          // map sale items for preselection
+          const byProductIdQty = new Map((sale.saleItems || []).map(si => [Number(si.productId), Number(si.quantity)]));
+
+          (arr || []).forEach(p => {
+            // use the same canonical fields as SalesNew
+            const description = p.description ?? "";
+            const isRecipe =
+              (p.isRecipe === true) ||
+              (String(p.source || "").toLowerCase() === "recipe") ||
+              (p.recipeId != null);
+
+            const item = {
+              productId: p.productId,
+              name: p.productName,
+              description,
+              price: Number(p.sellingPrice).toFixed(3) + " BHD",
+              // inventory products use inventoryItemQuantity; recipes get a UI cap (selectable)
+              quantity: isRecipe ? 9999 : Number(p.inventoryItemQuantity ?? 0),
+              initialSelectedQty: byProductIdQty.get(Number(p.productId)) || 0
+            };
+
+            if (isRecipe) rec.push(item); else oth.push(item);
+          });
+
+          setRecipes(rec);
+          setProducts(oth);
+        }
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Failed to load data");
+      }
+    };
+    load();
+  }, [id]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    const validItems = (selection || []).filter(s => Number(s.productId) > 0 && Number(s.quantity) > 0);
+    if (validItems.length === 0) {
+      setError("Select at least one product or recipe with quantity > 0.");
+      return;
+    }
+
+    setSaving(true);
+
+    const appliedDiscountAmount = Number(discountDeduction.toFixed(3));
+    const payload = {
+      saleId: Number(id),
+      timestamp: timestamp.toISOString(),
+      totalAmount: Number(totalAmount.toFixed(3)),
+      appliedDiscount: appliedDiscountAmount,
+      paymentMethodId: paymentMethodId ? Number(paymentMethodId) : null,
+      notes: notes ? String(notes).trim() : null,
+      items: validItems.map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }))
+    };
+
+    try {
+      const res = await fetch(`/api/sales/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+
+      navigate(`/sales/${id}`);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tabs = [
+    { label: "Recipes", items: recipes, cardComponent: (item) => <MenuTabCard data={item} /> },
+    { label: "Products", items: products, cardComponent: (item) => <MenuTabCard data={item} /> },
+  ];
+
+  return (
+    <div className="container py-5">
+      <PageHeader
+        icon={<FaFileInvoice size={28} />}
+        title="Edit Sale"
+        descriptionLines={["Edit the sale details and items."]}
+        actions={[]}
+      />
+
+      <FormBody onSubmit={handleSubmit} plain={true}>
+        <div className="row gx-4 gy-4 ">
+          <div className="col-12 col-md-6 text-start">
+            <TimestampField label="Timestamp" value={timestamp} onChange={setTimestamp} required />
+          </div>
+
+          <div className="col-12">
+            <TabbedMenu tabs={tabs} onSelectionChange={(sel) => setSelection(sel)} />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputField label="Total Amount (BHD)" required type="number" value={String(totalAmount.toFixed(3))} onChange={() => {}} readOnly disabled placeholder="0.000" />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputWithButton
+              label={`Applied Discount (${discountIsPercent ? "%" : "BHD"})`}
+              value={appliedDiscount}
+              onChange={setAppliedDiscount}
+              type="number"
+              placeholder={discountIsPercent ? "0.0 %" : "0.000 BHD"}
+              buttonLabel={discountIsPercent ? "As Amount" : "As %"}
+              buttonVariant="secondary"
+              onButtonClick={(e) => { e.preventDefault(); setDiscountIsPercent((p) => !p); }}
+              inputProps={{ step: discountIsPercent ? "0.1" : "0.001", min: "0", inputMode: "decimal" }}
+            />
+          </div>
+
+          <div className="col-12 col-md-6 text-start">
+            <InputField label="Amount Paid (BHD)" value={String(amountPaid.toFixed(3))} onChange={() => {}} readOnly disabled placeholder="0.000" />
+          </div>
+
+
+          <div className="col-12 col-md-6 text-start">
+            <SelectField label="Payment Method" required value={paymentMethodId} onChange={setPaymentMethodId} options={[{ label: "Select payment method", value: "" }, ...paymentMethods.map((p) => ({ label: p.name, value: String(p.paymentMethodId) }))]} />
+                  </div>
+
+                  <div className="col-12 text-start">
+                      <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} placeholder="Add any notes for this sale" />
+                  </div>
+
+          <div className="col-12 col-md-6 d-flex justify-content-center align-items-center">
+            <FormActions onCancel={() => navigate(`/sales/${id}`)} submitLabel="Save Changes" loading={saving} />
+          </div>
+
+          {error && (
+            <div className="col-12">
+              <div className="alert alert-danger mb-0">{error}</div>
+            </div>
+          )}
+        </div>
+      </FormBody>
+    </div>
+  );
+};
+
+export default SaleEdit;

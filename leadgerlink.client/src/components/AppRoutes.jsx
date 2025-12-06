@@ -59,6 +59,7 @@ import AuditLogView from "../pages/AuditLogs/AuditLogView";
 import Sales from "../pages/Sales/SalesList";
 import SalesNew from "../pages/Sales/SalesNew";
 import SaleView from "../pages/Sales/SaleView";
+import SaleEdit from "../pages/Sales/SaleEdit";
 
 // -----------------------------
 // Inventory / Stores / Products
@@ -165,6 +166,7 @@ const AppRoutes = () => {
       <Route path="/sales" element={<Sales />} />
       <Route path="/sales/new" element={<SalesNew />} />
       <Route path="/sales/:id" element={<SaleView />} />
+      <Route path="/sales/edit/:id" element={<SaleEdit />} />
 
       {/* ---------------------------
           Inventory / Stores / Products

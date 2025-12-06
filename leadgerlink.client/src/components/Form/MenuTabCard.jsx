@@ -18,11 +18,21 @@ const MenuTabCard = ({ data }) => {
     quantity = 0,         // available quantity (stock)
     onSelect,             // callback from TabbedMenu
     isSelected,           // selection state provided by TabbedMenu
-    imageUrl
+    imageUrl,
+    initialSelectedQty = 0,
   } = data;
 
   // Selected quantity for this card (local state) — start at 0
   const [selectedQty, setSelectedQty] = useState(0);
+
+  // initialize from initialSelectedQty when provided
+  useEffect(() => {
+    const v = Number(initialSelectedQty || 0);
+    if (Number.isFinite(v) && v > 0) {
+      setSelectedQty(v);
+      if (typeof onSelect === "function") onSelect(v);
+    }
+  }, [initialSelectedQty]);
 
   // Ensure that when the parent toggles selection off, qty stays consistent (optional: keep current qty)
   useEffect(() => {
@@ -124,7 +134,7 @@ const MenuTabCard = ({ data }) => {
 
               <div className="ms-0 ms-md-3 mt-2 mt-md-0 d-flex justify-content-start justify-content-md-end">
                 <button
-                  type="button"        
+                  type="button"
                   className={`btn btn-sm ${selectedQty > 0 ? "btn-success text-white" : "btn-outline-primary"}`}
                   onClick={handleSelectButton}
                   disabled={isOutOfStock}

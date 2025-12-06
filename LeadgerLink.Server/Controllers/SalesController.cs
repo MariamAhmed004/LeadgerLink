@@ -286,6 +286,103 @@ namespace LeadgerLink.Server.Controllers
             return Ok(users);
         }
 
+        // GET api/sales/{id}
+        [Authorize]
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<SaleDetailDto>> GetById(int id)
+        {
+            var sale = await _context.Sales
+                .Include(s => s.PaymentMethod)
+                .Include(s => s.SaleItems)
+                    .ThenInclude(si => si.Product)
+                .FirstOrDefaultAsync(s => s.SaleId == id);
+
+            if (sale == null) return NotFound();
+
+            var dto = new SaleDetailDto
+            {
+                SaleId = sale.SaleId,
+                Timestamp = sale.Timestamp,
+                TotalAmount = sale.TotalAmount,
+                AppliedDiscount = sale.AppliedDiscount,
+                PaymentMethodId = sale.PaymentMethodId,
+                PaymentMethodName = sale.PaymentMethod?.PaymentMethodName,
+                Notes = sale.Notes,
+                CreatedById = sale.UserId,
+                CreatedByName = await _context.Users
+                    .Where(u => u.UserId == sale.UserId)
+                    .Select(u => ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim())
+                    .FirstOrDefaultAsync(),
+                CreatedAt = sale.CreatedAt,
+                UpdatedAt = sale.UpdatedAt,
+                SaleItems = sale.SaleItems.Select(si => new SaleItemDetailDto
+                {
+                    ProductId = si.ProductId,
+                    Quantity = si.Quantity,
+                    ProductName = si.Product?.ProductName
+                }).ToList()
+            };
+
+            return Ok(dto);
+        }
+
+        // PUT api/sales/{id}
+        [Authorize]
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] CreateSaleDto dto)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            if (dto == null) return BadRequest("Invalid payload.");
+
+            var sale = await _context.Sales.Include(s => s.SaleItems).FirstOrDefaultAsync(s => s.SaleId == id);
+            if (sale == null) return NotFound();
+
+            var hasItems = dto.Items != null && dto.Items.Any(i => i != null && i.ProductId > 0 && i.Quantity > 0);
+            if (!hasItems) return BadRequest("At least one item (product/recipe) must be selected.");
+
+            if (dto.PaymentMethodId.HasValue)
+            {
+                var pmExists = await _context.PaymentMethods.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
+                if (!pmExists) return BadRequest("Invalid payment method.");
+            }
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                sale.Timestamp = dto.Timestamp == default ? sale.Timestamp : dto.Timestamp;
+                sale.TotalAmount = dto.TotalAmount;
+                sale.AppliedDiscount = dto.AppliedDiscount;
+                sale.PaymentMethodId = dto.PaymentMethodId;
+                sale.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim();
+                sale.UpdatedAt = DateTime.UtcNow.ToString("o");
+
+                _context.SaleItems.RemoveRange(sale.SaleItems);
+                foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
+                {
+                    _context.SaleItems.Add(new SaleItem
+                    {
+                        SaleId = sale.SaleId,
+                        ProductId = it.ProductId,
+                        Quantity = it.Quantity
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (DbUpdateException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, ex.Message);
+            }
+        }
+
         // Helper to resolve current authenticated user's store id
         private async Task<int?> ResolveStoreIdForCurrentUserAsync()
         {
