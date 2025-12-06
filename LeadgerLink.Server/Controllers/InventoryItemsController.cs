@@ -182,6 +182,19 @@ namespace LeadgerLink.Server.Controllers
             {
                 var payload = Request.Form["payload"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(payload))
+                {
+                    // Some clients append the JSON as a file part (Blob with filename). Try reading from files.
+                    var jsonFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "payload", StringComparison.OrdinalIgnoreCase)
+                                                                          || string.Equals(f.FileName, "payload.json", StringComparison.OrdinalIgnoreCase)
+                                                                          || (f.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) ?? false));
+                    if (jsonFile != null)
+                    {
+                        using var sr = new StreamReader(jsonFile.OpenReadStream());
+                        payload = await sr.ReadToEndAsync();
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(payload))
                     return BadRequest("Missing payload in form data.");
                 try
                 {
