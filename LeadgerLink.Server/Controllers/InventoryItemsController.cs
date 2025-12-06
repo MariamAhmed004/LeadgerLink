@@ -299,10 +299,17 @@ namespace LeadgerLink.Server.Controllers
                 // handle image if present
                 if (Request.HasFormContentType && Request.Form.Files.Count > 0)
                 {
-                    var file = Request.Form.Files.First();
-                    using var ms = new MemoryStream();
-                    await file.CopyToAsync(ms);
-                    item.InventoryItemImage = ms.ToArray();
+                    // Prefer the file named 'image' or with image/* content-type
+                    var imageFile = Request.Form.Files
+                        .FirstOrDefault(f => string.Equals(f.Name, "image", StringComparison.OrdinalIgnoreCase)
+                                             || (f.ContentType != null && f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)));
+
+                    if (imageFile != null && imageFile.Length > 0)
+                    {
+                        using var ms = new MemoryStream();
+                        await imageFile.CopyToAsync(ms);
+                        item.InventoryItemImage = ms.ToArray();
+                    }
                 }
 
                 var addedItem = await _inventoryRepo.AddAsync(item);
@@ -349,6 +356,38 @@ namespace LeadgerLink.Server.Controllers
             var dto = await _inventoryRepo.GetDetailByIdAsync(id);
             if (dto == null) return NotFound();
             return Ok(dto);
+        }
+
+        // GET api/inventoryitems/{id}/image
+        [HttpGet("{id:int}/image")]
+        public async Task<IActionResult> GetImage(int id)
+        {
+            var item = await _inventoryRepo.GetByIdAsync(id);
+            if (item == null) return NotFound();
+
+            byte[]? bytes = null;
+            try
+            {
+                if (item is InventoryItem ii && ii.InventoryItemImage != null)
+                {
+                    bytes = ii.InventoryItemImage;
+                }
+                else
+                {
+                    var dbItem = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
+                    bytes = dbItem?.InventoryItemImage;
+                }
+            }
+            catch
+            {
+                var dbItem = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
+                bytes = dbItem?.InventoryItemImage;
+            }
+
+            if (bytes == null || bytes.Length == 0) return NotFound();
+
+            // Always return JPEG for now; adjust if you store content-type alongside bytes.
+            return File(bytes, "image/jpeg");
         }
     }
 }

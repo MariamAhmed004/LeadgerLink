@@ -31,7 +31,8 @@ public partial class Recipe
     [StringLength(1500)]
     public string? Instructions { get; set; }
 
-    [Column("image", TypeName = "image")]
+    // Use varbinary(max) instead of deprecated SQL 'image' type
+    [Column("image", TypeName = "varbinary(max)")]
     public byte[]? Image { get; set; }
 
     [Column("store_id")]

@@ -34,7 +34,7 @@ public partial class InventoryItem
     [Column("minimum_quantity", TypeName = "decimal(18, 3)")]
     public decimal? MinimumQuantity { get; set; }
 
-    [Column("inventory_item_image", TypeName = "image")]
+    [Column("inventory_item_image", TypeName = "varbinary(max)")]
     public byte[]? InventoryItemImage { get; set; }
 
     [Column("description")]
