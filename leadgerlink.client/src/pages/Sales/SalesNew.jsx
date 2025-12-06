@@ -9,11 +9,7 @@ import TimestampField from "../../components/Form/TimestampField";
 import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import FormActions from "../../components/Form/FormActions";
-
-/*
-  Create Sale page - labels above inputs, plain form, full-width TabbedMenu,
-  fields arranged half-row using Bootstrap gutters for spacing.
-*/
+import InputWithButton from "../../components/Form/InputWithButton";
 
 const SalesNew = () => {
   const navigate = useNavigate();
@@ -22,10 +18,25 @@ const SalesNew = () => {
   const [timestamp, setTimestamp] = useState(new Date());
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [totalAmount, setTotalAmount] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState("");
+  const [discountIsPercent, setDiscountIsPercent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // derived amounts
+  const [selection, setSelection] = useState([]); // [{tabLabel,index,name,price,quantity}]
+  const computeTotalFromSelection = () =>
+    selection.reduce((sum, it) => {
+      // price may be string "X.XXX BHD" or number; parse numeric part
+      const priceNum = typeof it.price === "string"
+        ? Number((it.price.match(/[0-9.]+/) || [0])[0])
+        : Number(it.price || 0);
+      const qtyNum = Number(it.quantity || 0);
+      if (!Number.isFinite(priceNum) || !Number.isFinite(qtyNum)) return sum;
+      return sum + priceNum * qtyNum;
+    }, 0);
+
+  const totalAmount = computeTotalFromSelection();
 
   useEffect(() => {
     const load = async () => {
@@ -48,7 +59,6 @@ const SalesNew = () => {
           setPaymentMethods(pm || []);
           if ((pm || []).length > 0) setPaymentMethodId(String(pm[0].paymentMethodId ?? pm[0].id ?? ""));
         } else {
-          // fallback basic options if endpoint not available
           setPaymentMethods([
             { paymentMethodId: 1, name: "Cash" },
             { paymentMethodId: 2, name: "Card" },
@@ -66,6 +76,16 @@ const SalesNew = () => {
     load();
   }, []);
 
+  const parseNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // compute amount paid (total minus discount; discount can be amount or percent)
+  const discountValue = parseNum(appliedDiscount);
+  const discountDeduction = discountIsPercent ? (totalAmount * (discountValue / 100)) : discountValue;
+  const amountPaid = Math.max(0, Number((totalAmount - discountDeduction).toFixed(3)));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -74,10 +94,13 @@ const SalesNew = () => {
     const payload = {
       timestamp: timestamp.toISOString(),
       userId: createdById ? Number(createdById) : null,
-      totalAmount: totalAmount ? Number(totalAmount) : 0,
-      appliedDiscount: appliedDiscount ? Number(appliedDiscount) : 0,
+      totalAmount: Number(totalAmount.toFixed(3)),
+      appliedDiscount: discountValue,
+      // appliedDiscountIsPercent: discountIsPercent, // add if backend needs it
       paymentMethodId: paymentMethodId ? Number(paymentMethodId) : null,
       notes: null,
+      // Optionally include selection details for server-side reconciliation later
+      // items: selection.map(s => ({ name: s.name, price: parseFloat(/*...*/), quantity: s.quantity }))
     };
 
     try {
@@ -104,13 +127,13 @@ const SalesNew = () => {
 
   // sample items for the TabbedMenu preview
   const sampleRecipes = [
-    { name: "Chicken Shawarma", description: "Spiced chicken, sliced", price: "3.000 BHD", quantity: 10, onSelect: () => {}, isSelected: false },
-    { name: "Veggie Wrap", description: "Fresh vegetables and sauce", price: "2.000 BHD", quantity: 8, onSelect: () => {}, isSelected: false },
+    { name: "Chicken Shawarma", description: "Spiced chicken, sliced", price: "3.000 BHD", quantity: 10 },
+    { name: "Veggie Wrap", description: "Fresh vegetables and sauce", price: "2.000 BHD", quantity: 8 },
   ];
 
   const sampleProducts = [
-    { name: "Bottle Water", description: "500ml", price: "0.200 BHD", quantity: 50, onSelect: () => {}, isSelected: false },
-    { name: "Soda Can", description: "330ml", price: "0.300 BHD", quantity: 30, onSelect: () => {}, isSelected: false },
+    { name: "Bottle Water", description: "500ml", price: "0.200 BHD", quantity: 50 },
+    { name: "Soda Can", description: "330ml", price: "0.300 BHD", quantity: 30 },
   ];
 
   const tabs = [
@@ -131,51 +154,69 @@ const SalesNew = () => {
       <PageHeader
         icon={<FaFileInvoice size={28} />}
         title="Create Sale"
-              descriptionLines={["Fill In the following fields to add the sale entry", "Find Recipe Products in the Recipes tab, and Inventory Items Product in Others tab Add the Applied Discount in % or BHD amount "]}
+        descriptionLines={[
+          "Fill In the following fields to add the sale entry",
+          "Find Recipe Products in the Recipes tab, and Inventory Items Product in Others tab Add the Applied Discount in % or BHD amount "
+        ]}
         actions={[]}
       />
 
-      {/* plain form (no card/shadow) */}
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4 ">
-          {/* Timestamp (half row) - label appears above input via TimestampField */}
           <div className="col-12 col-md-6 text-start">
             <TimestampField label="Timestamp" value={timestamp} onChange={setTimestamp} required />
           </div>
 
-          {/* Tabbed menu full width - make menu area taller and scrollable */}
-                  <div className="col-12">
-                      <TabbedMenu tabs={tabs} />
-                  </div>
+          <div className="col-12">
+            <TabbedMenu
+              tabs={tabs}
+              onSelectionChange={(sel) => setSelection(sel)}
+            />
+          </div>
 
-          {/* Total Amount and Applied Discount - labels on top */}
+          {/* Total Amount (read-only derived from selection) */}
           <div className="col-12 col-md-6 text-start">
             <InputField
-              label="Total Amount"
+              label="Total Amount (BHD)"
               required
               type="number"
-              step="0.001"
-              min="0"
-              value={totalAmount}
-              onChange={setTotalAmount}
+              value={String(totalAmount.toFixed(3))}
+              onChange={() => {}}
+              readOnly
+              disabled
               placeholder="0.000"
             />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <InputField
-              label="Applied Discount"
-              required={false}
-              type="number"
-              step="0.001"
-              min="0"
+            <InputWithButton
+              label={`Applied Discount (${discountIsPercent ? "%" : "BHD"})`}
               value={appliedDiscount}
               onChange={setAppliedDiscount}
+              type="number"
+              placeholder={discountIsPercent ? "0.0 %" : "0.000 BHD"}
+              buttonLabel={discountIsPercent ? "As Amount" : "As %"}
+              buttonVariant="secondary"
+              onButtonClick={(e) => {
+                e.preventDefault();
+                setDiscountIsPercent((p) => !p);
+              }}
+              inputProps={{ step: discountIsPercent ? "0.1" : "0.001", min: "0", inputMode: "decimal" }}
+            />
+          </div>
+
+          {/* Amount Paid (read-only) */}
+          <div className="col-12 col-md-6 text-start">
+            <InputField
+              label="Amount Paid (BHD)"
+              value={String(amountPaid.toFixed(3))}
+              onChange={() => {}}
+              readOnly
+              disabled
               placeholder="0.000"
             />
           </div>
 
-          {/* Payment method + actions */}
           <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Payment Method"
@@ -190,7 +231,6 @@ const SalesNew = () => {
             <FormActions onCancel={() => navigate("/sales")} submitLabel="Save Sale" loading={saving} />
           </div>
 
-          {/* error message full width */}
           {error && (
             <div className="col-12">
               <div className="alert alert-danger mb-0">{error}</div>

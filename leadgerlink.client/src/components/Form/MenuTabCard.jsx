@@ -1,39 +1,74 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaRegImage } from "react-icons/fa";
 
 /*
   MenuTabCard
-  - Layout:
-    - Uses Bootstrap grid so left column (title + image) is col-md-5 (~41.6%) and right column col-md-7 (~58.4%).
-    - On small screens both columns are full width (col-12) and stack vertically.
-    - Images are responsive and won't force horizontal scroll.
+  - Select behavior:
+    - Quantity is initialized to 0.
+    - If quantity > 0 -> card considered selected (button shows "Selected").
+    - If quantity returns to 0 -> card considered deselected (button shows "Select").
+  - Prevents form submission by explicitly using type="button" on the Select control.
 */
 
 const MenuTabCard = ({ data }) => {
-  const { name, description, price, quantity = 0, onSelect, isSelected, imageUrl } = data;
-  const [selectedQty, setSelectedQty] = useState(1);
+  const {
+    name,
+    description,
+    price,
+    quantity = 0,         // available quantity (stock)
+    onSelect,             // callback from TabbedMenu
+    isSelected,           // selection state provided by TabbedMenu
+    imageUrl
+  } = data;
+
+  // Selected quantity for this card (local state) — start at 0
+  const [selectedQty, setSelectedQty] = useState(0);
+
+  // Ensure that when the parent toggles selection off, qty stays consistent (optional: keep current qty)
+  useEffect(() => {
+    if (!isSelected && selectedQty > 0) {
+      // If parent deselects, do not force reset qty; keep it as is
+      // If you prefer resetting to 0 when deselected, uncomment:
+      // setSelectedQty(0);
+    }
+  }, [isSelected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQtyChange = (e) => {
     let v = parseInt(e.target.value, 10);
-    if (Number.isNaN(v)) v = 1;
+    if (Number.isNaN(v)) v = 0;
     if (quantity && v > quantity) v = quantity;
-    if (v < 1) v = 1;
+    if (v < 0) v = 0;
     setSelectedQty(v);
-  };
 
-  const handleSelect = () => {
+    // Inform parent selection map:
+    // - mark selected when v > 0
+    // - mark deselected when v === 0
     if (typeof onSelect === "function") {
-      onSelect(selectedQty);
+      onSelect(v);
     }
   };
 
+  const handleSelectButton = () => {
+    // toggle between selected/deselected state by qty:
+    // - if currently 0, set to 1 (or min allowed) to select
+    // - if > 0, set to 0 to deselect
+    const nextQty = selectedQty > 0 ? 0 : Math.min(1, quantity || 1);
+    setSelectedQty(nextQty);
+    if (typeof onSelect === "function") {
+      onSelect(nextQty);
+    }
+  };
+
+  const selectedClass = isSelected || selectedQty > 0 ? "border-2 border-success shadow-sm" : "border border-light";
+  const isOutOfStock = quantity === 0;
+
   return (
     <div
-      className={`bg-white rounded-3 p-4 ${isSelected ? "border-2 border-success shadow-sm" : "border border-light"}`}
+      className={`bg-white rounded-3 p-4 ${selectedClass}`}
       style={{ width: "100%" }}
     >
       <div className="row g-3" style={{ minHeight: 200 }}>
-        {/* Left column: title above image — ~40% on md+ via col-md-5 */}
+        {/* Left column: title above image */}
         <div className="col-12 col-md-5">
           <div className="d-flex flex-column h-100">
             <div className="mb-3 text-start">
@@ -57,7 +92,7 @@ const MenuTabCard = ({ data }) => {
           </div>
         </div>
 
-        {/* Right column: details — remaining width via col-md-7 */}
+        {/* Right column: details */}
         <div className="col-12 col-md-7">
           <div className="d-flex flex-column h-100">
             <div className="mb-2 text-start">
@@ -78,21 +113,23 @@ const MenuTabCard = ({ data }) => {
                   type="number"
                   className="form-control form-control-sm"
                   style={{ width: 96 }}
-                  min={1}
+                  min={0}
                   max={quantity || undefined}
                   value={selectedQty}
                   onChange={handleQtyChange}
                   aria-label="Select quantity"
+                  disabled={isOutOfStock}
                 />
               </div>
 
               <div className="ms-0 ms-md-3 mt-2 mt-md-0 d-flex justify-content-start justify-content-md-end">
                 <button
-                  className={`btn btn-sm ${isSelected ? "btn-success text-white" : "btn-outline-primary"}`}
-                  onClick={handleSelect}
-                  disabled={quantity === 0}
+                  type="button"        
+                  className={`btn btn-sm ${selectedQty > 0 ? "btn-success text-white" : "btn-outline-primary"}`}
+                  onClick={handleSelectButton}
+                  disabled={isOutOfStock}
                 >
-                  {isSelected ? "Selected" : "Select"}
+                  {selectedQty > 0 ? "Selected" : "Select"}
                 </button>
               </div>
             </div>
