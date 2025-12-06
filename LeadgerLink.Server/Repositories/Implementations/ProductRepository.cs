@@ -35,11 +35,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             var list = products.Select(p =>
             {
+                // inside GetForStoreAsync(), when constructing dto from p:
                 var dto = new ProductListDto
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
                     SellingPrice = p.SellingPrice,
+                    Description = p.Description,              // include product description
                     InventoryItemId = p.InventoryItemId,
                     RecipeId = p.RecipeId
                 };
@@ -48,13 +50,17 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 {
                     dto.Source = "InventoryItem";
                     var ii = p.InventoryItem;
-                    dto.IsAvailable = ii != null && ii.Quantity > 0m;
+                    var qty = ii?.Quantity ?? 0m;
+
+                    dto.InventoryItemQuantity = qty;
+                    dto.IsAvailable = ii != null && qty > 0m;
                     dto.AvailabilityMessage = dto.IsAvailable ? "Available" : "Out of stock";
                 }
                 else if (p.RecipeId.HasValue)
                 {
                     dto.Source = "Recipe";
                     var recipe = p.Recipe;
+
                     if (recipe == null || recipe.RecipeInventoryItems == null || !recipe.RecipeInventoryItems.Any())
                     {
                         dto.IsAvailable = false;
@@ -85,6 +91,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
                         dto.IsAvailable = string.IsNullOrEmpty(missing);
                         dto.AvailabilityMessage = dto.IsAvailable ? "Available" : $"Unavailable: {missing}";
+                        // For recipes we do not expose a single InventoryItemQuantity; leave null.
+                        dto.InventoryItemQuantity = null;
                     }
                 }
                 else
@@ -92,6 +100,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     dto.Source = "Unknown";
                     dto.IsAvailable = false;
                     dto.AvailabilityMessage = "No source";
+                    dto.InventoryItemQuantity = null;
                 }
 
                 return dto;

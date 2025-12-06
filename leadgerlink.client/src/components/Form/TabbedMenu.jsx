@@ -5,7 +5,7 @@ import SearchField from "../Listing/SearchField";
   TabbedMenu
   - Keeps each tab mounted to preserve per-card state.
   - Tracks selected quantities per tab and per item index.
-  - Calls onSelectionChange with a flat array of { tabLabel, index, name, price, quantity }
+  - Calls onSelectionChange with a flat array of { tabLabel, index, productId, name, price, quantity }
     whenever any item's quantity changes.
 */
 const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) => {
@@ -35,9 +35,10 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
             selection.push({
               tabLabel: label,
               index: idx,
+              productId: item.productId ?? item.id ?? null,
               name: item.name ?? item.recipeName ?? item.productName ?? "",
               price: item.price ?? item.sellingPrice ?? 0,
-              quantity: qmap[idx] ?? 0
+              quantity: qmap[idx] ?? 0,
             });
           });
         });

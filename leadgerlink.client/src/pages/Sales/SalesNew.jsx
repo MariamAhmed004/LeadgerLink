@@ -10,6 +10,8 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import FormActions from "../../components/Form/FormActions";
 import InputWithButton from "../../components/Form/InputWithButton";
+import InfoModal from "../../components/Ui/InfoModal";
+import TextArea from "../../components/Form/TextArea";
 
 const SalesNew = () => {
   const navigate = useNavigate();
@@ -20,14 +22,29 @@ const SalesNew = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [appliedDiscount, setAppliedDiscount] = useState("");
   const [discountIsPercent, setDiscountIsPercent] = useState(false);
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // summary modal
+  const [showSummary, setShowSummary] = useState(false);
+  const [saleSummary, setSaleSummary] = useState({
+    saleId: null,
+    itemCount: 0,
+    totalAmount: 0,
+    discountAmount: 0,
+    amountPaid: 0,
+    paymentMethodName: ""
+  });
+
+  // products separated into tabs
+  const [recipes, setRecipes] = useState([]);
+  const [products, setProducts] = useState([]);
+
   // derived amounts
-  const [selection, setSelection] = useState([]); // [{tabLabel,index,name,price,quantity}]
+  const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity}]
   const computeTotalFromSelection = () =>
     selection.reduce((sum, it) => {
-      // price may be string "X.XXX BHD" or number; parse numeric part
       const priceNum = typeof it.price === "string"
         ? Number((it.price.match(/[0-9.]+/) || [0])[0])
         : Number(it.price || 0);
@@ -41,9 +58,10 @@ const SalesNew = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [usersRes, pmRes] = await Promise.all([
+        const [usersRes, pmRes, prodRes] = await Promise.all([
           fetch("/api/sales/store-users", { credentials: "include" }),
-          fetch("/api/paymentmethods", { credentials: "include" }).catch(() => null),
+          fetch("/api/sales/payment-methods", { credentials: "include" }).catch(() => null),
+          fetch("/api/products/for-current-store", { credentials: "include" }),
         ]);
 
         if (usersRes && usersRes.ok) {
@@ -59,10 +77,37 @@ const SalesNew = () => {
           setPaymentMethods(pm || []);
           if ((pm || []).length > 0) setPaymentMethodId(String(pm[0].paymentMethodId ?? pm[0].id ?? ""));
         } else {
+          // basic fallback
           setPaymentMethods([
             { paymentMethodId: 1, name: "Cash" },
             { paymentMethodId: 2, name: "Card" },
           ]);
+        }
+
+        if (prodRes && prodRes.ok) {
+          const list = await prodRes.json();
+          const arr = Array.isArray(list) ? list : (list.items || []);
+          const rec = [];
+          const oth = [];
+          (arr || []).forEach(p => {
+            // derive description and available quantity if provided by backend
+            const description = p.description ?? p.productDescription ?? p.desc ?? "";
+            const availableQty = p.inventoryItemQuantity ?? p.quantity ?? p.availableQuantity ?? null;
+            const item = {
+              productId: p.productId,
+              name: p.productName,
+              description: p.description || "",
+              price: Number(p.sellingPrice).toFixed(3) + " BHD",
+              quantity: Number(p.inventoryItemQuantity ?? 0)    
+            };
+            const isRecipe = (p.isRecipe === true) || (String(p.source || "").toLowerCase() === "recipe");
+            if (isRecipe) rec.push(item); else oth.push(item);
+          });
+          setRecipes(rec);
+          setProducts(oth);
+        } else {
+          setRecipes([]);
+          setProducts([]);
         }
       } catch (err) {
         console.error(err);
@@ -71,6 +116,8 @@ const SalesNew = () => {
           { paymentMethodId: 1, name: "Cash" },
           { paymentMethodId: 2, name: "Card" },
         ]);
+        setRecipes([]);
+        setProducts([]);
       }
     };
     load();
@@ -89,18 +136,27 @@ const SalesNew = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    // basic validation: at least one item
+    const validItems = (selection || []).filter(s => Number(s.productId) > 0 && Number(s.quantity) > 0);
+    if (validItems.length === 0) {
+      setError("Select at least one product or recipe with quantity > 0.");
+      return;
+    }
+
     setSaving(true);
+
+    // IMPORTANT: if discount is percentage, send the computed amount, not the % value
+    const appliedDiscountAmount = Number(discountDeduction.toFixed(3));
 
     const payload = {
       timestamp: timestamp.toISOString(),
       userId: createdById ? Number(createdById) : null,
       totalAmount: Number(totalAmount.toFixed(3)),
-      appliedDiscount: discountValue,
-      // appliedDiscountIsPercent: discountIsPercent, // add if backend needs it
+      appliedDiscount: appliedDiscountAmount,
       paymentMethodId: paymentMethodId ? Number(paymentMethodId) : null,
-      notes: null,
-      // Optionally include selection details for server-side reconciliation later
-      // items: selection.map(s => ({ name: s.name, price: parseFloat(/*...*/), quantity: s.quantity }))
+      notes: notes ? String(notes).trim() : null,
+      items: validItems.map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }))
     };
 
     try {
@@ -116,7 +172,24 @@ const SalesNew = () => {
         throw new Error(txt || `Server returned ${res.status}`);
       }
 
-      navigate("/sales");
+      // parse sale id from response if provided
+      let saleId = null;
+      try {
+        const respJson = await res.json();
+        saleId = respJson?.saleId ?? null;
+      } catch { /* ignore parse issues, modal will show without id */ }
+
+      // prepare summary and show modal (do not navigate yet)
+      const pmName = (paymentMethods.find(pm => String(pm.paymentMethodId ?? pm.id) === String(paymentMethodId))?.name) || "";
+      setSaleSummary({
+        saleId,
+        itemCount: validItems.length,
+        totalAmount: Number(totalAmount.toFixed(3)),
+        discountAmount: appliedDiscountAmount,
+        amountPaid: Number(amountPaid.toFixed(3)),
+        paymentMethodName: pmName
+      });
+      setShowSummary(true);
     } catch (err) {
       console.error(err);
       setError(err.message || "Save failed");
@@ -125,26 +198,15 @@ const SalesNew = () => {
     }
   };
 
-  // sample items for the TabbedMenu preview
-  const sampleRecipes = [
-    { name: "Chicken Shawarma", description: "Spiced chicken, sliced", price: "3.000 BHD", quantity: 10 },
-    { name: "Veggie Wrap", description: "Fresh vegetables and sauce", price: "2.000 BHD", quantity: 8 },
-  ];
-
-  const sampleProducts = [
-    { name: "Bottle Water", description: "500ml", price: "0.200 BHD", quantity: 50 },
-    { name: "Soda Can", description: "330ml", price: "0.300 BHD", quantity: 30 },
-  ];
-
   const tabs = [
     {
       label: "Recipes",
-      items: sampleRecipes,
+      items: recipes,
       cardComponent: (item) => <MenuTabCard data={item} />,
     },
     {
       label: "Products",
-      items: sampleProducts,
+      items: products,
       cardComponent: (item) => <MenuTabCard data={item} />,
     },
   ];
@@ -225,7 +287,12 @@ const SalesNew = () => {
               onChange={setPaymentMethodId}
               options={[{ label: "Select payment method", value: "" }, ...paymentMethods.map((p) => ({ label: p.name ?? p.paymentMethodName ?? p.PaymentMethodName, value: String(p.paymentMethodId ?? p.id ?? "") }))]}
             />
-          </div>
+                  </div>
+
+          {/* Notes */}
+          <div className="col-12 text-start">
+            <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} placeholder="Add any notes for this sale" />
+                  </div>
 
           <div className="col-12 col-md-6 d-flex justify-content-center align-items-center">
             <FormActions onCancel={() => navigate("/sales")} submitLabel="Save Sale" loading={saving} />
@@ -238,6 +305,32 @@ const SalesNew = () => {
           )}
         </div>
       </FormBody>
+
+      {/* Summary modal shown after successful save */}
+      <InfoModal
+        show={showSummary}
+        title="Sale Summary"
+        onClose={() => {
+          setShowSummary(false);
+          navigate("/sales");
+        }}
+      >
+        <div className="mb-2">
+          {saleSummary.saleId ? <div className="mb-1"><strong>Sale ID:</strong> {saleSummary.saleId}</div> : null}
+          <div className="mb-1"><strong>Items Selected:</strong> {saleSummary.itemCount}</div>
+          <div className="mb-1"><strong>Total Amount:</strong> BHD {saleSummary.totalAmount.toFixed(3)}</div>
+          <div className="mb-1"><strong>Discount Applied:</strong> BHD {saleSummary.discountAmount.toFixed(3)}</div>
+          <div className="mb-1"><strong>Amount Paid:</strong> BHD {saleSummary.amountPaid.toFixed(3)}</div>
+          {saleSummary.paymentMethodName && (
+            <div className="mb-1"><strong>Payment Method:</strong> {saleSummary.paymentMethodName}</div>
+          )}
+        </div>
+        <div className="mt-3 text-end">
+          <button className="btn btn-primary" onClick={() => { setShowSummary(false); navigate("/sales"); }}>
+            OK
+          </button>
+        </div>
+      </InfoModal>
     </div>
   );
 };

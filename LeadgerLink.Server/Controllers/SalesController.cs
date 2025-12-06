@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
+using System.Collections.Generic;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -18,12 +19,14 @@ namespace LeadgerLink.Server.Controllers
         private readonly LedgerLinkDbContext _context;
         private readonly ISaleRepository _saleRepository;
         private readonly IUserRepository _userRepository;
+        private readonly IRepository<PaymentMethod> _paymentMethodRepo;
 
-        public SalesController(LedgerLinkDbContext context, ISaleRepository saleRepository, IUserRepository userRepository)
+        public SalesController(LedgerLinkDbContext context, ISaleRepository saleRepository, IUserRepository userRepository, IRepository<PaymentMethod> paymentMethodRepo)
         {
             _context = context;
             _saleRepository = saleRepository;
             _userRepository = userRepository;
+            _paymentMethodRepo = paymentMethodRepo;
         }
 
         // GET api/sales/sum?organizationId=5&from=2025-11-27&to=2025-11-27
@@ -55,6 +58,18 @@ namespace LeadgerLink.Server.Controllers
 
             var sum = await q.SumAsync(s => (decimal?)s.TotalAmount);
             return Ok(sum ?? 0m);
+        }
+
+        // GET api/sales/payment-methods
+        // Returns list of payment methods for populating a select box.
+        [HttpGet("payment-methods")]
+        public async Task<ActionResult<IEnumerable<object>>> GetPaymentMethods()
+        {
+            var all = await _paymentMethodRepo.GetAllAsync();
+            var items = (all ?? Enumerable.Empty<PaymentMethod>())
+                .Select(pm => new { paymentMethodId = pm.PaymentMethodId, name = pm.PaymentMethodName })
+                .ToList();
+            return Ok(items);
         }
 
         // GET api/sales/current-store-month
@@ -158,6 +173,94 @@ namespace LeadgerLink.Server.Controllers
 
             var sales = await _saleRepository.GetSalesByStoreAsync(resolvedStoreId);
             return Ok(sales);
+        }
+
+        // POST api/sales
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> Create([FromBody] CreateSaleDto dto, [FromQuery] int? storeId)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            if (dto == null) return BadRequest("Body is required.");
+
+            // Resolve store id:
+            int? resolvedStoreId = null;
+            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+
+            if (isOrgAdmin && storeId.HasValue)
+            {
+                resolvedStoreId = storeId.Value;
+            }
+            else
+            {
+                resolvedStoreId = await ResolveStoreIdForCurrentUserAsync();
+            }
+
+            if (!resolvedStoreId.HasValue) return Unauthorized();
+
+            var hasItems = dto.Items != null && dto.Items.Any(i => i != null && i.ProductId > 0 && i.Quantity > 0);
+            if (!hasItems) return BadRequest("At least one item (product/recipe) must be selected.");
+
+            // Resolve current logged-in user id (always use this; ignore dto.UserId)
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email!.ToLower());
+            if (domainUser == null) return Unauthorized();
+            var currentUserId = domainUser.UserId;
+
+            // optional: validate payment method exists
+            if (dto.PaymentMethodId.HasValue)
+            {
+                var pmExists = await _context.PaymentMethods.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
+                if (!pmExists) return BadRequest("Invalid payment method.");
+            }
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var sale = new Sale
+                {
+                    Timestamp = dto.Timestamp == default ? DateTime.UtcNow : dto.Timestamp,
+                    UserId = currentUserId, // always the current logged-in user
+                    StoreId = resolvedStoreId.Value,
+                    TotalAmount = dto.TotalAmount,
+                    AppliedDiscount = dto.AppliedDiscount,
+                    PaymentMethodId = dto.PaymentMethodId,
+                    Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
+                    CreatedAt = DateTime.UtcNow.ToString("o"),
+                    UpdatedAt = DateTime.UtcNow.ToString("o")
+                };
+
+                _context.Sales.Add(sale);
+                await _context.SaveChangesAsync();
+
+                // insert items
+                foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
+                {
+                    var item = new SaleItem
+                    {
+                        SaleId = sale.SaleId,
+                        ProductId = it.ProductId,
+                        Quantity = it.Quantity
+                    };
+                    _context.SaleItems.Add(item);
+                }
+
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return CreatedAtAction(nameof(GetSalesByStore), new { storeId = resolvedStoreId.Value }, new { saleId = sale.SaleId });
+            }
+            catch (DbUpdateException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, ex.Message);
+            }
         }
 
         // GET api/sales/store-users?storeId=5

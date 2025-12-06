@@ -95,7 +95,7 @@ const MenuTabCard = ({ data }) => {
         {/* Right column: details */}
         <div className="col-12 col-md-7">
           <div className="d-flex flex-column h-100">
-            <div className="mb-2 text-start">
+            <div className="mb-2 text-start mt-4">
               {description && <div className="text-muted small">{description}</div>}
             </div>
 
@@ -106,9 +106,9 @@ const MenuTabCard = ({ data }) => {
 
             <div className="mt-auto d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between">
               <div className="d-flex align-items-center mb-2 mb-md-0" style={{ minWidth: 0 }}>
-                <span className="fw-semibold text-secondary me-2">Quantity:</span>
-                <span className="me-3 text-muted">Available: {quantity}</span>
-
+                <span className="fw-semibold text-secondary me-2">Available: </span>
+                <span className="me-3 text-muted">{quantity}</span>
+                <span className="fw-semibold text-secondary me-2">Quantity: </span>
                 <input
                   type="number"
                   className="form-control form-control-sm"
