@@ -144,7 +144,7 @@ const InventoryItemNew = () => {
   };
 
   const buildPayload = () => {
-    return {
+    const base = {
       inventoryItemName: String(itemName).trim(),
       shortDescription: shortDescription ? String(shortDescription).trim() : null,
       supplierId: supplierId ? Number(supplierId) : null,
@@ -157,9 +157,21 @@ const InventoryItemNew = () => {
       quantity: (() => { const v = parseNonNegativeNumber(quantity); return v == null ? 0 : v; })(),
       costPerUnit: (() => { const v = parseNonNegativeNumber(costPerUnit); return v == null ? 0 : v; })(),
       minimumQuantity: (() => { const v = parseNonNegativeNumber(threshold); return v == null ? null : v; })(),
-      // UI-only fields intentionally not included in payload
-      // isOnSale, sellingPrice, vatCategoryId, productDescription are ignored per request
     };
+
+    if (isOnSale) {
+      const sp = parseNonNegativeNumber(sellingPrice);
+      const vat = vatCategoryId ? Number(vatCategoryId) : null;
+      return {
+        ...base,
+        isOnSale: true,
+        sellingPrice: sp == null ? null : Number(Number(sp).toFixed(3)),
+        vatCategoryId: vat,
+        productDescription: productDescription ? String(productDescription).trim() : null,
+      };
+    }
+
+    return { ...base, isOnSale: false };
   };
 
   const submitJson = async (payload) => {
