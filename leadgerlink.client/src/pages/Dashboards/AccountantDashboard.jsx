@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import PageHeader from "../../components/Listing/PageHeader";
 import FilterSelect from "../../components/Listing/FilterSelect";
 import Section from "../../components/Dashboards/Section";
@@ -6,144 +6,189 @@ import DashboardCard from "../../components/Dashboards/DashboardCard";
 import ChartWrapper from "../../components/Dashboards/ChartWrapper";
 import HomePageTable from "../../components/homepages/HomePageTable";
 import { MdPieChart } from "react-icons/md";
-
-/*
-  AccountantDashboard.jsx
-  - Uses the shared dashboard primitives (Section, DashboardCard, ChartWrapper).
-  - Static demo values only (no network calls) and calm/formal palette.
-  - Filter uses existing FilterSelect. Table uses HomePageTable component.
-*/
+import { useAuth } from "../../Context/AuthContext";
 
 const calmPalette = ["#4e6e8e", "#7a9aa0", "#9aa3a8", "#c0c7ca"];
 
 export default function AccountantDashboard() {
-  const branchOptions = [
-    { label: "All Branches (Accumulated Values)", value: "" },
-    { label: "Main Store", value: "main" },
-    { label: "Branch A", value: "a" },
-    { label: "Branch B", value: "b" }
-  ];
+  const { loggedInUser } = useAuth();
+  const orgId = loggedInUser?.OrgId ?? loggedInUser?.orgId ?? null;
 
-  // Sample table rows for latest inventory movements
-  const inventoryRows = [
-    ["Main Store", "Branch A", "Rejected", "120.00 BHD"],
-    ["Branch B", "Main Store", "Completed", "45.50 BHD"],
-    ["Branch A", "Branch B", "Out for delivery", "78.20 BHD"]
-  ];
+  const [storeOptions, setStoreOptions] = useState([{ label: "All Branches (Aggregated)", value: "" }]);
+  const [selectedStore, setSelectedStore] = useState("");
+  const [loadingStores, setLoadingStores] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadStores = async () => {
+      setLoadingStores(true);
+      try {
+        let url = "/api/stores";
+        if (orgId) url = `/api/stores/by-organization/${encodeURIComponent(orgId)}`;
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) throw new Error(`Failed to load stores (${res.status})`);
+        const json = await res.json();
+        if (!mounted) return;
+        const arr = Array.isArray(json) ? json : (json.items || []);
+        const opts = [{ label: "All Branches (Aggregated)", value: "" }, ...arr.map(s => ({ label: s.storeName || s.store_name || "Store", value: String(s.storeId ?? s.store_id ?? "") }))];
+        setStoreOptions(opts);
+      } catch (ex) {
+        console.error("Failed to load stores", ex);
+      } finally {
+        if (mounted) setLoadingStores(false);
+      }
+    };
+
+    loadStores();
+    return () => { mounted = false; };
+  }, [orgId]);
+
+  // default load aggregated org summary
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      setData(null);
+      try {
+        const qs = selectedStore ? `storeId=${encodeURIComponent(selectedStore)}` : "";
+        const url = qs ? `/api/dashboard/summary?months=6&topN=5&${qs}` : "/api/dashboard/summary?months=6&topN=5";
+        const res = await fetch(url, { credentials: "include" });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => null);
+          throw new Error(txt || `Server returned ${res.status}`);
+        }
+        const json = await res.json();
+        if (!mounted) return;
+        setData(json);
+      } catch (ex) {
+        console.error("Failed to load dashboard data", ex);
+        if (mounted) setError("Failed to load dashboard data");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { mounted = false; };
+  }, [selectedStore]);
+
+  // Build sections from data
+  const financialItems = [];
+  const inventoryItems = [];
+  const salesItems = [];
+  const contributionItems = [];
+  const movementItems = [];
+
+  if (data) {
+    const salesSeries = data.salesSeries ?? { labels: [], values: [] };
+    const values = Array.isArray(salesSeries.values) ? salesSeries.values.map(v => Number(v || 0)) : [];
+    const totalSales = values.reduce((a, b) => a + (b || 0), 0);
+
+    financialItems.push({ type: 'card', title: 'COGS (period)', size: 'small', value: 'BHD 0.000' });
+    financialItems.push({ type: 'card', title: 'Gross Profit', size: 'small', value: 'BHD 0.000' });
+    financialItems.push({ type: 'card', title: 'Total Sales (period)', size: 'small', value: `BHD ${totalSales.toFixed(3)}` });
+
+    const invByCat = Array.isArray(data.invByCat) ? data.invByCat : [];
+    inventoryItems.push({ type: 'card', title: 'Inventory Value', size: 'small', value: 'BHD 0.000' });
+    inventoryItems.push({ type: 'chart', chartType: 'Bar (Inventory Value)', size: 'large', height: 320, options: {
+      chart: { type: 'column' },
+      xAxis: { categories: invByCat.map(i => i.name) },
+      series: [{ name: 'Inventory', data: invByCat.map(i => Number(i.value || 0)) }],
+      colors: [calmPalette[0]],
+      legend: { enabled: false }
+    }});
+
+    const mostSellingProductName = data.mostSellingProductName ?? '-';
+    salesItems.push({ type: 'card', title: 'Most Selling Product', size: 'small', value: mostSellingProductName, colClass: 'col-12 col-md-4' });
+    salesItems.push({ type: 'chart', chartType: 'Line (Sales)', colClass: 'col-12', height: 340, options: {
+      chart: { type: 'line' },
+      xAxis: { categories: salesSeries.labels || [] },
+      series: [{ name: 'Sales', data: values }],
+      colors: [calmPalette[1]]
+    }});
+
+    // Contribution (if aggregated, could be per store share; here reuse invByCat as placeholder)
+    contributionItems.push({ type: 'chart', chartType: 'Pie (Contribution)', colClass: 'col-12 col-md-6 offset-md-3', height: 380, options: {
+      colors: calmPalette,
+      series: [{ name: 'Share', data: invByCat.map(i => ({ name: i.name, y: Number(i.value || 0) })) }],
+      legend: { enabled: true, layout: 'vertical', align: 'right', verticalAlign: 'middle' }
+    }});
+
+    const transfers = data.transfers ?? { outgoing: 0, incoming: 0 };
+    movementItems.push({ type: 'card', title: 'Number of Pending Transfers', size: 'small', value: String(transfers.outgoing ?? 0), colClass: 'col-12 col-md-4 offset-md-2' });
+    movementItems.push({ type: 'card', title: 'Number of Completed Transfers', size: 'small', value: String(transfers.incoming ?? 0), colClass: 'col-12 col-md-4' });
+    movementItems.push({ type: 'chart', chartType: 'Bar (Inventory Movements)', colClass: 'col-12', height: 380, options: {
+      series: [{ name: 'Movements', data: [Number(transfers.outgoing || 0), Number(transfers.incoming || 0)], color: calmPalette[2] }],
+      legend: { enabled: false }
+    }});
+  }
 
   return (
     <div className="container py-4">
       <PageHeader
-              icon={<MdPieChart size={55} />}
+        icon={<MdPieChart size={55} />}
         title="Accountant Dashboard"
-        descriptionLines={["Following overview of the organization stores details, you can filter the first section to store specific detials."]}
+        descriptionLines={["Following overview of the organization stores details. Select a store to view its details or leave 'All Branches' for aggregated values."]}
         actions={[]}
       />
 
-          {/* Filter row */}
-      
       <div className="row align-items-center my-3 mt-5 ">
         <div className="col-12 col-md-8 text-end">
-          <h4 className="mb-0">Filter Details to per store</h4>
+          <h4 className="mb-0">Filter Details per Store</h4>
         </div>
         <div className="col-12 col-md-4 d-flex justify-content-md-start mt-4 ">
           <FilterSelect
             label=""
-            value={""}
-            onChange={() => {}}
-            options={branchOptions}
+            value={selectedStore}
+            onChange={(v) => setSelectedStore(v)}
+            options={storeOptions}
+            searchable={true}
           />
         </div>
       </div>
 
-      {/* Financial Metrics */}
-      <Section title="Financial Metrics" items={[
-        { type: "card", title: "COGS (Food Cost)", size: "small", value: "BHD 3,420" },
-        { type: "card", title: "Gross Profit", size: "small", value: "BHD 12,345" },
-        { type: "card", title: "Profit Margin (%)", size: "small", value: "28.4%" },
+      {loading && <div className="alert alert-info">Loading dashboard…</div>}
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      <Section title="Financial Metrics" items={financialItems.length ? financialItems : [
+        { type: 'card', title: 'COGS (Food Cost)', size: 'small', value: 'BHD 0.000' },
+        { type: 'card', title: 'Gross Profit', size: 'small', value: 'BHD 0.000' },
+        { type: 'card', title: 'Profit Margin (%)', size: 'small', value: '0%' }
       ]} />
 
-      {/* Inventory section: left value card, right bar chart */}
-      <Section title="Inventory" items={[
-        { type: "card", title: "Inventory Value", size: "small", value: "BHD 45,200" },
-        {
-          type: "chart",
-          chartType: "Bar (Inventory Value)",
-          size: "large",
-          height: 320,
-          options: {
-            series: [{ name: "Inventory Value", data: [12, 28, 34, 48, 62], color: calmPalette[0] }],
-            legend: { enabled: true, layout: "horizontal", align: "center", verticalAlign: "bottom" }
-          }
-        }
+      <Section title="Inventory" items={inventoryItems.length ? inventoryItems : [
+        { type: 'card', title: 'Inventory Value', size: 'small', value: 'BHD 0.000' },
+        { type: 'chart', chartType: 'Bar (Inventory Value)', size: 'large', height: 320, options: { series: [{ name: 'Inventory Value', data: [] }], legend: { enabled: false } } }
       ]} />
 
-      {/* Sales: two small cards centered + full width line chart */}
-      <Section title="Sales" items={[
-        // centered pair using colClass offsets
-        { type: "card", title: "Total Sales during November", size: "small", value: "BHD 98,400", colClass: "col-12 col-md-4 offset-md-2" },
-        { type: "card", title: "Most Selling Product", size: "small", value: "Espresso", colClass: "col-12 col-md-4" },
-        {
-          type: "chart",
-          chartType: "Line (Store Sales)",
-          colClass: "col-12",
-          height: 340,
-          options: {
-            series: [{ name: "Sales", data: [1200, 2400, 1800, 3000, 2600, 3500], color: calmPalette[1] }],
-            legend: { enabled: true, layout: "horizontal", align: "center", verticalAlign: "bottom" }
-          }
-        }
+      <Section title="Sales" items={salesItems.length ? salesItems : [
+        { type: 'card', title: 'Total Sales during Period', size: 'small', value: 'BHD 0.000', colClass: 'col-12 col-md-4 offset-md-2' },
+        { type: 'card', title: 'Most Selling Product', size: 'small', value: '-', colClass: 'col-12 col-md-4' },
+        { type: 'chart', chartType: 'Line (Sales)', colClass: 'col-12', height: 340, options: { series: [{ name: 'Sales', data: [] }], legend: { enabled: false } } }
       ]} />
 
-      <hr/>
+      <hr />
 
-      {/* Store Sales Contribution (pie) - centered */}
-      <Section title="Store Sales Contribution" items={[
-        {
-          type: "chart",
-          chartType: "Pie (Store Sales Contribution)",
-          // center pie by offsetting column
-          colClass: "col-12 col-md-6 offset-md-3",
-          height: 380,
-          options: {
-            colors: calmPalette,
-            series: [{
-              name: "Share",
-              data: [
-                { name: "Main Store", y: 45 },
-                { name: "Branch A", y: 25 },
-                { name: "Branch B", y: 20 },
-                { name: "Branch C", y: 10 }
-              ]
-            }],
-            // explicit legend for pie (will render to the right if wrapper supports it)
-            legend: { enabled: true, layout: "vertical", align: "right", verticalAlign: "middle" }
-          }
-        }
+      <Section title="Contribution" items={contributionItems.length ? contributionItems : [
+        { type: 'chart', chartType: 'Pie (Contribution)', colClass: 'col-12 col-md-6 offset-md-3', height: 380, options: { series: [{ name: 'Share', data: [] }] } }
       ]} />
 
-      {/* Inventory Movements: two small cards centered then movement chart */}
-      <Section title="Inventory Movements" items={[
-        { type: "card", title: "Number of Pending Transfers", size: "small", value: "4", colClass: "col-12 col-md-4 offset-md-2" },
-        { type: "card", title: "Number of Completed Transfers", size: "small", value: "18", colClass: "col-12 col-md-4" },
-        {
-          type: "chart",
-          chartType: "Bar (Inventory Movements)",
-          colClass: "col-12",
-          height: 380,
-          options: {
-            series: [{ name: "Movements", data: [10, 22, 30, 44, 60], color: calmPalette[2] }],
-            legend: { enabled: true, layout: "horizontal", align: "center", verticalAlign: "bottom" }
-          }
-        }
+      <Section title="Inventory Movements" items={movementItems.length ? movementItems : [
+        { type: 'card', title: 'Number of Pending Transfers', size: 'small', value: '0', colClass: 'col-12 col-md-4 offset-md-2' },
+        { type: 'card', title: 'Number of Completed Transfers', size: 'small', value: '0', colClass: 'col-12 col-md-4' },
+        { type: 'chart', chartType: 'Bar (Inventory Movements)', colClass: 'col-12', height: 380, options: { series: [{ name: 'Movements', data: [] }] } }
       ]} />
 
-      {/* Latest inventory movements table */}
       <div className="mt-4">
         <HomePageTable
           title="Latest Inventory Movements"
           columns={["Requester", "Requested From", "Status", "Value"]}
-          rows={inventoryRows}
+          rows={[]}
           emptyMessage="No inventory movements to display."
         />
       </div>

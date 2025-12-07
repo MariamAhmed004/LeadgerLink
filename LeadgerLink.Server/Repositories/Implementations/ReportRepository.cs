@@ -157,12 +157,36 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return new TimeSeriesDto { Labels = labels, Values = values };
         }
 
-        public async Task<IEnumerable<ChartPointDto>> GetItemUtilizationAsync(int storeId, int topN)
+        // Organization-level aggregation
+        public async Task<TimeSeriesDto> GetOrganizationSalesSeriesAsync(int organizationId, int months)
         {
-            // utilization based on recipe definitions (sum of inventory quantities used across recipes in the store)
+            var end = DateTime.UtcNow;
+            var start = end.AddMonths(-Math.Max(1, months) + 1);
+
+            var q = await _context.Sales
+                .Where(s => s.Store.OrgId == organizationId && s.Timestamp >= start && s.Timestamp <= end)
+                .GroupBy(s => new { Year = s.Timestamp.Year, Month = s.Timestamp.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Total = g.Sum(s => s.TotalAmount) })
+                .ToListAsync();
+
+            var labels = new List<string>();
+            var values = new List<decimal>();
+            for (int i = 0; i < months; i++)
+            {
+                var dt = start.AddMonths(i);
+                var found = q.FirstOrDefault(x => x.Year == dt.Year && x.Month == dt.Month);
+                labels.Add(dt.ToString("yyyy-MM"));
+                values.Add(found?.Total ?? 0m);
+            }
+
+            return new TimeSeriesDto { Labels = labels, Values = values };
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetItemUtilizationByOrganizationAsync(int organizationId, int topN)
+        {
             var q = await _context.RecipeInventoryItems
                 .Include(ri => ri.Recipe)
-                .Where(ri => ri.Recipe != null && ri.Recipe.StoreId == storeId)
+                .Where(ri => ri.Recipe != null && ri.Recipe.Store != null && ri.Recipe.Store.OrgId == organizationId)
                 .GroupBy(ri => ri.InventoryItemId)
                 .Select(g => new { InventoryItemId = g.Key, TotalQty = g.Sum(ri => ri.Quantity) })
                 .OrderByDescending(x => x.TotalQty)
@@ -197,25 +221,99 @@ namespace LeadgerLink.Server.Repositories.Implementations
             });
         }
 
+        // Store-level implementations missing previously
+        public async Task<IEnumerable<ChartPointDto>> GetItemUtilizationAsync(int storeId, int topN)
+        {
+            var q = await _context.RecipeInventoryItems
+                .Include(ri => ri.Recipe)
+                .Where(ri => ri.Recipe != null && ri.Recipe.StoreId == storeId)
+                .GroupBy(ri => ri.InventoryItemId)
+                .Select(g => new { InventoryItemId = g.Key, TotalQty = g.Sum(ri => ri.Quantity) })
+                .OrderByDescending(x => x.TotalQty)
+                .Take(topN)
+                .ToListAsync();
+
+            var itemIds = q.Select(x => x.InventoryItemId).ToList();
+            var items = await _context.InventoryItems.Where(ii => itemIds.Contains(ii.InventoryItemId) && ii.StoreId == storeId).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = items.FirstOrDefault(ii => ii.InventoryItemId == x.InventoryItemId)?.InventoryItemName ?? ("Item " + x.InventoryItemId.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
         public async Task<TransferCountsDto> GetInventoryTransferCountsAsync(int storeId, DateTime from, DateTime to)
         {
             var outgoing = await _context.InventoryTransfers
-                .Where(t => t.FromStore == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .Where(t => t.FromStoreNavigation != null && t.FromStoreNavigation.StoreId == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
                 .CountAsync();
 
             var incoming = await _context.InventoryTransfers
-                .Where(t => t.ToStore == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .Where(t => t.ToStoreNavigation != null && t.ToStoreNavigation.StoreId == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
                 .CountAsync();
 
             return new TransferCountsDto { Outgoing = outgoing, Incoming = incoming };
         }
 
-        // New: top products by quantity sold for a store
         public async Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesAsync(int storeId, int topN)
         {
             var q = await _context.SaleItems
                 .Include(si => si.Sale)
                 .Where(si => si.Sale.StoreId == storeId)
+                .GroupBy(si => si.ProductId)
+                .Select(g => new { ProductId = g.Key, TotalQty = g.Sum(si => si.Quantity) })
+                .OrderByDescending(x => x.TotalQty)
+                .Take(topN)
+                .ToListAsync();
+
+            var productIds = q.Select(x => x.ProductId).ToList();
+            var products = await _context.Products.Where(p => productIds.Contains(p.ProductId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = products.FirstOrDefault(p => p.ProductId == x.ProductId)?.ProductName ?? ("Product " + x.ProductId.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetInventoryByCategoryForOrganizationAsync(int organizationId)
+        {
+            var q = await _context.InventoryItems
+                .Where(ii => ii.Store != null && ii.Store.OrgId == organizationId)
+                .GroupBy(ii => ii.InventoryItemCategoryId)
+                .Select(g => new { CategoryId = g.Key, TotalQty = g.Sum(ii => ii.Quantity) })
+                .ToListAsync();
+
+            var categoryIds = q.Select(x => x.CategoryId).Where(id => id.HasValue).Select(id => id!.Value).ToList();
+            var cats = await _context.InventoryItemCategories.Where(c => categoryIds.Contains(c.InventoryItemCategoryId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = cats.FirstOrDefault(c => c.InventoryItemCategoryId == x.CategoryId)?.InventoryItemCategoryName ?? ("Category " + x.CategoryId?.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
+        public async Task<TransferCountsDto> GetInventoryTransferCountsForOrganizationAsync(int organizationId, DateTime from, DateTime to)
+        {
+            var outgoing = await _context.InventoryTransfers
+                .Where(t => t.FromStoreNavigation.OrgId == organizationId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .CountAsync();
+
+            var incoming = await _context.InventoryTransfers
+                .Where(t => t.ToStoreNavigation.OrgId == organizationId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .CountAsync();
+
+            return new TransferCountsDto { Outgoing = outgoing, Incoming = incoming };
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesForOrganizationAsync(int organizationId, int topN)
+        {
+            var q = await _context.SaleItems
+                .Include(si => si.Sale)
+                .ThenInclude(s => s.Store)
+                .Where(si => si.Sale.Store.OrgId == organizationId)
                 .GroupBy(si => si.ProductId)
                 .Select(g => new { ProductId = g.Key, TotalQty = g.Sum(si => si.Quantity) })
                 .OrderByDescending(x => x.TotalQty)

@@ -27,55 +27,86 @@ namespace LeadgerLink.Server.Controllers
             _logger = logger;
         }
 
-        // GET api/dashboard/store/summary?months=6&topN=5
-        // Resolves store from authenticated user when available.
+        // GET api/dashboard/summary?months=6&topN=5&storeId=optional
+        // If storeId is omitted/null, returns aggregated organization-level summary for the current user's organization,
+        // except when the current user is a Store Manager, then defaults to their store.
         [Authorize]
-        [HttpGet("store/summary")]
-        public async Task<IActionResult> GetStoreSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
         {
             if (months < 1) months = 6;
             if (topN < 1) topN = 5;
 
             try
             {
-                int? resolvedStoreId = storeId;
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? User.Identity?.Name;
+                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
-                if (!resolvedStoreId.HasValue)
+                var domainUser = await _context.Users
+                    .Include(u => u.Role)
+                    .FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (domainUser == null) return Unauthorized();
+
+                // Determine default scope: if explicit storeId provided, use store-level.
+                // Else if user is Store Manager and has a StoreId, use that store.
+                // Otherwise aggregate organization-level.
+                var isStoreManager = string.Equals(domainUser.Role?.RoleTitle, "Store Manager", StringComparison.OrdinalIgnoreCase);
+                int? effectiveStoreId = storeId ?? (isStoreManager ? domainUser.StoreId : null);
+
+                if (effectiveStoreId.HasValue)
                 {
-                    var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? User.Identity?.Name;
-                    if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
-                    var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                    if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
-                    resolvedStoreId = domainUser.StoreId.Value;
+                    // store-level summary
+                    var sid = effectiveStoreId.Value;
+                    var topEmployees = await _reportRepository.GetTopEmployeesBySalesAsync(sid, topN);
+                    var topProducts = await _reportRepository.GetTopProductsBySalesAsync(sid, topN);
+                    var salesSeries = await _report_repository_getsalesseries(sid, months);
+                    var itemsUtil = await _reportRepository.GetItemUtilizationAsync(sid, topN);
+                    var invByCat = await _reportRepository.GetInventoryByCategoryAsync(sid);
+                    var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
+                    var transfers = await _reportRepository.GetInventoryTransferCountsAsync(sid, periodStart, DateTime.UtcNow);
+                    var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
+
+                    return Ok(new { scope = "store", storeId = sid, topEmployees, topProducts, mostSellingProductName, salesSeries, itemsUtil, invByCat, transfers });
                 }
+                else
+                {
+                    // aggregated organization-level summary for the user's organization
+                    var orgId = domainUser.OrgId;
+                    if (!orgId.HasValue) return BadRequest("Unable to resolve user's organization.");
 
-                var topEmployees = await _reportRepository.GetTopEmployeesBySalesAsync(resolvedStoreId.Value, topN);
-                // fetch top products by quantity sold so frontend can show product name
-                var topProducts = await _reportRepository.GetTopProductsBySalesAsync(resolvedStoreId.Value, topN);
+                    var topProducts = await _reportRepository.GetTopProductsBySalesForOrganizationAsync(orgId.Value, topN);
+                    var salesSeries = await _reportRepository.GetOrganizationSalesSeriesAsync(orgId.Value, months);
+                    var itemsUtil = await _reportRepository.GetItemUtilizationByOrganizationAsync(orgId.Value, topN);
+                    var invByCat = await _reportRepository.GetInventoryByCategoryForOrganizationAsync(orgId.Value);
+                    var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
+                    var transfers = await _reportRepository.GetInventoryTransferCountsForOrganizationAsync(orgId.Value, periodStart, DateTime.UtcNow);
+                    var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
 
-                var salesSeries = await _report_repository_getsalesseries(resolvedStoreId.Value, months);
-                var itemsUtil = await _reportRepository.GetItemUtilizationAsync(resolvedStoreId.Value, topN);
-                var invByCat = await _reportRepository.GetInventoryByCategoryAsync(resolvedStoreId.Value);
-                var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
-                var transfers = await _reportRepository.GetInventoryTransferCountsAsync(resolvedStoreId.Value, periodStart, DateTime.UtcNow);
+                    // employees at org-level are not aggregated here; return empty array
+                    var topEmployees = Array.Empty<ChartPointDto>();
 
-                var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
-
-                return Ok(new {
-                    topEmployees,
-                    topProducts,
-                    mostSellingProductName,
-                    salesSeries,
-                    itemsUtil,
-                    invByCat,
-                    transfers
-                });
+                    return Ok(new { scope = "organization", organizationId = orgId.Value, topEmployees, topProducts, mostSellingProductName, salesSeries, itemsUtil, invByCat, transfers });
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to build store dashboard summary");
+                _logger.LogError(ex, "Failed to build dashboard summary");
                 return StatusCode(500, "Failed to build dashboard summary");
             }
+        }
+
+        // Back-compat: store-only endpoint (kept but recommend using /summary)
+        [Authorize]
+        [HttpGet("store/summary")]
+        public async Task<IActionResult> GetStoreSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
+        {
+            if (!storeId.HasValue)
+            {
+                // delegate to aggregated summary when no store provided
+                return await GetSummary(months, topN, storeId);
+            }
+
+            return await GetSummary(months, topN, storeId);
         }
 
         // helper wrapper to catch potential nulls from repo

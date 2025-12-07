@@ -18,36 +18,28 @@ namespace LeadgerLink.Server.Repositories.Interfaces
     // Repository for report queries that return scalar metrics and file generation.
     public interface IReportRepository
     {
-        // Get cost of goods sold for a store for the given year and month.
+        // Store-level
         Task<decimal> GetCOGSByStoreForMonthAsync(int storeId, int year, int month);
-
-        // Get cost of goods sold for an organization for the given year and month.
-        Task<decimal> GetCOGSByOrganizationForMonthAsync(int organizationId, int year, int month);
-
-        // Get gross profit for an organization for the given year and month.
-        Task<decimal> GetGrossProfitByOrganizationForMonthAsync(int organizationId, int year, int month);
-
-        // Get gross profit for a store for the given year and month.
         Task<decimal> GetGrossProfitByStoreForMonthAsync(int storeId, int year, int month);
-
-        // Get profit margin for an organization for the given year and month.
-        Task<decimal> GetProfitMarginByOrganizationForMonthAsync(int organizationId, int year, int month);
-
-        // Get profit margin for a store for the given year and month.
         Task<decimal> GetProfitMarginByStoreForMonthAsync(int storeId, int year, int month);
-
-        // Dashboard / chart data helpers
         Task<IEnumerable<ChartPointDto>> GetTopEmployeesBySalesAsync(int storeId, int topN);
         Task<TimeSeriesDto> GetStoreSalesSeriesAsync(int storeId, int months);
         Task<IEnumerable<ChartPointDto>> GetItemUtilizationAsync(int storeId, int topN);
         Task<IEnumerable<ChartPointDto>> GetInventoryByCategoryAsync(int storeId);
         Task<TransferCountsDto> GetInventoryTransferCountsAsync(int storeId, DateTime from, DateTime to);
-        // Top products by sales (quantity)
         Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesAsync(int storeId, int topN);
 
+        // Organization-level aggregation
+        Task<decimal> GetCOGSByOrganizationForMonthAsync(int organizationId, int year, int month);
+        Task<decimal> GetGrossProfitByOrganizationForMonthAsync(int organizationId, int year, int month);
+        Task<decimal> GetProfitMarginByOrganizationForMonthAsync(int organizationId, int year, int month);
+        Task<TimeSeriesDto> GetOrganizationSalesSeriesAsync(int organizationId, int months);
+        Task<IEnumerable<ChartPointDto>> GetItemUtilizationByOrganizationAsync(int organizationId, int topN);
+        Task<IEnumerable<ChartPointDto>> GetInventoryByCategoryForOrganizationAsync(int organizationId);
+        Task<TransferCountsDto> GetInventoryTransferCountsForOrganizationAsync(int organizationId, DateTime from, DateTime to);
+        Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesForOrganizationAsync(int organizationId, int topN);
+
         // Placeholder report generation APIs (return raw file bytes).
-        // Implementations should later generate the requested report and return file bytes.
-        // For now these will return empty files (placeholders).
         Task<byte[]> GenerateReportPdfAsync(string reportId, int? organizationId = null, int? storeId = null);
         Task<byte[]> GenerateReportCsvAsync(string reportId, int? organizationId = null, int? storeId = null);
     }
