@@ -73,20 +73,19 @@ public partial class LedgerLinkDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.Property(e => e.AuditLogId)
+                  .ValueGeneratedOnAdd()
+                  .UseIdentityColumn();
+            entity.HasOne(d => d.ActionType).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_action_type");
+            entity.HasOne(d => d.AuditLogLevel).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_audit_log_level");
+            entity.HasOne(d => d.User).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_user");
+        });
+
         modelBuilder.Entity<ActionType>(entity =>
         {
             entity.HasKey(e => e.ActionTypeId).HasName("PK_action_type");
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.Property(e => e.AuditLogId).ValueGeneratedNever();
-
-            entity.HasOne(d => d.ActionType).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_action_type");
-
-            entity.HasOne(d => d.AuditLogLevel).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_audit_log_level");
-
-            entity.HasOne(d => d.User).WithMany(p => p.AuditLogs).HasConstraintName("FK_audit_log_user");
         });
 
         modelBuilder.Entity<AuditLogLevel>(entity =>
@@ -97,9 +96,9 @@ public partial class LedgerLinkDbContext : DbContext
         modelBuilder.Entity<Driver>(entity =>
         {
             entity.HasKey(e => e.DriverId).HasName("PK_Driver");
-
-            entity.Property(e => e.DriverId).ValueGeneratedNever();
-
+            entity.Property(e => e.DriverId)
+                  .ValueGeneratedOnAdd()
+                  .UseIdentityColumn();
             entity.HasOne(d => d.Store).WithMany(p => p.Drivers).HasConstraintName("FK_Driver_store");
         });
 
@@ -244,9 +243,9 @@ public partial class LedgerLinkDbContext : DbContext
         modelBuilder.Entity<Supplier>(entity =>
         {
             entity.HasKey(e => e.SupplierId).HasName("PK_Supplier");
-
-            entity.Property(e => e.SupplierId).ValueGeneratedNever();
-
+            entity.Property(e => e.SupplierId)
+                  .ValueGeneratedOnAdd()
+                  .UseIdentityColumn();
             entity.HasOne(d => d.Store).WithMany(p => p.Suppliers).HasConstraintName("FK_supplier_store");
         });
 
