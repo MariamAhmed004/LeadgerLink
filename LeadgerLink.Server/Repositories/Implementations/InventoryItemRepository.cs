@@ -286,9 +286,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     Quantity = i.Quantity,
                     MinimumQuantity = i.MinimumQuantity,
                     CostPerUnit = i.CostPerUnit,
+                    UnitId = i.UnitId,
                     UnitName = i.Unit != null ? i.Unit.UnitName : null,
                     SupplierId = i.SupplierId,
                     SupplierName = i.Supplier != null ? i.Supplier.SupplierName : null,
+                    SupplierContact = i.Supplier != null ? i.Supplier.ContactMethod : null,
                     CategoryId = i.InventoryItemCategoryId,
                     CategoryName = i.InventoryItemCategory != null ? i.InventoryItemCategory.InventoryItemCategoryName : null,
                     StoreId = i.StoreId,
@@ -302,7 +304,12 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     CreatedByName = i.User != null ? ((i.User.UserFirstname ?? "") + " " + (i.User.UserLastname ?? "")).Trim() : null,
                     CreatedAt = i.CreatedAt,
                     UpdatedAt = i.UpdatedAt,
-                    RelatedProductsCount = i.Products != null ? i.Products.Count() : 0
+                    RelatedProductId = i.Products != null
+                        ? i.Products
+                            .Where(p => p.InventoryItemId == i.InventoryItemId)
+                            .Select(p => (int?)p.ProductId)
+                            .FirstOrDefault()
+                        : null
                 })
                 .AsNoTracking()
                 .FirstOrDefaultAsync();

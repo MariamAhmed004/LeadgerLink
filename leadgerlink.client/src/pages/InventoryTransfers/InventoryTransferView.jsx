@@ -55,7 +55,7 @@ const InventoryTransferView = () => {
     try {
       const d = new Date(val);
       if (!isNaN(d.getTime())) return d.toLocaleString();
-    } catch {}
+    } catch { /* empty */ }
     // fallback: return raw string
     return String(val);
   };

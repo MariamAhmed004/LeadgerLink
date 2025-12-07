@@ -70,6 +70,7 @@ import InventoryManagement from "../pages/InventoryItems/InventoryItemsList";
 import InventoryNew from "../pages/InventoryItems/InventoryNew";
 import InventoryItemView from "../pages/InventoryItems/InventoryItemView";
 import RestockItemsPage from "../pages/InventoryItems/RestockItemsPage";
+import InventoryEdit from "../pages/InventoryItems/InventoryEdit";
 
 // Inventory Transfers
 import InventoryTransfersList from "../pages/InventoryTransfers/InventoryTransfersList";
@@ -177,6 +178,7 @@ const AppRoutes = () => {
       <Route path="/inventory/new" element={<InventoryNew />} />
       <Route path="/inventory-items/restock" element={<RestockItemsPage />} />
           <Route path="/inventory-items/:id" element={<InventoryItemView />} />
+      <Route path="/inventory-items/edit/:id" element={<InventoryEdit />} />
 
           {/*Inventory Transfers*/}
           <Route path="/inventory/transfers" element={<InventoryTransfersList />} />

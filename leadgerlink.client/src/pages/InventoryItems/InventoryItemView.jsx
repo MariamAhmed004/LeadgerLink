@@ -1,17 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaBox, FaArrowLeft, FaEdit } from "react-icons/fa";
+import { FaArrowLeft, FaEdit } from "react-icons/fa";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
 import { MdOutlineInventory } from "react-icons/md";
-
-// Helper to read multiple possible property names from server DTOs
-const firstDefined = (obj, ...keys) => {
-  for (const k of keys) {
-    if (obj == null) break;
-    if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) return obj[k];
-  }
-  return undefined;
-};
 
 const formatMoney = (v) => {
   if (v == null) return "";
@@ -46,25 +37,11 @@ export default function InventoryItemView() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/inventoryitems/${id}`, { credentials: "include" });
+        const res = await fetch(`/api/inventoryitems/${encodeURIComponent(id)}`, { credentials: "include" });
         if (!res.ok) {
-          // fallback to list endpoint (keeps previous behavior)
-          if (res.status === 404) {
-            const listRes = await fetch("/api/inventoryitems/list-for-current-store?page=1&pageSize=1000", { credentials: "include" }).catch(() => null);
-            if (listRes && listRes.ok) {
-              const json = await listRes.json();
-              const found = (json.items || []).find((i) => String(firstDefined(i, "inventoryItemId", "id")) === String(id));
-              if (mounted) {
-                if (found) setItem(found);
-                else setError(`Item ${id} not found.`);
-              }
-              return;
-            }
-          }
           const txt = await res.text().catch(() => null);
           throw new Error(txt || `Failed to load item ${id} (status ${res.status})`);
         }
-
         const json = await res.json();
         if (mounted) setItem(json);
       } catch (err) {
@@ -79,79 +56,102 @@ export default function InventoryItemView() {
     return () => { mounted = false; };
   }, [id]);
 
-  const idVal = item ? firstDefined(item, "inventoryItemId", "id") ?? id : id;
-  const nameVal = item ? firstDefined(item, "inventoryItemName", "inventoryItemName", "name") || "" : "";
-  const tsVal = item ? firstDefined(item, "createdAt", "CreatedAt", "timestamp", "Timestamp") : null;
-
-  // compute stock level if backend didn't provide or client needs to
+  const idVal = item?.inventoryItemId ?? id;
+  const nameVal = item?.inventoryItemName ?? "";
   const qty = item?.quantity != null ? Number(item.quantity) : null;
   const minQty = item?.minimumQuantity != null ? Number(item.minimumQuantity) : null;
-  const stockLevel =
+  const stockLevel = item?.stockLevel ?? (
     qty == null
-      ? (item?.stockLevel ?? "")
+      ? ""
       : qty <= 0
       ? "Out of Stock"
       : minQty != null && qty < minQty
       ? "Low Stock"
-      : "In Stock";
+      : "In Stock"
+  );
 
   const headerProps = {
-      icon: <MdOutlineInventory size={55} />,
-    title: item ? `Inventory Item` : "Inventory Item",
-    descriptionLines: item
-      ? [
-          firstDefined(item, "categoryName", "CategoryName", "category") || "",
-          firstDefined(item, "supplierName", "SupplierName", "supplier") || ""
-        ]
-      : ["Inventory item details"],
+    icon: <MdOutlineInventory size={55} />,
+    title: "Inventory Item",
+    descriptionLines: item ? [item.categoryName ?? "", item.supplierName ?? ""] : ["Inventory item details"],
     actions: []
   };
 
-  // Build detail rows: include all relevant fields except created/createdAt/updatedAt (these go to metadata)
-  const detailRows = item
-    ? [
-        { label: "Item Name", value: firstDefined(item, "inventoryItemName", "InventoryItemName", "name") || "" },
-        { label: "Category", value: firstDefined(item, "categoryName", "CategoryName") || "" },
-        { label: "Supplier", value: firstDefined(item, "supplierName", "SupplierName") || "" },
-        { label: "Store", value: firstDefined(item, "storeName", "StoreName") || firstDefined(item, "storeId") || "" },
-        { label: "Unit", value: firstDefined(item, "unitName", "UnitName") || "" },
-        { label: "Quantity", value: item.quantity != null ? Number(item.quantity).toFixed(3) : "" },
-        { label: "Minimum Quantity", value: item.minimumQuantity != null ? Number(item.minimumQuantity).toFixed(3) : "" },
-        { label: "Stock Level", value: stockLevel || (item.stockLevel ?? "") },
-        { label: "Cost per Unit", value: formatMoney(firstDefined(item, "costPerUnit", "CostPerUnit")) },
-        { label: "Description", value: firstDefined(item, "description", "Description") || "" },
-        { label: "Related Products", value: firstDefined(item, "relatedProductsCount", "RelatedProductsCount") ?? firstDefined(item, "relatedProducts", "products") ? (item.relatedProducts?.length ?? item.products?.length ?? "") : "" },
-      ]
-    : [];
+  if (loading) {
+    return (
+      <div className="container py-5">
+        <div className="alert alert-info text-start mb-3" role="alert">
+          Loading item details... Please wait.
+        </div>
+      </div>
+    );
+  }
 
-  // metadata under image: keep exactly Created By / Created At / Updated At
-  const metadataUnderImage = item
-    ? {
-        title: "Summary",
-        rows: [
-          { label: "Created By", value: firstDefined(item, "createdByName", "CreatedByName", "createdBy") || "" },
-          { label: "Created At", value: formatDateTime(firstDefined(item, "createdAt", "CreatedAt", "CreatedAtUtc", "timestamp", "Timestamp")) },
-          { label: "Updated At", value: formatDateTime(firstDefined(item, "updatedAt", "UpdatedAt", "modifiedAt", "ModifiedAt")) },
-        ]
-      }
-    : { title: "Summary", rows: [] };
+  if (error) {
+    return (
+      <DetailViewWithImage
+        headerProps={headerProps}
+        detail={{ title: "Error", rows: [{ label: "Message", value: error }] }}
+        metadataUnderImage={{ title: "", rows: [] }}
+        actions={[]}
+      />
+    );
+  }
+
+  if (!item) {
+    return (
+      <DetailViewWithImage
+        headerProps={headerProps}
+        detail={{ title: "Not found", rows: [] }}
+        metadataUnderImage={{ title: "", rows: [] }}
+        actions={[]}
+      />
+    );
+  }
+
+  const detailRows = [
+    { label: "Item Name", value: item.inventoryItemName ?? "" },
+    { label: "Category", value: item.categoryName ?? "" },
+    { label: "Supplier", value: item.supplierName ?? "" },
+    { label: "Store", value: item.storeName ?? String(item.storeId ?? "") },
+    { label: "Unit", value: item.unitName ?? "" },
+    { label: "Quantity", value: item.quantity != null ? Number(item.quantity).toFixed(3) : "" },
+    { label: "Minimum Quantity", value: item.minimumQuantity != null ? Number(item.minimumQuantity).toFixed(3) : "" },
+    { label: "Stock Level", value: stockLevel },
+    { label: "Cost per Unit", value: formatMoney(item.costPerUnit) },
+    { label: "Description", value: item.description ?? "" },
+    {
+      label: "Related Product",
+      value:
+        item.relatedProductId != null
+          ? (<a href={`/products/${item.relatedProductId}`} className="text-decoration-underline">Product#{item.relatedProductId}</a>)
+          : "Not On Sale"
+    },
+  ];
+
+  const metadataUnderImage = {
+    title: "Summary",
+    rows: [
+      { label: "Created By", value: item.createdByName ?? "" },
+      { label: "Created At", value: formatDateTime(item.createdAt) },
+      { label: "Updated At", value: formatDateTime(item.updatedAt) },
+    ]
+  };
 
   const image = {
-    // server now returns ImageDataUrl when binary image stored; prefer that
-    url: firstDefined(item, "imageDataUrl", "ImageDataUrl", "imageDataUrl") || firstDefined(item, "imageUrl", "ImageUrl", "imagePath") || "",
+    url: item.imageDataUrl || "",
     alt: nameVal || `Item ${idVal}`
   };
 
   const actions = [
     { icon: <FaArrowLeft />, title: "Back to Items", onClick: () => navigate("/inventory") },
-    { icon: <FaEdit />, title: "Edit Item", route: `/inventory/new?edit=${idVal}` }
+    { icon: <FaEdit />, title: "Edit Item", route: `/inventory-items/edit/${idVal}` }
   ];
 
   return (
     <DetailViewWithImage
       headerProps={headerProps}
-      // detail.title formatted per latest request: "(inventory item#id inventoryname)"
-      detail={{ title: item ? `inventory item#${idVal} ${nameVal}` : "Item Details", rows: detailRows }}
+      detail={{ title: `inventory item#${idVal} ${nameVal}`, rows: detailRows }}
       image={image}
       metadataUnderImage={metadataUnderImage}
       actions={actions}

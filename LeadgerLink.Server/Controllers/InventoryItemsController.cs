@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 
@@ -141,24 +142,6 @@ namespace LeadgerLink.Server.Controllers
                 _logger.LogError(ex, "Failed to load inventory items for store");
                 return StatusCode(500, "Failed to load inventory items");
             }
-        }
-
-        private class NewSupplierDto { public string? name { get; set; } public string? contactMethod { get; set; } }
-        private class CreateInventoryItemDto
-        {
-            public string? inventoryItemName { get; set; }
-            public string? shortDescription { get; set; }
-            public int? supplierId { get; set; }
-            public NewSupplierDto? newSupplier { get; set; }
-            public int? inventoryItemCategoryId { get; set; }
-            public int? unitId { get; set; }
-            public decimal? quantity { get; set; }
-            public decimal? costPerUnit { get; set; }
-            public decimal? minimumQuantity { get; set; }
-            public bool isOnSale { get; set; }
-            public decimal? sellingPrice { get; set; }          // NEW: selling price for product when on sale
-            public int? vatCategoryId { get; set; }
-            public string? productDescription { get; set; }
         }
 
         // POST api/inventoryitems
@@ -388,6 +371,164 @@ namespace LeadgerLink.Server.Controllers
 
             // Always return JPEG for now; adjust if you store content-type alongside bytes.
             return File(bytes, "image/jpeg");
+        }
+
+        // PUT api/inventoryitems/{id}
+        [Authorize]
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult> UpdateInventoryItem(int id)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+
+            // Load existing item
+            var existing = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
+            if (existing == null) return NotFound();
+
+            // DTO aligned with edit payload
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            string? payloadStr = null;
+            if (Request.HasFormContentType)
+            {
+                payloadStr = Request.Form["payload"].FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(payloadStr))
+                {
+                    var jsonFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "payload", StringComparison.OrdinalIgnoreCase)
+                                                                          || string.Equals(f.FileName, "payload.json", StringComparison.OrdinalIgnoreCase)
+                                                                          || (f.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) ?? false));
+                    if (jsonFile != null)
+                    {
+                        using var sr = new StreamReader(jsonFile.OpenReadStream());
+                        payloadStr = await sr.ReadToEndAsync();
+                    }
+                }
+            }
+            else
+            {
+                using var sr = new StreamReader(Request.Body);
+                payloadStr = await sr.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(payloadStr)) return BadRequest("Missing payload.");
+
+            // Local inline DTO matching frontend keys
+            var dto = JsonSerializer.Deserialize<EditInventoryItemDto>(payloadStr!, opts);
+            if (dto == null) return BadRequest("Invalid payload JSON.");
+
+            // Basic validations (reuse create rules)
+            if (string.IsNullOrWhiteSpace(dto.inventoryItemName) || dto.inventoryItemName.Trim().Length < 3)
+                return BadRequest("Item name must be at least 3 characters.");
+            if (dto.shortDescription != null && dto.shortDescription.Trim().Length > 0 && dto.shortDescription.Trim().Length < 3)
+                return BadRequest("Short description must be at least 3 characters when provided.");
+            if (dto.quantity.HasValue && dto.quantity.Value < 0) return BadRequest("Quantity cannot be negative.");
+            if (dto.costPerUnit.HasValue && dto.costPerUnit.Value < 0) return BadRequest("Cost per unit cannot be negative.");
+            if (dto.minimumQuantity.HasValue && dto.minimumQuantity.Value < 0) return BadRequest("Minimum quantity cannot be negative.");
+            if (dto.isOnSale)
+            {
+                if (!dto.sellingPrice.HasValue) return BadRequest("Selling price must be provided when item is set on sale.");
+                if (dto.sellingPrice.Value < 0) return BadRequest("Selling price cannot be negative.");
+                if (!dto.vatCategoryId.HasValue) return BadRequest("VAT category must be selected when item is set on sale.");
+            }
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Update scalar fields
+                existing.InventoryItemName = dto.inventoryItemName!.Trim();
+                existing.Description = string.IsNullOrWhiteSpace(dto.shortDescription) ? null : dto.shortDescription!.Trim();
+                existing.InventoryItemCategoryId = dto.inventoryItemCategoryId;
+                existing.UnitId = dto.unitId ?? existing.UnitId;
+                existing.Quantity = dto.quantity ?? existing.Quantity;
+                existing.CostPerUnit = dto.costPerUnit ?? existing.CostPerUnit;
+                existing.MinimumQuantity = dto.minimumQuantity;
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                // Assign supplier if provided
+                if (dto.supplierId.HasValue)
+                {
+                    existing.SupplierId = dto.supplierId.Value;
+                }
+
+                // Edit current supplier details if provided
+                if (existing.SupplierId.HasValue && dto.editSupplier != null)
+                {
+                    var sup = await _context.Suppliers.FirstOrDefaultAsync(s => s.SupplierId == existing.SupplierId.Value);
+                    if (sup != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.name)) sup.SupplierName = dto.editSupplier.name!.Trim();
+                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.contactMethod)) sup.ContactMethod = dto.editSupplier.contactMethod!.Trim();
+                        _context.Suppliers.Update(sup);
+                    }
+                }
+
+                // Replace image if multipart contains image file
+                if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+                {
+                    var imageFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "image", StringComparison.OrdinalIgnoreCase)
+                                                                           || (f.ContentType != null && f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)));
+                    if (imageFile != null && imageFile.Length > 0)
+                    {
+                        using var ms = new MemoryStream();
+                        await imageFile.CopyToAsync(ms);
+                        existing.InventoryItemImage = ms.ToArray();
+                    }
+                }
+
+                _context.InventoryItems.Update(existing);
+                await _context.SaveChangesAsync();
+
+                // Handle product on sale: create or update linked product
+                var existingProduct = await _context.Products.FirstOrDefaultAsync(p => p.InventoryItemId == existing.InventoryItemId);
+                if (dto.isOnSale)
+                {
+                    if (existingProduct == null)
+                    {
+                        var product = new Product
+                        {
+                            ProductName = existing.InventoryItemName,
+                            SellingPrice = dto.sellingPrice ?? existingProduct.SellingPrice,
+                            CostPrice = existing.CostPerUnit,
+                            StoreId = existing.StoreId,
+                            IsRecipe = false,
+                            RecipeId = null,
+                            InventoryItemId = existing.InventoryItemId,
+                            VatCategoryId = dto.vatCategoryId!.Value,
+                            Description = string.IsNullOrWhiteSpace(dto.productDescription) ? existing.Description : dto.productDescription!.Trim()
+                        };
+                        await _productRepo.AddAsync(product);
+                    }
+                    else
+                    {
+                        existingProduct.ProductName = existing.InventoryItemName;
+                        existingProduct.SellingPrice = dto.sellingPrice ?? existingProduct.SellingPrice;
+                        existingProduct.CostPrice = existing.CostPerUnit;
+                        existingProduct.VatCategoryId = dto.vatCategoryId!.Value;
+                        existingProduct.Description = string.IsNullOrWhiteSpace(dto.productDescription) ? existing.Description : dto.productDescription!.Trim();
+                        await _productRepo.UpdateAsync(existingProduct);
+                    }
+                }
+
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(dbEx, "Database error updating inventory item");
+                return StatusCode(500, "Failed to update inventory item.");
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(ex, "Failed to update inventory item");
+                return StatusCode(500, "Failed to update inventory item.");
+            }
         }
     }
 }

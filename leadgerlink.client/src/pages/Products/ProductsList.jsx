@@ -6,12 +6,12 @@ import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 import { BiSolidPackage } from "react-icons/bi";
 
-
 export default function ProductsList() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const [searchTerm, setSearchTerm] = useState('');
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,10 +49,22 @@ export default function ProductsList() {
     return () => { mounted = false; };
   }, []);
 
-  // client-side filtering + paging (server supports store scoping; result set presumably small)
+  // client-side filtering + paging
+  const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
   const filtered = products.filter((p) => {
+    // source filter
     if (sourceFilter && String(sourceFilter).trim() !== '') {
-      return String(p.source) === String(sourceFilter);
+      if (String(p.source) !== String(sourceFilter)) return false;
+    }
+    // text search filter across name and source
+    if (normalizedSearch) {
+      const name = String(p.productName ?? '').toLowerCase();
+      const source = String(p.source ?? '').toLowerCase();
+      // optionally include price string
+      const price = p.sellingPrice != null ? `bhd ${Number(p.sellingPrice).toFixed(3)}`.toLowerCase() : '';
+      if (!(name.includes(normalizedSearch) || source.includes(normalizedSearch) || price.includes(normalizedSearch))) {
+        return false;
+      }
     }
     return true;
   });
@@ -67,10 +79,14 @@ export default function ProductsList() {
     const available = !!p.isAvailable;
     const colorClass = available ? 'stock-green' : 'stock-red';
     return [
-      // availability indicator (circle)
       (
         <div className="stock-cell">
-          <span className={`stock-indicator ${colorClass}`} title={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')} aria-label={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')} role="img" />
+          <span
+            className={`stock-indicator ${colorClass}`}
+            title={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')}
+            aria-label={p.availabilityMessage ?? (available ? 'Available' : 'Unavailable')}
+            role="img"
+          />
         </div>
       ),
       p.productName ?? '',
@@ -82,18 +98,18 @@ export default function ProductsList() {
   return (
     <div className="container py-5">
       <PageHeader
-              icon={<BiSolidPackage size={55} />}
+        icon={<BiSolidPackage size={55} />}
         title="Products"
         descriptionLines={[
-            'Following are the products added previously:', "Click on the product name to view its details"
+          'Following are the products added previously:', 'Click on the product name to view its details'
         ]}
-        actions={[]} // no header actions
+        actions={[]}
       />
 
       <FilterSection
-        searchValue={''}
-        onSearchChange={() => {}}
-        searchPlaceholder=""
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search by name, source or price"
         entriesValue={entriesPerPage}
         onEntriesChange={setEntriesPerPage}
       >
@@ -106,9 +122,9 @@ export default function ProductsList() {
         title="Products"
         columns={['Available', 'Product Name', 'Source', 'Selling Price']}
         rows={tableRows}
-              emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
-              linkColumnName="Product Name"
-         rowLink={(_, rowIndex) => `/products/${paged[rowIndex].productId}`}
+        emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
+        linkColumnName="Product Name"
+        rowLink={(_, rowIndex) => `/products/${paged[rowIndex].productId}`}
       />
 
       <PaginationSection
