@@ -20,6 +20,7 @@ export default function RestockItemsPage() {
   const [inputQuantity, setInputQuantity] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState(''); // FIX: define info state
 
   // Helper to build select options
   const mapOptions = (list, labelKey, valueKey) =>
@@ -63,12 +64,14 @@ export default function RestockItemsPage() {
   useEffect(() => {
     if (!selectedItemId) {
       setSelectedItem(null);
+      setInputQuantity('');
+      setInfo('');
       return;
     }
     const found = items.find(it => String(it.inventoryItemId ?? it.id ?? '') === String(selectedItemId));
     setSelectedItem(found || null);
-    // reset typed quantity when selecting new item
     setInputQuantity('');
+    setInfo('');
   }, [selectedItemId, items]);
 
   const prevQuantity = selectedItem?.quantity ?? 0;
@@ -79,14 +82,48 @@ export default function RestockItemsPage() {
   const totalQuantity = (Number(prevQuantity ?? 0) || 0) + parsedInputQty;
 
   // submit handler (UI-only for now)
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Save (not implemented):', {
-      inventoryItemId: selectedItemId,
-      addedQuantity: parsedInputQty,
-      previousQuantity: prevQuantity,
-      totalQuantity
-    });
+    setError('');
+    setInfo('');
+    if (!selectedItem) {
+      setError('Select an item first.');
+      return;
+    }
+    if (parsedInputQty <= 0) {
+      setError('Enter a quantity greater than zero.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/inventoryitems/${encodeURIComponent(selectedItem.inventoryItemId)}/restock`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addedQuantity: parsedInputQty })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Failed to restock item (${res.status})`);
+      }
+      const resp = await res.json().catch(() => ({}));
+      const newQty = resp?.quantity ?? totalQuantity;
+
+      // Optimistically update local state
+      setItems(prev =>
+        prev.map(it =>
+          String(it.inventoryItemId) === String(selectedItem.inventoryItemId)
+            ? { ...it, quantity: newQty, updatedAt: new Date().toISOString() }
+            : it
+        )
+      );
+      setSelectedItem(si => si ? { ...si, quantity: newQty } : si);
+      setInputQuantity('');
+      setInfo('Quantity updated successfully. You can continue restocking.');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to restock item');
+    }
   };
 
   return (
@@ -110,7 +147,13 @@ export default function RestockItemsPage() {
 
           {error && (
             <div className="col-12">
-              <div className="text-danger">Error: {error}</div>
+              <div className="alert alert-danger text-start">Error: {error}</div>
+            </div>
+          )}
+
+          {info && (
+            <div className="col-12">
+              <div className="alert alert-success text-start">{info}</div>
             </div>
           )}
 

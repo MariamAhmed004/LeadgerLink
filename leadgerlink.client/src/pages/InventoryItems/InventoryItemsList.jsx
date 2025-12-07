@@ -44,70 +44,8 @@ const InventoryItemsListPage = () => {
     { label: 'Out of Stock', value: 'outOfStock' },
   ];
 
-  // compute stock indicator color based on quantity vs minimum
-  // rules (keeps exact behaviour compatible with server-side filter logic):
-  // - red: quantity <= minimum (or quantity <= 0)
-  // - yellow: quantity > minimum and quantity <= minimum * 1.5
-  // - green: quantity > minimum * 1.5
-  // If minimum is missing, treat quantity > 0 as green, otherwise red.
-  const getStockColor = (quantity, minimumQuantity) => {
-    const qty = Number(quantity ?? 0);
-    const min = minimumQuantity == null ? null : Number(minimumQuantity);
-    if (min == null) {
-      return qty > 0 ? 'green' : 'red';
-    }
-    if (qty <= min) return 'red';
-    if (qty <= min * 1.5) return 'yellow';
-    return 'green';
-  };
-
-  // Load suppliers for the current user's store and system categories (once)
-  useEffect(() => {
-    let mounted = true;
-    const loadLookups = async () => {
-      try {
-        // Server endpoints:
-        // - GET /api/suppliers  -> returns suppliers for current user's store when no storeId provided
-        // - GET /api/categories -> returns all categories in the system
-        const [supRes, catRes] = await Promise.all([
-          fetch('/api/suppliers', { credentials: 'include' }).catch(() => null),
-          fetch('/api/categories', { credentials: 'include' }).catch(() => null),
-        ]);
-
-        if (supRes && supRes.ok) {
-          const supJson = await supRes.json();
-          if (!mounted) return;
-          const supOpts = [{ label: 'All Suppliers', value: '' }];
-          (supJson || []).forEach(s => supOpts.push({ label: s.name ?? s.supplierName ?? `Supplier ${s.id ?? s.supplierId}`, value: String(s.supplierId ?? s.id ?? '') }));
-          setSupplierOptions(supOpts);
-        } else {
-          // keep default 'All Suppliers'
-          setSupplierOptions([{ label: 'All Suppliers', value: '' }]);
-        }
-
-        if (catRes && catRes.ok) {
-          const catJson = await catRes.json();
-          if (!mounted) return;
-          const catOpts = [{ label: 'All Categories', value: '' }];
-          (catJson || []).forEach(c => catOpts.push({ label: c.name ?? c.categoryName ?? `Category ${c.id ?? c.categoryId}`, value: String(c.categoryId ?? c.id ?? '') }));
-          setCategoryOptions(catOpts);
-        } else {
-          setCategoryOptions([{ label: 'All Categories', value: '' }]);
-        }
-      } catch (err) {
-        console.error('Failed to load suppliers/categories', err);
-        if (mounted) {
-          setSupplierOptions([{ label: 'All Suppliers', value: '' }]);
-          setCategoryOptions([{ label: 'All Categories', value: '' }]);
-        }
-      }
-    };
-
-    loadLookups();
-    return () => { mounted = false; };
-  }, []);
-
-  // fetch list when filters / paging change
+  // fetch list from server (keep as-is but without sending stockLevel for server-side filtering,
+  // since we are going to filter by color client-side consistently)
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -115,11 +53,12 @@ const InventoryItemsListPage = () => {
       setError('');
       try {
         const qs = new URLSearchParams();
-        if (stockLevel) qs.append('stockLevel', stockLevel); // uses values from STOCK_LEVEL_OPTIONS
+        // do not append stockLevel; we will filter by colors client-side
         if (supplier) qs.append('supplierId', supplier);
         if (category) qs.append('categoryId', category);
-        qs.append('page', String(currentPage));
-        qs.append('pageSize', String(entriesPerPage));
+        // fetch a larger page to allow client-side paging
+        qs.append('page', '1');
+        qs.append('pageSize', '1000');
 
         const res = await fetch(`/api/inventoryitems/list-for-current-store?${qs.toString()}`, {
           credentials: 'include'
@@ -134,21 +73,16 @@ const InventoryItemsListPage = () => {
         if (!mounted) return;
 
         setItems(json.items || []);
-        setTotalCount(json.totalCount || 0);
+        // totalCount will be recomputed after client-side filter
+        setTotalCount((json.items || []).length);
 
-        // If server returned suppliers/categories in the list response, don't overwrite the lookup arrays;
-        // otherwise the lookups loaded in the other effect remain valid.
-        if (!json.suppliers) {
-          // nothing to do
-        } else {
+        // optional: refresh supplier/category options from response
+        if (json.suppliers) {
           const supOpts = [{ label: 'All Suppliers', value: '' }];
           (json.suppliers || []).forEach(s => supOpts.push({ label: s.name ?? s.supplierName ?? `Supplier ${s.id}`, value: String(s.id ?? s.supplierId) }));
           setSupplierOptions(supOpts);
         }
-
-        if (!json.categories) {
-          // nothing to do
-        } else {
+        if (json.categories) {
           const catOpts = [{ label: 'All Categories', value: '' }];
           (json.categories || []).forEach(c => catOpts.push({ label: c.name ?? `Category ${c.id}`, value: String(c.id ?? c.categoryId) }));
           setCategoryOptions(catOpts);
@@ -163,14 +97,52 @@ const InventoryItemsListPage = () => {
 
     load();
     return () => { mounted = false; };
-  }, [stockLevel, supplier, category, currentPage, entriesPerPage]);
+    // supplier/category affect server call; stockLevel does not (client-side)
+  }, [supplier, category]);
 
-  // map items to table rows expected by EntityTable
-  // first cell contains only a colored circle (no text)
-  const tableRows = items.map((it) => {
+  // Reset page to 1 when filters change to avoid out-of-range paging
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stockLevel, supplier, category, entriesPerPage]);
+
+  // Helper
+  const getStockColor = (quantity, minimumQuantity) => {
+    const qty = Number(quantity ?? 0);
+    const min = minimumQuantity == null ? null : Number(minimumQuantity);
+    if (min == null) {
+      return qty > 0 ? 'green' : 'red';
+    }
+    if (qty <= min) return 'red';
+    if (qty <= min * 1.5) return 'yellow';
+    return 'green';
+  };
+
+  // Map selected stockLevel string to a color for client-side filtering
+  const selectedColor =
+    stockLevel === 'inStock' ? 'green' :
+    stockLevel === 'lowStock' ? 'yellow' :
+    stockLevel === 'outOfStock' ? 'red' :
+    '';
+
+  // Apply client-side filtering
+  const filtered = (items || []).filter(it => {
+    if (selectedColor && getStockColor(it.quantity, it.minimumQuantity) !== selectedColor) return false;
+    if (supplier && String(it.supplierId ?? '') !== String(supplier)) return false;
+    if (category && String(it.categoryId ?? '') !== String(category)) return false;
+    return true;
+  });
+
+  // Client-side paging over filtered
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / entriesPerPage));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const start = (safePage - 1) * entriesPerPage;
+  const paged = filtered.slice(start, start + entriesPerPage);
+
+  // Table rows from paged
+  const tableRows = paged.map((it) => {
     const color = getStockColor(it.quantity, it.minimumQuantity);
     return [
-      // Stock Level cell: colored circle only; include accessible label via title/aria-label
       (
         <div className="stock-cell">
           <span
@@ -189,10 +161,11 @@ const InventoryItemsListPage = () => {
     ];
   });
 
+  // Render
   return (
     <div className="container py-5">
       <PageHeader
-              icon={<MdOutlineInventory size={55} />}
+        icon={<MdOutlineInventory size={55} />}
         title="Inventory Items"
         descriptionLines={[
           'Following are the Inventory Items registered in the organization stores:',
@@ -231,26 +204,19 @@ const InventoryItemsListPage = () => {
 
       <EntityTable
         title="Inventory Items"
-        columns={[
-          'Stock Level',
-          'Item Name',
-          'Category',
-          'Supplier',
-          'Unit',
-          'Quantity',
-        ]}
+        columns={['Stock Level','Item Name','Category','Supplier','Unit','Quantity']}
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory items to display.')}
         linkColumnName="Item Name"
-        rowLink={(_, rowIndex) => `/inventory-items/${items[rowIndex].inventoryItemId}`}
+        rowLink={(_, rowIndex) => `/inventory-items/${paged[rowIndex].inventoryItemId}`}
       />
 
       <PaginationSection
-        currentPage={currentPage}
-        totalPages={Math.max(1, Math.ceil((totalCount || 0) / entriesPerPage))}
+        currentPage={safePage}
+        totalPages={totalPages}
         onPageChange={setCurrentPage}
         entriesPerPage={entriesPerPage}
-        totalEntries={totalCount}
+        totalEntries={totalFiltered}
       />
     </div>
   );

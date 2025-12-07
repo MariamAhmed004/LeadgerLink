@@ -530,5 +530,33 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to update inventory item.");
             }
         }
+
+        // POST api/inventoryitems/{id}/restock
+        [Authorize]
+        [HttpPost("{id:int}/restock")]
+        public async Task<ActionResult> RestockQuantity(int id, [FromBody] RestockDto dto)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            if (dto == null) return BadRequest("Missing payload.");
+            if (dto.AddedQuantity <= 0) return BadRequest("Added quantity must be greater than zero.");
+
+            var item = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
+            if (item == null) return NotFound();
+
+            // Only update quantity
+            var newQty = (item.Quantity) + dto.AddedQuantity;
+            item.Quantity = newQty;
+            item.UpdatedAt = DateTime.UtcNow;
+
+            _context.InventoryItems.Update(item);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { inventoryItemId = id, quantity = item.Quantity });
+        }
+
+        public class RestockDto
+        {
+            public decimal AddedQuantity { get; set; }
+        }
     }
 }
