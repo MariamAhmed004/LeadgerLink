@@ -10,18 +10,30 @@ import { useAuth } from "../../Context/AuthContext";
 
 const calmPalette = ["#4e6e8e", "#7a9aa0", "#9aa3a8", "#c0c7ca"];
 
+// Sentinel value for placeholder option
+const PLACEHOLDER_VALUE = "__select_store__";
+
 export default function AccountantDashboard() {
   const { loggedInUser } = useAuth();
   const orgId = loggedInUser?.OrgId ?? loggedInUser?.orgId ?? null;
 
-  const [storeOptions, setStoreOptions] = useState([{ label: "All Branches (Aggregated)", value: "" }]);
-  const [selectedStore, setSelectedStore] = useState("");
+  const [storeOptions, setStoreOptions] = useState([
+    { label: "Select a store to filter for", value: PLACEHOLDER_VALUE },
+    { label: "All Branches (Aggregated)", value: "" },
+  ]);
+  const [selectedStore, setSelectedStore] = useState(PLACEHOLDER_VALUE);
   const [loadingStores, setLoadingStores] = useState(false);
 
+  // Two datasets: org-level (fixed) and scoped (store or aggregated)
+  const [orgData, setOrgData] = useState(null);
+  const [orgLoading, setOrgLoading] = useState(false);
+  const [orgError, setOrgError] = useState("");
+
+  const [scopedData, setScopedData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [data, setData] = useState(null);
 
+  // Load stores
   useEffect(() => {
     let mounted = true;
     const loadStores = async () => {
@@ -34,7 +46,11 @@ export default function AccountantDashboard() {
         const json = await res.json();
         if (!mounted) return;
         const arr = Array.isArray(json) ? json : (json.items || []);
-        const opts = [{ label: "All Branches (Aggregated)", value: "" }, ...arr.map(s => ({ label: s.storeName || s.store_name || "Store", value: String(s.storeId ?? s.store_id ?? "") }))];
+        const opts = [
+          { label: "Select a store to filter for", value: PLACEHOLDER_VALUE },
+          { label: "All Branches (Aggregated)", value: "" },
+          ...arr.map(s => ({ label: s.storeName || s.store_name || "Store", value: String(s.storeId ?? s.store_id ?? "") })),
+        ];
         setStoreOptions(opts);
       } catch (ex) {
         console.error("Failed to load stores", ex);
@@ -47,15 +63,42 @@ export default function AccountantDashboard() {
     return () => { mounted = false; };
   }, [orgId]);
 
-  // default load aggregated org summary
+  // Always load org-level summary (for Contribution + Inventory Movements)
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const loadOrg = async () => {
+      setOrgLoading(true);
+      setOrgError("");
+      try {
+        const res = await fetch("/api/dashboard/summary?months=6&topN=5", { credentials: "include" });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => null);
+          throw new Error(txt || `Server returned ${res.status}`);
+        }
+        const json = await res.json();
+        if (!mounted) return;
+        setOrgData(json);
+      } catch (ex) {
+        console.error("Failed to load org dashboard data", ex);
+        if (mounted) setOrgError("Failed to load organization dashboard data");
+      } finally {
+        if (mounted) setOrgLoading(false);
+      }
+    };
+    loadOrg();
+    return () => { mounted = false; };
+  }, [orgId]);
+
+  // Load scoped (store or aggregated) summary for other sections
+  useEffect(() => {
+    let mounted = true;
+    const loadScoped = async () => {
       setLoading(true);
       setError("");
-      setData(null);
+      setScopedData(null);
       try {
-        const qs = selectedStore ? `storeId=${encodeURIComponent(selectedStore)}` : "";
+        const hasStoreFilter = !!selectedStore && selectedStore !== PLACEHOLDER_VALUE;
+        const qs = hasStoreFilter && selectedStore !== "" ? `storeId=${encodeURIComponent(selectedStore)}` : "";
         const url = qs ? `/api/dashboard/summary?months=6&topN=5&${qs}` : "/api/dashboard/summary?months=6&topN=5";
         const res = await fetch(url, { credentials: "include" });
         if (!res.ok) {
@@ -64,7 +107,7 @@ export default function AccountantDashboard() {
         }
         const json = await res.json();
         if (!mounted) return;
-        setData(json);
+        setScopedData(json);
       } catch (ex) {
         console.error("Failed to load dashboard data", ex);
         if (mounted) setError("Failed to load dashboard data");
@@ -73,7 +116,7 @@ export default function AccountantDashboard() {
       }
     };
 
-    load();
+    loadScoped();
     return () => { mounted = false; };
   }, [selectedStore]);
 
@@ -84,52 +127,85 @@ export default function AccountantDashboard() {
   const contributionItems = [];
   const movementItems = [];
 
-  if (data) {
-    const salesSeries = data.salesSeries ?? { labels: [], values: [] };
+  // Use scopedData for financial, inventory and sales
+  if (scopedData) {
+    const salesSeries = scopedData.salesSeries ?? { labels: [], values: [] };
     const values = Array.isArray(salesSeries.values) ? salesSeries.values.map(v => Number(v || 0)) : [];
     const totalSales = values.reduce((a, b) => a + (b || 0), 0);
 
-    const cogs = Number(data.cogs || 0);
-    const grossProfit = Number(data.grossProfit || 0);
-    const inventoryValue = Number(data.inventoryValue || 0);
+    const cogs = Number(scopedData.cogs || 0);
+    const grossProfit = Number(scopedData.grossProfit || 0);
+    const inventoryValue = Number(scopedData.inventoryValue || 0);
 
     financialItems.push({ type: 'card', title: 'COGS (period)', size: 'small', value: `BHD ${cogs.toFixed(3)}` });
     financialItems.push({ type: 'card', title: 'Gross Profit (period)', size: 'small', value: `BHD ${grossProfit.toFixed(3)}` });
     financialItems.push({ type: 'card', title: 'Total Sales (period)', size: 'small', value: `BHD ${totalSales.toFixed(3)}` });
 
-    const invByCat = Array.isArray(data.invByCat) ? data.invByCat : [];
+    const invByCatScoped = Array.isArray(scopedData.invByCat) ? scopedData.invByCat : [];
     inventoryItems.push({ type: 'card', title: 'Inventory Value', size: 'small', value: `BHD ${inventoryValue.toFixed(3)}` });
-    inventoryItems.push({ type: 'chart', chartType: 'Bar (Inventory Value)', size: 'large', height: 320, options: {
-      chart: { type: 'column' },
-      xAxis: { categories: invByCat.map(i => i.name) },
-      series: [{ name: 'Inventory', data: invByCat.map(i => Number(i.value || 0)) }],
-      colors: [calmPalette[0]],
-      legend: { enabled: false }
-    }});
+    inventoryItems.push({
+      type: 'chart',
+      chartType: 'Bar (Inventory Value)',
+      size: 'large',
+      height: 320,
+      options: {
+        chart: { type: 'column' },
+        xAxis: { categories: invByCatScoped.map(i => i.name) },
+        series: [{ name: 'Inventory', data: invByCatScoped.map(i => Number(i.value || 0)) }],
+        colors: [calmPalette[0]],
+        legend: { enabled: false }
+      }
+    });
 
-    const mostSellingProductName = data.mostSellingProductName ?? '-';
+    const mostSellingProductName = scopedData.mostSellingProductName ?? '-';
     salesItems.push({ type: 'card', title: 'Most Selling Product', size: 'small', value: mostSellingProductName, colClass: 'col-12 col-md-4' });
-    salesItems.push({ type: 'chart', chartType: 'Line (Sales)', colClass: 'col-12', height: 340, options: {
-      chart: { type: 'line' },
-      xAxis: { categories: salesSeries.labels || [] },
-      series: [{ name: 'Sales', data: values }],
-      colors: [calmPalette[1]]
-    }});
-
-    contributionItems.push({ type: 'chart', chartType: 'Pie (Contribution)', colClass: 'col-12 col-md-6 offset-md-3', height: 380, options: {
-      colors: calmPalette,
-      series: [{ name: 'Share', data: invByCat.map(i => ({ name: i.name, y: Number(i.value || 0) })) }],
-      legend: { enabled: true, layout: 'vertical', align: 'right', verticalAlign: 'middle' }
-    }});
-
-    const transfers = data.transfers ?? { outgoing: 0, incoming: 0 };
-    movementItems.push({ type: 'card', title: 'Number of Pending Transfers', size: 'small', value: String(transfers.outgoing ?? 0), colClass: 'col-12 col-md-4 offset-md-2' });
-    movementItems.push({ type: 'card', title: 'Number of Completed Transfers', size: 'small', value: String(transfers.incoming ?? 0), colClass: 'col-12 col-md-4' });
-    movementItems.push({ type: 'chart', chartType: 'Bar (Inventory Movements)', colClass: 'col-12', height: 380, options: {
-      series: [{ name: 'Movements', data: [Number(transfers.outgoing || 0), Number(transfers.incoming || 0)], color: calmPalette[2] }],
-      legend: { enabled: false }
-    }});
+    salesItems.push({
+      type: 'chart',
+      chartType: 'Line (Sales)',
+      colClass: 'col-12',
+      height: 340,
+      options: {
+        chart: { type: 'line' },
+        xAxis: { categories: salesSeries.labels || [] },
+        series: [{ name: 'Sales', data: values }],
+        colors: [calmPalette[1]]
+      }
+    });
   }
+
+  // Use orgData for Contribution and Inventory Movements (unaffected by filtering)
+  const contributionData = Array.isArray(orgData?.salesContributionByStore) ? orgData.salesContributionByStore : [];
+  contributionItems.push({
+    type: 'chart',
+    chartType: 'Pie (Contribution)',
+    colClass: 'col-12 col-md-6 offset-md-3',
+    height: 380,
+    options: {
+      colors: calmPalette,
+      series: [{
+        name: 'Sales Share',
+        data: contributionData.map(i => ({ name: i.name, y: Number(i.value || 0) }))
+      }],
+      legend: { enabled: true, layout: 'vertical', align: 'right', verticalAlign: 'middle' }
+    }
+  });
+
+  const transfersOrg = orgData?.transfers ?? { outgoing: 0, incoming: 0 };
+  movementItems.push({ type: 'card', title: 'Number of Pending Transfers', size: 'small', value: String(transfersOrg.outgoing ?? 0), colClass: 'col-12 col-md-4 offset-md-2' });
+  movementItems.push({ type: 'card', title: 'Number of Completed Transfers', size: 'small', value: String(transfersOrg.incoming ?? 0), colClass: 'col-12 col-md-4' });
+  movementItems.push({
+    type: 'chart',
+    chartType: 'Bar (Inventory Movements)',
+    colClass: 'col-12',
+    height: 380,
+    options: {
+      series: [{ name: 'Movements', data: [Number(transfersOrg.outgoing || 0), Number(transfersOrg.incoming || 0)], color: calmPalette[2] }],
+      legend: { enabled: false }
+    }
+  });
+
+  const anyLoading = loading || orgLoading;
+  const anyError = error || orgError;
 
   return (
     <div className="container py-4">
@@ -155,8 +231,8 @@ export default function AccountantDashboard() {
         </div>
       </div>
 
-      {loading && <div className="alert alert-info">Loading dashboard...</div>}
-      {error && <div className="alert alert-danger">{error}</div>}
+      {anyLoading && <div className="alert alert-info">Loading dashboard...</div>}
+      {anyError && <div className="alert alert-danger">{anyError}</div>}
 
       <Section title="Financial Metrics" items={financialItems.length ? financialItems : [
         { type: 'card', title: 'COGS (Food Cost)', size: 'small', value: 'BHD 0.000' },
@@ -177,15 +253,11 @@ export default function AccountantDashboard() {
 
       <hr />
 
-      <Section title="Contribution" items={contributionItems.length ? contributionItems : [
-        { type: 'chart', chartType: 'Pie (Contribution)', colClass: 'col-12 col-md-6 offset-md-3', height: 380, options: { series: [{ name: 'Share', data: [] }] } }
-      ]} />
+      {/* Always org-level */}
+      <Section title="Contribution" items={contributionItems} />
 
-      <Section title="Inventory Movements" items={movementItems.length ? movementItems : [
-        { type: 'card', title: 'Number of Pending Transfers', size: 'small', value: '0', colClass: 'col-12 col-md-4 offset-md-2' },
-        { type: 'card', title: 'Number of Completed Transfers', size: 'small', value: '0', colClass: 'col-12 col-md-4' },
-        { type: 'chart', chartType: 'Bar (Inventory Movements)', colClass: 'col-12', height: 380, options: { series: [{ name: 'Movements', data: [] }] } }
-      ]} />
+      {/* Always org-level */}
+      <Section title="Inventory Movements" items={movementItems} />
 
       <div className="mt-4">
         <HomePageTable

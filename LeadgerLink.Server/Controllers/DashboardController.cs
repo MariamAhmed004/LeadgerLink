@@ -130,6 +130,9 @@ namespace LeadgerLink.Server.Controllers
                         .Where(ii => ii.Store != null && ii.Store.OrgId == orgId.Value)
                         .SumAsync(ii => (decimal?)(ii.Quantity * ii.CostPerUnit)) ?? 0m;
 
+                    // New: sales contribution by store (org-level)
+                    var salesContributionByStore = await _reportRepository.GetStoreSalesContributionForOrganizationAsync(orgId.Value, start, end);
+
                     var topEmployees = Array.Empty<ChartPointDto>(); // not aggregated at org-level
 
                     return Ok(new
@@ -147,7 +150,8 @@ namespace LeadgerLink.Server.Controllers
                         salesSeries,
                         itemsUtil,
                         invByCat,
-                        transfers
+                        transfers,
+                        salesContributionByStore
                     });
                 }
             }

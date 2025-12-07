@@ -13,12 +13,10 @@ using System.Collections.Generic;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
-    // Repository for report calculations (COGS, gross profit, profit margin) and placeholders for file generation.
     public class ReportRepository : IReportRepository
     {
         private readonly LedgerLinkDbContext _context;
 
-        // Constructor requires DbContext.
         public ReportRepository(LedgerLinkDbContext context)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -369,6 +367,35 @@ namespace LeadgerLink.Server.Repositories.Implementations
             Buffer.BlockCopy(bom, 0, result, 0, bom.Length);
             Buffer.BlockCopy(content, 0, result, bom.Length, content.Length);
             return Task.FromResult(result);
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetStoreSalesContributionForOrganizationAsync(int organizationId, DateTime from, DateTime to)
+        {
+            var q = await _context.Sales
+                .Include(s => s.Store)
+                .Where(s => s.Store != null
+                            && s.Store.OrgId == organizationId
+                            && s.Timestamp >= from
+                            && s.Timestamp <= to)
+                .GroupBy(s => s.StoreId)
+                .Select(g => new { StoreId = g.Key, Total = g.Sum(x => x.TotalAmount) })
+                .ToListAsync();
+
+            // Fetch all org stores once; avoids nullable/int Contains mismatches
+            var stores = await _context.Stores
+                .Where(st => st.OrgId == organizationId)
+                .Select(st => new { st.StoreId, st.StoreName })
+                .ToListAsync();
+
+            return q.Select(x =>
+            {
+                var storeName = stores.FirstOrDefault(st => st.StoreId == x.StoreId)?.StoreName ?? $"Store {x.StoreId}";
+                return new ChartPointDto
+                {
+                    Name = storeName,
+                    Value = x.Total
+                };
+            });
         }
     }
 }
