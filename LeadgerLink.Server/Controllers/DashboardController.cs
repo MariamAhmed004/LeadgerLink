@@ -53,24 +53,57 @@ namespace LeadgerLink.Server.Controllers
                 var isStoreManager = string.Equals(domainUser.Role?.RoleTitle, "Store Manager", StringComparison.OrdinalIgnoreCase);
                 int? effectiveStoreId = storeId ?? (isStoreManager ? domainUser.StoreId : null);
 
+                var end = DateTime.UtcNow;
+                var start = end.AddMonths(-months + 1);
+
                 if (effectiveStoreId.HasValue)
                 {
-                    // store-level summary
                     var sid = effectiveStoreId.Value;
+
+                    // Core charts/data
                     var topEmployees = await _reportRepository.GetTopEmployeesBySalesAsync(sid, topN);
                     var topProducts = await _reportRepository.GetTopProductsBySalesAsync(sid, topN);
                     var salesSeries = await _report_repository_getsalesseries(sid, months);
                     var itemsUtil = await _reportRepository.GetItemUtilizationAsync(sid, topN);
                     var invByCat = await _reportRepository.GetInventoryByCategoryAsync(sid);
-                    var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
-                    var transfers = await _reportRepository.GetInventoryTransferCountsAsync(sid, periodStart, DateTime.UtcNow);
+                    var transfers = await _reportRepository.GetInventoryTransferCountsAsync(sid, start, end);
                     var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
 
-                    return Ok(new { scope = "store", storeId = sid, topEmployees, topProducts, mostSellingProductName, salesSeries, itemsUtil, invByCat, transfers });
+                    // Financials over period (sum each month)
+                    decimal cogsPeriod = 0m;
+                    decimal grossProfitPeriod = 0m;
+                    for (int i = 0; i < months; i++)
+                    {
+                        var dt = start.AddMonths(i);
+                        cogsPeriod += await _reportRepository.GetCOGSByStoreForMonthAsync(sid, dt.Year, dt.Month);
+                        grossProfitPeriod += await _reportRepository.GetGrossProfitByStoreForMonthAsync(sid, dt.Year, dt.Month);
+                    }
+
+                    // Current inventory value (sum quantity * cost)
+                    var inventoryValue = await _context.InventoryItems
+                        .Where(ii => ii.StoreId == sid)
+                        .SumAsync(ii => (decimal?)(ii.Quantity * ii.CostPerUnit)) ?? 0m;
+
+                    return Ok(new
+                    {
+                        scope = "store",
+                        storeId = sid,
+                        // financials
+                        cogs = Math.Round(cogsPeriod, 3),
+                        grossProfit = Math.Round(grossProfitPeriod, 3),
+                        inventoryValue = Math.Round(inventoryValue, 3),
+                        // charts/series
+                        topEmployees,
+                        topProducts,
+                        mostSellingProductName,
+                        salesSeries,
+                        itemsUtil,
+                        invByCat,
+                        transfers
+                    });
                 }
                 else
                 {
-                    // aggregated organization-level summary for the user's organization
                     var orgId = domainUser.OrgId;
                     if (!orgId.HasValue) return BadRequest("Unable to resolve user's organization.");
 
@@ -78,14 +111,44 @@ namespace LeadgerLink.Server.Controllers
                     var salesSeries = await _reportRepository.GetOrganizationSalesSeriesAsync(orgId.Value, months);
                     var itemsUtil = await _reportRepository.GetItemUtilizationByOrganizationAsync(orgId.Value, topN);
                     var invByCat = await _reportRepository.GetInventoryByCategoryForOrganizationAsync(orgId.Value);
-                    var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
-                    var transfers = await _reportRepository.GetInventoryTransferCountsForOrganizationAsync(orgId.Value, periodStart, DateTime.UtcNow);
+                    var transfers = await _reportRepository.GetInventoryTransferCountsForOrganizationAsync(orgId.Value, start, end);
                     var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
 
-                    // employees at org-level are not aggregated here; return empty array
-                    var topEmployees = Array.Empty<ChartPointDto>();
+                    // Org-level financials over period
+                    decimal cogsPeriod = 0m;
+                    decimal grossProfitPeriod = 0m;
+                    for (int i = 0; i < months; i++)
+                    {
+                        var dt = start.AddMonths(i);
+                        cogsPeriod += await _reportRepository.GetCOGSByOrganizationForMonthAsync(orgId.Value, dt.Year, dt.Month);
+                        grossProfitPeriod += await _reportRepository.GetGrossProfitByOrganizationForMonthAsync(orgId.Value, dt.Year, dt.Month);
+                    }
 
-                    return Ok(new { scope = "organization", organizationId = orgId.Value, topEmployees, topProducts, mostSellingProductName, salesSeries, itemsUtil, invByCat, transfers });
+                    // Current inventory value for organization
+                    var inventoryValue = await _context.InventoryItems
+                        .Include(ii => ii.Store)
+                        .Where(ii => ii.Store != null && ii.Store.OrgId == orgId.Value)
+                        .SumAsync(ii => (decimal?)(ii.Quantity * ii.CostPerUnit)) ?? 0m;
+
+                    var topEmployees = Array.Empty<ChartPointDto>(); // not aggregated at org-level
+
+                    return Ok(new
+                    {
+                        scope = "organization",
+                        organizationId = orgId.Value,
+                        // financials
+                        cogs = Math.Round(cogsPeriod, 3),
+                        grossProfit = Math.Round(grossProfitPeriod, 3),
+                        inventoryValue = Math.Round(inventoryValue, 3),
+                        // charts/series
+                        topEmployees,
+                        topProducts,
+                        mostSellingProductName,
+                        salesSeries,
+                        itemsUtil,
+                        invByCat,
+                        transfers
+                    });
                 }
             }
             catch (Exception ex)

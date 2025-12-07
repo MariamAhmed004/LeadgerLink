@@ -89,12 +89,16 @@ export default function AccountantDashboard() {
     const values = Array.isArray(salesSeries.values) ? salesSeries.values.map(v => Number(v || 0)) : [];
     const totalSales = values.reduce((a, b) => a + (b || 0), 0);
 
-    financialItems.push({ type: 'card', title: 'COGS (period)', size: 'small', value: 'BHD 0.000' });
-    financialItems.push({ type: 'card', title: 'Gross Profit', size: 'small', value: 'BHD 0.000' });
+    const cogs = Number(data.cogs || 0);
+    const grossProfit = Number(data.grossProfit || 0);
+    const inventoryValue = Number(data.inventoryValue || 0);
+
+    financialItems.push({ type: 'card', title: 'COGS (period)', size: 'small', value: `BHD ${cogs.toFixed(3)}` });
+    financialItems.push({ type: 'card', title: 'Gross Profit (period)', size: 'small', value: `BHD ${grossProfit.toFixed(3)}` });
     financialItems.push({ type: 'card', title: 'Total Sales (period)', size: 'small', value: `BHD ${totalSales.toFixed(3)}` });
 
     const invByCat = Array.isArray(data.invByCat) ? data.invByCat : [];
-    inventoryItems.push({ type: 'card', title: 'Inventory Value', size: 'small', value: 'BHD 0.000' });
+    inventoryItems.push({ type: 'card', title: 'Inventory Value', size: 'small', value: `BHD ${inventoryValue.toFixed(3)}` });
     inventoryItems.push({ type: 'chart', chartType: 'Bar (Inventory Value)', size: 'large', height: 320, options: {
       chart: { type: 'column' },
       xAxis: { categories: invByCat.map(i => i.name) },
@@ -112,7 +116,6 @@ export default function AccountantDashboard() {
       colors: [calmPalette[1]]
     }});
 
-    // Contribution (if aggregated, could be per store share; here reuse invByCat as placeholder)
     contributionItems.push({ type: 'chart', chartType: 'Pie (Contribution)', colClass: 'col-12 col-md-6 offset-md-3', height: 380, options: {
       colors: calmPalette,
       series: [{ name: 'Share', data: invByCat.map(i => ({ name: i.name, y: Number(i.value || 0) })) }],
@@ -152,7 +155,7 @@ export default function AccountantDashboard() {
         </div>
       </div>
 
-      {loading && <div className="alert alert-info">Loading dashboard…</div>}
+      {loading && <div className="alert alert-info">Loading dashboard...</div>}
       {error && <div className="alert alert-danger">{error}</div>}
 
       <Section title="Financial Metrics" items={financialItems.length ? financialItems : [
