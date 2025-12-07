@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Threading.Tasks;
+using LeadgerLink.Server.Dtos;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
@@ -34,6 +35,15 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Get profit margin for a store for the given year and month.
         Task<decimal> GetProfitMarginByStoreForMonthAsync(int storeId, int year, int month);
+
+        // Dashboard / chart data helpers
+        Task<IEnumerable<ChartPointDto>> GetTopEmployeesBySalesAsync(int storeId, int topN);
+        Task<TimeSeriesDto> GetStoreSalesSeriesAsync(int storeId, int months);
+        Task<IEnumerable<ChartPointDto>> GetItemUtilizationAsync(int storeId, int topN);
+        Task<IEnumerable<ChartPointDto>> GetInventoryByCategoryAsync(int storeId);
+        Task<TransferCountsDto> GetInventoryTransferCountsAsync(int storeId, DateTime from, DateTime to);
+        // Top products by sales (quantity)
+        Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesAsync(int storeId, int topN);
 
         // Placeholder report generation APIs (return raw file bytes).
         // Implementations should later generate the requested report and return file bytes.

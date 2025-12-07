@@ -1,0 +1,89 @@
+using System;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Dtos;
+
+namespace LeadgerLink.Server.Controllers
+{
+    [ApiController]
+    [Route("api/dashboard")]
+    public class DashboardController : ControllerBase
+    {
+        private readonly IReportRepository _reportRepository;
+        private readonly LedgerLinkDbContext _context;
+        private readonly ILogger<DashboardController> _logger;
+
+        public DashboardController(IReportRepository reportRepository, LedgerLinkDbContext context, ILogger<DashboardController> logger)
+        {
+            _reportRepository = reportRepository ?? throw new ArgumentNullException(nameof(reportRepository));
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _logger = logger;
+        }
+
+        // GET api/dashboard/store/summary?months=6&topN=5
+        // Resolves store from authenticated user when available.
+        [Authorize]
+        [HttpGet("store/summary")]
+        public async Task<IActionResult> GetStoreSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
+        {
+            if (months < 1) months = 6;
+            if (topN < 1) topN = 5;
+
+            try
+            {
+                int? resolvedStoreId = storeId;
+
+                if (!resolvedStoreId.HasValue)
+                {
+                    var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? User.Identity?.Name;
+                    if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+                    var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                    if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+                    resolvedStoreId = domainUser.StoreId.Value;
+                }
+
+                var topEmployees = await _reportRepository.GetTopEmployeesBySalesAsync(resolvedStoreId.Value, topN);
+                // fetch top products by quantity sold so frontend can show product name
+                var topProducts = await _reportRepository.GetTopProductsBySalesAsync(resolvedStoreId.Value, topN);
+
+                var salesSeries = await _report_repository_getsalesseries(resolvedStoreId.Value, months);
+                var itemsUtil = await _reportRepository.GetItemUtilizationAsync(resolvedStoreId.Value, topN);
+                var invByCat = await _reportRepository.GetInventoryByCategoryAsync(resolvedStoreId.Value);
+                var periodStart = DateTime.UtcNow.AddMonths(-months + 1);
+                var transfers = await _reportRepository.GetInventoryTransferCountsAsync(resolvedStoreId.Value, periodStart, DateTime.UtcNow);
+
+                var mostSellingProductName = topProducts != null ? topProducts.FirstOrDefault()?.Name : null;
+
+                return Ok(new {
+                    topEmployees,
+                    topProducts,
+                    mostSellingProductName,
+                    salesSeries,
+                    itemsUtil,
+                    invByCat,
+                    transfers
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to build store dashboard summary");
+                return StatusCode(500, "Failed to build dashboard summary");
+            }
+        }
+
+        // helper wrapper to catch potential nulls from repo
+        private async Task<TimeSeriesDto> _report_repository_getsalesseries(int storeId, int months)
+        {
+            var s = await _reportRepository.GetStoreSalesSeriesAsync(storeId, months);
+            if (s == null) return new TimeSeriesDto { Labels = Array.Empty<string>(), Values = Array.Empty<decimal>() };
+            return s;
+        }
+    }
+}

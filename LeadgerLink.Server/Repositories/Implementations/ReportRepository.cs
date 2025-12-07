@@ -8,6 +8,8 @@ using System.Text;
 using System.IO;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Drawing;
+using LeadgerLink.Server.Dtos;
+using System.Collections.Generic;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -109,11 +111,130 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return Math.Round(grossProfit / totalSales * 100m, 2);
         }
 
-        //
-        // Placeholder file-generation methods
-        // - These return small but valid files so clients can open them without "file corrupted" errors.
-        // - Implement real generation logic (PDF/XLSX) later.
-        //
+        // Dashboard / chart data implementations
+        public async Task<IEnumerable<ChartPointDto>> GetTopEmployeesBySalesAsync(int storeId, int topN)
+        {
+            var q = await _context.Sales
+                .Where(s => s.StoreId == storeId)
+                .GroupBy(s => s.UserId)
+                .Select(g => new { UserId = g.Key, Total = g.Sum(x => x.TotalAmount) })
+                .OrderByDescending(x => x.Total)
+                .Take(topN)
+                .ToListAsync();
+
+            var userIds = q.Select(x => x.UserId).ToList();
+            var users = await _context.Users.Where(u => userIds.Contains(u.UserId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = users.FirstOrDefault(u => u.UserId == x.UserId)?.UserFirstname + " " + users.FirstOrDefault(u => u.UserId == x.UserId)?.UserLastname,
+                Value = x.Total
+            });
+        }
+
+        public async Task<TimeSeriesDto> GetStoreSalesSeriesAsync(int storeId, int months)
+        {
+            var end = DateTime.UtcNow;
+            var start = end.AddMonths(-Math.Max(1, months) + 1);
+
+            // group by month (YYYY-MM)
+            var q = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.Timestamp >= start && s.Timestamp <= end)
+                .GroupBy(s => new { Year = s.Timestamp.Year, Month = s.Timestamp.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Total = g.Sum(s => s.TotalAmount) })
+                .ToListAsync();
+
+            var labels = new List<string>();
+            var values = new List<decimal>();
+            for (int i = 0; i < months; i++)
+            {
+                var dt = start.AddMonths(i);
+                var found = q.FirstOrDefault(x => x.Year == dt.Year && x.Month == dt.Month);
+                labels.Add(dt.ToString("yyyy-MM"));
+                values.Add(found?.Total ?? 0m);
+            }
+
+            return new TimeSeriesDto { Labels = labels, Values = values };
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetItemUtilizationAsync(int storeId, int topN)
+        {
+            // utilization based on recipe definitions (sum of inventory quantities used across recipes in the store)
+            var q = await _context.RecipeInventoryItems
+                .Include(ri => ri.Recipe)
+                .Where(ri => ri.Recipe != null && ri.Recipe.StoreId == storeId)
+                .GroupBy(ri => ri.InventoryItemId)
+                .Select(g => new { InventoryItemId = g.Key, TotalQty = g.Sum(ri => ri.Quantity) })
+                .OrderByDescending(x => x.TotalQty)
+                .Take(topN)
+                .ToListAsync();
+
+            var itemIds = q.Select(x => x.InventoryItemId).ToList();
+            var items = await _context.InventoryItems.Where(ii => itemIds.Contains(ii.InventoryItemId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = items.FirstOrDefault(ii => ii.InventoryItemId == x.InventoryItemId)?.InventoryItemName ?? ("Item " + x.InventoryItemId.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
+        public async Task<IEnumerable<ChartPointDto>> GetInventoryByCategoryAsync(int storeId)
+        {
+            var q = await _context.InventoryItems
+                .Where(ii => ii.StoreId == storeId)
+                .GroupBy(ii => ii.InventoryItemCategoryId)
+                .Select(g => new { CategoryId = g.Key, TotalQty = g.Sum(ii => ii.Quantity) })
+                .ToListAsync();
+
+            var categoryIds = q.Select(x => x.CategoryId).Where(id => id.HasValue).Select(id => id!.Value).ToList();
+            var cats = await _context.InventoryItemCategories.Where(c => categoryIds.Contains(c.InventoryItemCategoryId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = cats.FirstOrDefault(c => c.InventoryItemCategoryId == x.CategoryId)?.InventoryItemCategoryName ?? ("Category " + x.CategoryId?.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
+        public async Task<TransferCountsDto> GetInventoryTransferCountsAsync(int storeId, DateTime from, DateTime to)
+        {
+            var outgoing = await _context.InventoryTransfers
+                .Where(t => t.FromStore == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .CountAsync();
+
+            var incoming = await _context.InventoryTransfers
+                .Where(t => t.ToStore == storeId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
+                .CountAsync();
+
+            return new TransferCountsDto { Outgoing = outgoing, Incoming = incoming };
+        }
+
+        // New: top products by quantity sold for a store
+        public async Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesAsync(int storeId, int topN)
+        {
+            var q = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Where(si => si.Sale.StoreId == storeId)
+                .GroupBy(si => si.ProductId)
+                .Select(g => new { ProductId = g.Key, TotalQty = g.Sum(si => si.Quantity) })
+                .OrderByDescending(x => x.TotalQty)
+                .Take(topN)
+                .ToListAsync();
+
+            var productIds = q.Select(x => x.ProductId).ToList();
+            var products = await _context.Products.Where(p => productIds.Contains(p.ProductId)).ToListAsync();
+
+            return q.Select(x => new ChartPointDto
+            {
+                Name = products.FirstOrDefault(p => p.ProductId == x.ProductId)?.ProductName ?? ("Product " + x.ProductId.ToString()),
+                Value = x.TotalQty
+            });
+        }
+
+        // -------------------------
+        // File generation placeholders (unchanged)
+        // -------------------------
         public Task<byte[]> GenerateReportPdfAsync(string reportId, int? organizationId = null, int? storeId = null)
         {
             using var ms = new MemoryStream();

@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
@@ -14,6 +14,8 @@ import HighchartsReact from "highcharts-react-official";
     to prevent the plotted chart from growing past the visible container and being clipped.
   - Respects user-provided `options.colors` palette by removing default per-series `color`
     when the user did not explicitly set series color values.
+  - New: when the merged options indicate no data (empty series or all-zero values) a friendly
+    placeholder box is shown instead of rendering an empty chart.
 */
 export default function ChartWrapper({ chartType = "chart", height = 260, options: userOptions = null, children }) {
   const minHeight = typeof height === "number" ? `${height}px` : String(height);
@@ -173,6 +175,49 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
   // Ensure the Highcharts internal container fills the chart area
   const containerProps = { style: { width: "100%", height: "100%" } };
 
+  // Helper: determine whether the merged options contain meaningful data
+  const hasMeaningfulData = (() => {
+    try {
+      if (!merged.series || !Array.isArray(merged.series)) return false;
+      // For pie charts: check first series.data entries
+      if (lc.includes("pie")) {
+        const s = merged.series[0];
+        if (!s || !Array.isArray(s.data) || s.data.length === 0) return false;
+        // treat values <= 0 as empty
+        const total = s.data.reduce((acc, point) => {
+          const val = (point && typeof point.y === 'number') ? point.y : (typeof point === 'number' ? point : 0);
+          return acc + (isFinite(val) ? val : 0);
+        }, 0);
+        return total > 0;
+      }
+
+      // For other charts: ensure at least one series has non-empty data with non-zero values
+      for (const s of merged.series) {
+        if (!s || !Array.isArray(s.data) || s.data.length === 0) continue;
+        const total = s.data.reduce((acc, v) => {
+          const num = (v && typeof v.y === 'number') ? v.y : (typeof v === 'number' ? v : 0);
+          return acc + (isFinite(num) ? num : 0);
+        }, 0);
+        if (total > 0) return true;
+      }
+
+      return false;
+    } catch (e) {
+      return true; // be permissive on error and render chart
+    }
+  })();
+
+  // Placeholder UI for empty charts
+  const EmptyPlaceholder = () => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6c757d' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 36, lineHeight: 1 }} className="mb-2">📊</div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>No data to display</div>
+        <div style={{ fontSize: 13, color: '#888' }}>No available data for this section</div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="chart-wrapper" style={style}>
       <div style={{ flex: "0 0 auto" }} className="d-flex justify-content-between align-items-center mb-2">
@@ -180,7 +225,13 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
       </div>
 
       <div style={{ flex: "1 1 auto", minHeight: 0 }}>
-        <HighchartsReact highcharts={Highcharts} options={merged} containerProps={containerProps} />
+        { !hasMeaningfulData ? (
+          <div style={{ width: '100%', height: '100%' }}>
+            <EmptyPlaceholder />
+          </div>
+        ) : (
+          <HighchartsReact highcharts={Highcharts} options={merged} containerProps={containerProps} />
+        ) }
       </div>
     </div>
   );
