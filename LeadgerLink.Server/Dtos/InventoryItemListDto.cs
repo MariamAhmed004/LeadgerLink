@@ -14,5 +14,8 @@ namespace LeadgerLink.Server.Dtos
         public decimal? MinimumQuantity { get; set; }
         public string StockLevel { get; set; } = "";
         public DateTime UpdatedAt { get; set; }
+        public string? Description { get; set; }
+        public decimal? CostPerUnit { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

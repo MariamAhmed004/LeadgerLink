@@ -219,7 +219,12 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     UnitName = ii.Unit != null ? ii.Unit.UnitName : null,
                     Quantity = ii.Quantity,
                     MinimumQuantity = ii.MinimumQuantity,
-                    UpdatedAt = ii.UpdatedAt
+                    UpdatedAt = ii.UpdatedAt,
+                    Description = ii.Description,
+                    CostPerUnit = ii.CostPerUnit,
+                    ImageUrl = ii.InventoryItemImage != null && ii.InventoryItemImage.Length > 0
+                                   ? $"data:image;base64,{Convert.ToBase64String(ii.InventoryItemImage)}"
+                                   : null
                 })
                 .ToListAsync();
 

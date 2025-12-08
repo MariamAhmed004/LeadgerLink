@@ -72,6 +72,18 @@ const MenuTabCard = ({ data }) => {
   const selectedClass = isSelected || selectedQty > 0 ? "border-2 border-success shadow-sm" : "border border-light";
   const isOutOfStock = quantity === 0;
 
+  const [imgSrc, setImgSrc] = useState(imageUrl || "");
+  const [imgFailed, setImgFailed] = useState(!imageUrl); // start failed if no url provided
+
+  useEffect(() => {
+    setImgSrc(imageUrl || "");
+    setImgFailed(!imageUrl);
+  }, [imageUrl]);
+
+  const handleImgError = () => {
+    setImgFailed(true);
+  };
+
   return (
     <div
       className={`bg-white rounded-3 p-4 ${selectedClass}`}
@@ -86,12 +98,13 @@ const MenuTabCard = ({ data }) => {
             </div>
 
             <div className="flex-grow-1 d-flex align-items-center justify-content-center bg-light rounded-2 shadow-sm overflow-hidden">
-              {imageUrl ? (
+              {!imgFailed && imgSrc ? (
                 <img
-                  src={imageUrl}
+                  src={imgSrc}
                   alt={name}
                   className="img-fluid"
                   style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8, maxHeight: 220 }}
+                  onError={handleImgError}
                 />
               ) : (
                 <div className="p-4">

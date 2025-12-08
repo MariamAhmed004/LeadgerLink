@@ -127,15 +127,15 @@ const InventoryItemNew = () => {
     }
 
     const q = parseNonNegativeNumber(quantity);
-    if (q === NaN) errors.push("Quantity must be a valid number.");
+    if (Number.isNaN(q)) errors.push("Quantity must be a valid number.");
     else if (q != null && q < 0) errors.push("Quantity cannot be negative.");
 
     const cpu = parseNonNegativeNumber(costPerUnit);
-    if (cpu === NaN) errors.push("Cost per Unit must be a valid number.");
+    if (Number.isNaN(cpu)) errors.push("Cost per Unit must be a valid number.");
     else if (cpu != null && cpu < 0) errors.push("Cost per Unit cannot be negative.");
 
     const th = parseNonNegativeNumber(threshold);
-    if (th === NaN) errors.push("Threshold must be a valid number.");
+    if (Number.isNaN(th)) errors.push("Threshold must be a valid number.");
     else if (th != null && th < 0) errors.push("Threshold (minimum quantity) cannot be negative.");
 
     if (!categoryId) errors.push("Category must be selected.");
