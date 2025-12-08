@@ -20,11 +20,17 @@ export default function InventoryTransferNew() {
   const [requester, setRequester] = useState('');
   const [fromStore, setFromStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0,10));
-  const [status, setStatus] = useState('Draft');
+  const [status, setStatus] = useState('Draft'); // internal status determined by actions
   const [notes, setNotes] = useState('');
 
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
-  const [statusOptions, setStatusOptions] = useState([{ label: 'Draft', value: 'Draft' }, { label: 'Pending', value: 'Pending' }]);
+
+  // selection captured from TabbedMenu (for future submit)
+  const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity}]
+
+  // tabs data
+  const [recipeItems, setRecipeItems] = useState([]);
+  const [otherItems, setOtherItems] = useState([]);
 
   // modal state for send confirmation/info
   const [showSendModal, setShowSendModal] = useState(false);
@@ -39,7 +45,6 @@ export default function InventoryTransferNew() {
         if (!mounted) return;
         const opts = [{ label: 'Select store', value: '' }, ...(Array.isArray(arr) ? arr.map(s => ({ label: s.storeName, value: String(s.storeId) })) : [])];
         setStoreOptions(opts);
-        // set default requester to current store if available in auth context
         const defaultStore = loggedInUser?.storeName ?? '';
         setRequester(defaultStore);
       } catch (err) {
@@ -50,39 +55,106 @@ export default function InventoryTransferNew() {
     return () => { mounted = false; };
   }, [loggedInUser]);
 
-  // Sample items for the tabbed product selector (UI-only)
-  const sampleRecipes = [
-    { name: "Chicken Shawarma", description: "Spiced chicken sliced, served warm", price: "3.000 BHD", quantity: 10, imageUrl: null, onSelect: () => {} },
-    { name: "Veggie Wrap", description: "Fresh vegetables and sauce", price: "2.000 BHD", quantity: 8, imageUrl: null, onSelect: () => {} },
-    { name: "Falafel Plate", description: "Crispy falafel with salad", price: "2.500 BHD", quantity: 6, imageUrl: null, onSelect: () => {} }
-  ];
+  // Fetch recipes and inventory items for tabs
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const [recipesRes, itemsRes] = await Promise.all([
+          fetch('/api/recipes/for-current-store', { credentials: 'include' }).catch(() => null),
+          fetch('/api/inventoryitems/list-for-current-store?page=1&pageSize=1000', { credentials: 'include' }).catch(() => null),
+        ]);
 
-  const sampleOthers = [
-    { name: "Bottle Water 500ml", description: "500ml bottled water", price: "0.200 BHD", quantity: 50, imageUrl: null, onSelect: () => {} },
-    { name: "Soda Can 330ml", description: "Carbonated soft drink", price: "0.300 BHD", quantity: 30, imageUrl: null, onSelect: () => {} },
-    { name: "Napkins Pack", description: "Pack of 50 napkins", price: "0.500 BHD", quantity: 20, imageUrl: null, onSelect: () => {} }
-  ];
+        // Recipes tab items
+        if (mounted && recipesRes && recipesRes.ok) {
+          const rlist = await recipesRes.json();
+          const recipesArr = Array.isArray(rlist) ? rlist : [];
+          const mappedRecipes = recipesArr.map(r => ({
+            productId: r.relatedProductId ?? r.productId ?? null,
+            name: r.recipeName ?? r.productName ?? 'Recipe',
+            description: r.description ?? 'NA',
+            price: r.sellingPrice != null ? (Number(r.sellingPrice).toFixed(3) + ' BHD') : 'NA',
+            quantity: Number(r.availableQuantity ?? 0),
+              imageUrl: r.imageUrl || ""
+          }));
+          setRecipeItems(mappedRecipes);
+        } else {
+          setRecipeItems([]);
+        }
 
-  const tabs = [
-    { label: "Recipes", items: sampleRecipes, cardComponent: (it) => <MenuTabCard data={it} /> },
-    { label: "Others", items: sampleOthers, cardComponent: (it) => <MenuTabCard data={it} /> }
-  ];
+        // Others tab items from inventory
+        if (mounted && itemsRes && itemsRes.ok) {
+          const json = await itemsRes.json();
+          const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
+          const mappedItems = (list || []).map(it => {
+            const id = it.inventoryItemId ?? it.id ?? it.InventoryItemId;
+            const hasImage = Boolean(it.hasImage || it.InventoryItemImage);
+              const imgUrl = it.imageUrl || "";
+            const desc = it.description ?? it.inventoryItemDescription ?? it.Description ?? '';
+            const available = Number(it.quantity ?? it.Quantity ?? 0);
+            const priceVal = Number(it.costPerUnit ?? it.CostPerUnit ?? 0);
+            return {
+              productId: null, // inventory item, not a product
+              id,
+              name: it.inventoryItemName ?? it.name ?? it.InventoryItemName ?? 'Item',
+              description: desc,
+              price: priceVal > 0 ? `${priceVal.toFixed(3)} BHD` : '',
+              quantity: available,
+              imageUrl: imgUrl,
+            };
+          });
+          setOtherItems(mappedItems);
+        } else {
+          setOtherItems([]);
+        }
+      } catch (err) {
+        console.error('Failed to load tabs data', err);
+        setRecipeItems([]);
+        setOtherItems([]);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, []);
 
+  // Save -> set Draft then navigate back (UI only)
   const handleSubmit = (e) => {
     e.preventDefault();
-    // UI-only: Save action -> navigate back for now
+    setStatus('Draft');
+    // Prepare payload for future API (do not submit now)
+    const items = (selection || []).filter(s => Number(s.quantity) > 0).map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+    const payload = {
+      requesterStoreId: requester ? Number(storeOptions.find(o => o.label === requester)?.value || 0) : null,
+      fromStoreId: fromStore ? Number(fromStore) : null,
+      date,
+      status: 'Draft',
+      notes: notes ? String(notes).trim() : null,
+      items
+    };
+    // Future: POST /api/inventory-transfers with payload
     navigate('/inventory/transfers');
   };
 
+  // Send request flow -> show modal, confirm sets Pending then navigate
   const handleSendClick = (e) => {
     e.preventDefault();
-    // show info modal before sending
     setShowSendModal(true);
   };
 
   const confirmSend = () => {
-    // UI-only: pretend to send and navigate back
     setShowSendModal(false);
+    setStatus('Pending');
+    // Prepare payload for future API (do not submit now)
+    const items = (selection || []).filter(s => Number(s.quantity) > 0).map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+    const payload = {
+      requesterStoreId: requester ? Number(storeOptions.find(o => o.label === requester)?.value || 0) : null,
+      fromStoreId: fromStore ? Number(fromStore) : null,
+      date,
+      status: 'Pending',
+      notes: notes ? String(notes).trim() : null,
+      items
+    };
+    // Future: POST /api/inventory-transfers/send with payload
     navigate('/inventory/transfers');
   };
 
@@ -90,12 +162,25 @@ export default function InventoryTransferNew() {
     setShowSendModal(false);
   };
 
+  const tabs = [
+    {
+      label: 'Recipes',
+      items: recipeItems,
+      cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+    },
+    {
+      label: 'Others',
+      items: otherItems,
+      cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+    },
+  ];
+
   return (
     <div className="container py-5">
       <PageHeader
         icon={<FaExchangeAlt size={45} />}
         title="New Transfer Request"
-        descriptionLines={["Fill in the form to add a transfer request from your organization stores.", "You can set the request on Draft status and have an Employee to fill in the content, or fill it in and send the request to the other store."]}
+        descriptionLines={["Fill in the form to add a transfer request from your organization stores.", "You can save as Draft or send the request to the other store manager."]}
       />
 
       <FormBody onSubmit={handleSubmit} plain>
@@ -111,20 +196,23 @@ export default function InventoryTransferNew() {
             <InputField label="Date" value={date} onChange={setDate} type="date" />
           </div>
 
-          <div className="col-12 col-md-6">
-            <SelectField label="Status" value={status} onChange={setStatus} options={statusOptions} />
-          </div>
+          {/* Status select removed; status determined by actions */}
 
-          {/* Tabbed product selection - UI only */}
-          <div className="col-12">
-            <TabbedMenu tabs={tabs} contentMaxHeight={360} />
+          {/* Tabbed product selection - explicit fetch for two tabs */}
+          <div className="col-12 text-start">
+            <label className="mb-3">Select the items you want to request supplies from the other store for</label>
+            <TabbedMenu
+              tabs={tabs}
+              contentMaxHeight={360}
+              onSelectionChange={(sel) => setSelection(sel)}
+            />
           </div>
 
           <div className="col-12">
             <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} />
           </div>
 
-          <div className="col-12 d-flex justify-content-between align-items-center">
+          <div className="col-12 d-flex  justify-content-between align-items-center">
             {/* Left: Send Request (prominent green) */}
             <div>
               <button type="button" className="btn btn-success px-4" onClick={handleSendClick}>
@@ -132,7 +220,7 @@ export default function InventoryTransferNew() {
               </button>
             </div>
 
-            {/* Right: Save (primary) + Cancel (FormActions provides Save + Cancel) */}
+            {/* Right: Save (primary) + Cancel */}
             <div>
               <FormActions onCancel={() => navigate('/inventory/transfers')} submitLabel="Save" />
             </div>
@@ -141,7 +229,10 @@ export default function InventoryTransferNew() {
       </FormBody>
 
       <InfoModal show={showSendModal} title="Send Transfer Request" onClose={cancelSend}>
-        <p>Sending this transfer request will officially notify the requested store manager. Are you sure you want to proceed?</p>
+        <p>
+          Sending this transfer request will officially notify the requested store manager. Please wait until they reply.
+          Do you want to proceed?
+        </p>
         <div className="mt-3 text-end">
           <button className="btn btn-secondary me-2" onClick={cancelSend}>Cancel</button>
           <button className="btn btn-success" onClick={confirmSend}>Send Request</button>

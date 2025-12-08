@@ -74,12 +74,36 @@ namespace LeadgerLink.Server.Controllers
 
             var storeId = user.StoreId.Value;
 
-            var list = await _context.Recipes
+            var entities = await _context.Recipes
                 .Where(r => r.StoreId == storeId)
                 .Include(r => r.CreatedByNavigation)
                 .Include(r => r.Store)
+                .Include(r => r.RecipeInventoryItems)
+                    .ThenInclude(rii => rii.InventoryItem)
+                .Include(r => r.Products)
                 .OrderByDescending(r => r.UpdatedAt)
-                .Select(r => new RecipeListDto
+                .ToListAsync();
+
+            var list = entities.Select(r =>
+            {
+                // compute availability: min floor(available / required) across ingredients
+                int availableCount = 0;
+                if (r.RecipeInventoryItems != null && r.RecipeInventoryItems.Any())
+                {
+                    var perIng = r.RecipeInventoryItems
+                        .Where(rii => rii.Quantity > 0)
+                        .Select(rii =>
+                        {
+                            var avail = rii.InventoryItem != null ? rii.InventoryItem.Quantity : 0m;
+                            var req = rii.Quantity;
+                            var count = req > 0 ? (int)Math.Floor((avail) / req) : 0;
+                            return count;
+                        })
+                        .ToList();
+                    availableCount = perIng.Count > 0 ? perIng.Min() : 0;
+                }
+
+                return new RecipeListDto
                 {
                     RecipeId = r.RecipeId,
                     RecipeName = r.RecipeName,
@@ -89,9 +113,16 @@ namespace LeadgerLink.Server.Controllers
                     StoreName = r.Store != null ? r.Store.StoreName : null,
                     CreatedAt = r.CreatedAt,
                     UpdatedAt = r.UpdatedAt,
-                    InSale = r.Products.Any()
-                })
-                .ToListAsync();
+                    InSale = r.Products != null && r.Products.Any(),
+                    ImageUrl = r.Image != null && r.Image.Length > 0
+                                   ? $"data:image;base64,{Convert.ToBase64String(r.Image)}"
+                                   : null,
+                    Description = r.Products != null && r.Products.Any() ? r.Products.Select(p => p.Description).FirstOrDefault() : null,
+                    SellingPrice = r.Products != null && r.Products.Any() ? r.Products.Select(p => p.SellingPrice).FirstOrDefault() : null,
+                    RelatedProductId = r.Products != null ? r.Products.Select(p => (int?)p.ProductId).FirstOrDefault() : null,
+                    Available = availableCount
+                };
+            }).ToList();
 
             return Ok(list);
         }

@@ -26,6 +26,29 @@ const InfoModal = ({ show, title, onClose, children }) => {
 
   if (!show) return null;
 
+  // Heuristic: detect if children contain any action buttons.
+  // We consider native <button> elements or anything with a Bootstrap "btn" class.
+  const childrenArray = React.Children.toArray(children);
+  const hasChildButtons = childrenArray.some((child) => {
+    if (!React.isValidElement(child)) return false;
+
+    // direct button element
+    if (child.type === "button") return true;
+
+    // elements that include Bootstrap btn classes in their className
+    const cls = String(child.props?.className || "");
+    if (cls.includes("btn")) return true;
+
+    // Scan one level deep for nested structures commonly used (e.g., wrapper divs containing buttons)
+    const nested = React.Children.toArray(child.props?.children || []);
+    return nested.some((n) => {
+      if (!React.isValidElement(n)) return false;
+      if (n.type === "button") return true;
+      const ncls = String(n.props?.className || "");
+      return ncls.includes("btn");
+    });
+  });
+
   return (
     <div
       className="modal-backdrop"
@@ -60,26 +83,30 @@ const InfoModal = ({ show, title, onClose, children }) => {
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-start mb-3">
             <h5 className="card-title mb-0">{title}</h5>
-                      <button
-                          type="button"
-                          className="btn btn-outline-secondary btn-sm"
-                          aria-label="Close"
-                          onClick={() => onClose?.()}
-                          title="Close"
-                      >
-                          <FaTimes />
-                      </button>
+            {!hasChildButtons && (
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                aria-label="Close"
+                onClick={() => onClose?.()}
+                title="Close"
+              >
+                <FaTimes />
+              </button>
+            )}
           </div>
 
-          <div className="card-text">
+          <div className="card-text p-3">
             {children}
           </div>
 
-          <div className="mt-3 text-end">
-            <button className="btn btn-primary" onClick={() => onClose?.()}>
-              Close
-            </button>
-          </div>
+          {!hasChildButtons && (
+            <div className="mt-3 text-end">
+              <button className="btn btn-primary" onClick={() => onClose?.()}>
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
