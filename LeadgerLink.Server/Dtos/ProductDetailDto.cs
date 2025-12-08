@@ -18,5 +18,7 @@ namespace LeadgerLink.Server.Dtos
         public string? InventoryItemName { get; set; }
         public string? Description { get; set; }
         public int VatCategoryId { get; set; }
+        public string? VatCategoryName { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

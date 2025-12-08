@@ -117,6 +117,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(p => p.Recipe)
                 .Include(p => p.InventoryItem)
                 .Include(p => p.Store)
+                .Include(p => p.VatCategory)
                 .AsNoTracking();
 
             var dto = await q.Select(p => new ProductDetailDto
@@ -133,7 +134,16 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 RecipeName = p.Recipe != null ? p.Recipe.RecipeName : null,
                 InventoryItemName = p.InventoryItem != null ? p.InventoryItem.InventoryItemName : null,
                 Description = p.Description,
-                VatCategoryId = p.VatCategoryId
+                VatCategoryId = p.VatCategoryId,
+                VatCategoryName = p.VatCategory != null ? p.VatCategory.VatCategoryName : null,
+                ImageUrl = p.RecipeId.HasValue
+                    ? (p.Recipe != null && p.Recipe.Image != null && p.Recipe.Image.Length > 0
+                        ? $"data:image;base64,{Convert.ToBase64String(p.Recipe.Image)}"
+                        : null)
+                    : (p.InventoryItem != null && p.InventoryItem.InventoryItemImage != null && p.InventoryItem.InventoryItemImage.Length > 0
+                        ? $"data:image;base64,{Convert.ToBase64String(p.InventoryItem.InventoryItemImage)}"
+                        : null)
+
             }).FirstOrDefaultAsync();
 
             return dto;

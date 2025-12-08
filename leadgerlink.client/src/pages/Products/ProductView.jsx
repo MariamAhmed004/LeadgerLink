@@ -84,11 +84,16 @@ const ProductView = () => {
     title: `ID ${product.productId}: ${product.productName}`,
     rows: [
       { label: 'Cost', value: product.costPrice ? `BHD ${Number(product.costPrice).toFixed(3)}` : '' },
-      { label: 'VAT', value: product.vatCategoryId ? `VAT category #${product.vatCategoryId}` : '' },
+      { label: 'VAT', value: product.vatCategoryName ? product.vatCategoryName : '' },
       { label: 'Selling Price', value: product.sellingPrice ? `BHD ${Number(product.sellingPrice).toFixed(3)}` : '' },
       { label: 'Product Description', value: product.description || '' }
     ]
   };
+
+    const image = {
+        url: product.imageUrl || "",
+        alt: product.productName || `recipe ${product.productId}`
+    };
 
   const metadataUnderImage = {
     title: 'Product Info',
@@ -98,7 +103,7 @@ const ProductView = () => {
     ]
   };
 
-  return <DetailViewWithImage headerProps={headerProps} detail={detail} metadataUnderImage={metadataUnderImage} actions={actions} />;
+    return <DetailViewWithImage headerProps={headerProps} detail={detail} metadataUnderImage={metadataUnderImage} actions={actions} image={image} />;
 };
 
 export default ProductView;
