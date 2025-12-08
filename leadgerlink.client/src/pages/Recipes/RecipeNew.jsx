@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaBookBookmark } from "react-icons/fa6";
 import PageHeader from "../../components/Listing/PageHeader";
@@ -53,7 +53,7 @@ const RecipeNew = () => {
       setError("");
       try {
         const [vatRes, itemsRes] = await Promise.all([
-          fetch("/api/vatcategories", { credentials: "include" }).catch(() => null),
+          fetch("/api/products/vatcategories", { credentials: "include" }).catch(() => null),
           fetch("/api/inventoryitems/list-for-current-store?page=1&pageSize=1000", { credentials: "include" }).catch(() => null),
         ]);
 
@@ -62,9 +62,9 @@ const RecipeNew = () => {
           const v = await vatRes.json();
           const opts = [{ label: "Select VAT", value: "" }, ...(Array.isArray(v)
             ? v.map(x => {
-                const id = x.vatCategoryId ?? x.id ?? x.VatCategoryId;
-                const name = x.vatCategoryName ?? x.name ?? x.VatCategoryName ?? `VAT ${id}`;
-                const rate = Number(x.vatRate ?? x.rate ?? x.VatRate ?? 0);
+                const id = x.vatCategoryId;
+                const name = x.vatCategoryName;
+                const rate = Number(x.vatRate ?? 0);
                 const label = rate > 0 ? `${name} (${rate.toFixed(3)}%)` : name;
                 return { label, value: String(id) };
               })
@@ -90,8 +90,8 @@ const RecipeNew = () => {
               desc,
               qtyAvailable: available,
               imageUrl: imgUrl || PLACEHOLDER_IMG,
-              price: priceVal > 0 ? `${priceVal.toFixed(3)} BHD` : "",
-              quantity: 1,
+                price: priceVal > 0 ? `${priceVal.toFixed(3)} BHD` : "",
+                quantity: available,
               isSelected: false,
             };
           });
@@ -116,46 +116,68 @@ const RecipeNew = () => {
   };
 
   // Update quantity for selected item
-  const updateItemQuantity = (itemId, qty) => {
-    setSelectedItems(prev => prev.map(p => p.id === itemId ? { ...p, quantity: qty } : p));
-  };
+    const updateItemQuantity = (id, quantity) => {
+        setSelectedItems((prev) =>
+            prev.map((x) =>
+                x.id === id ? { ...x, quantity, isSelected: quantity > 0 } : x
+            )
+        );
+    };
+
 
   // Build tabs for TabbedMenu (single tab "Ingredients")
   const tabs = [
     {
       label: "Ingredients",
-      items: ingredients.map((it) => {
-        const sel = selectedItems.find(s => String(s.id) === String(it.id));
-        const isSelected = sel?.isSelected ?? false;
-        const qty = sel?.quantity ?? it.quantity ?? 1;
-        return {
-          name: it.name,
-          description: it.desc || "",
-          price: it.price,
-          quantity: qty,
-          isSelected,
-            imageUrl: it.imageUrl || "" ,
-          // show available before quantity input (MenuTabCard renders quantity and we include available in description)
-          extraTop: (
-            <div className="small text-muted">Available: {Number(it.qtyAvailable || 0)}</div>
-          ),
-          onSelect: () => toggleSelectItem(it.id),
-          onQuantityChange: (q) => updateItemQuantity(it.id, q)
-        };
-      }),
+      items: ingredients.map((it) => ({
+        // display fields
+        name: it.name,
+        description: it.desc || "",
+        price: it.price,
+        // quantity prop is AVAILABLE stock shown by the card; card manages selected quantity internally
+        quantity: Number(it.qtyAvailable || 0),
+        isSelected: (selectedItems.find(s => s.id === it.id)?.isSelected) || false,
+        imageUrl: it.imageUrl || "",
+        extraTop: (<div className="small text-muted">Available: {Number(it.qtyAvailable || 0)}</div>),
+        // let TabbedMenu own the selection; no local state updates here
+        // Note: TabbedMenu will replace onSelect and call it with the selectedQty when user changes it
+      })),
       cardComponent: (item) => (
         <MenuTabCard
-          data={item}
+          data={{ ...item, enforceAvailability: false }}
         />
       )
     }
   ];
 
+  // Drive selectedItems from TabbedMenu central selection
+  // TabbedMenu emits: [{ tabLabel, index, productId, name, price, quantity }]
+  // Normalize to [{ id, isSelected, quantity }]
+  // Use `ingredients` id mapping to be safe if productId is missing.
+  const handleSelectionChange = (sel) => {
+    const next = (sel || [])
+      .map(s => {
+        // Try using productId first; fall back to ingredients by index
+        const idFromPayload = Number(s.productId || s.id || 0);
+        let id = idFromPayload;
+        if (!id && s.tabLabel === "Ingredients" && typeof s.index === "number") {
+          const source = ingredients[s.index];
+          id = Number(source?.id || 0);
+        }
+        const qty = Number(s.quantity || 0);
+        return id > 0 ? { id, isSelected: qty > 0, quantity: qty } : null;
+      })
+      .filter(Boolean);
+    setSelectedItems(next);
+  };
+
+  // Validation: require at least one ingredient with quantity > 0
   const validate = () => {
     const errs = [];
     if (!String(recipeName).trim()) errs.push("Recipe name is required.");
-    const chosen = selectedItems.filter(s => s.isSelected && Number(s.quantity) > 0);
-    if (chosen.length === 0) errs.push("Select at least one ingredient with quantity > 0.");
+    if ((selectedItems || []).filter(s => s.isSelected && Number(s.quantity) > 0).length === 0) {
+      errs.push("Select at least one ingredient with quantity > 0.");
+    }
     if (isForSale) {
       if (!vatId) errs.push("Select VAT category for sale.");
       if (!String(saleDescription).trim()) errs.push("Provide sale description when recipe is on sale.");
@@ -163,9 +185,9 @@ const RecipeNew = () => {
     return errs;
   };
 
-  // Build payload for submit (aligns with typical repository patterns on server)
+  // Payload: use selectedItems to form [{inventoryItemId, quantity}]
   const buildPayload = () => {
-    const ingredientsPayload = selectedItems
+    const ingredientsPayload = (selectedItems || [])
       .filter(s => s.isSelected && Number(s.quantity) > 0)
       .map(s => ({ inventoryItemId: Number(s.id), quantity: Number(s.quantity) }));
 
@@ -175,15 +197,9 @@ const RecipeNew = () => {
       ingredients: ingredientsPayload,
     };
 
-    if (isForSale) {
-      return {
-        ...base,
-        isOnSale: true,
-        vatCategoryId: vatId ? Number(vatId) : null,
-        productDescription: saleDescription ? String(saleDescription).trim() : null
-      };
-    }
-    return { ...base, isOnSale: false };
+    return isForSale
+      ? { ...base, isOnSale: true, vatCategoryId: vatId ? Number(vatId) : null, productDescription: saleDescription ? String(saleDescription).trim() : null }
+      : { ...base, isOnSale: false };
   };
 
   const submitJson = async (payload) => {
@@ -251,9 +267,13 @@ const RecipeNew = () => {
             <TextArea label="Recipe Instructions" value={instructions} onChange={setInstructions} rows={6} placeholder="Step by step instructions..." />
           </div>
 
-          <div className="col-12">
-            <label className="form-label">Recipe Items</label>
-            <TabbedMenu tabs={tabs} />
+                  <div className="col-12 text-start">
+            <label className="form-label">Add recipe ingredients by selecting items from your inventory.</label>
+                      <TabbedMenu
+                          tabs={tabs}
+                          onSelectionChange={handleSelectionChange}
+                      />
+
           </div>
 
           <div className="col-12 mt-4">
@@ -263,7 +283,13 @@ const RecipeNew = () => {
                   <SwitchField label="Set recipe for sale?" checked={isForSale} onChange={setIsForSale} />
                 </div>
                 <div className="col-12 col-md-6 text-start">
-                  <SelectField label="VAT Category" value={vatId} onChange={setVatId} options={vatOptions} searchable={false} />
+                  <SelectField
+                    label="VAT Category"
+                    value={vatId}
+                    onChange={setVatId}
+                    options={vatOptions}
+                    searchable={false}
+                  />
                 </div>
                 <div className="col-12 text-start">
                   <TextArea label="Recipe Description (Sale)" value={saleDescription} onChange={setSaleDescription} rows={3} placeholder="Description shown when recipe is on sale" />
@@ -282,7 +308,7 @@ const RecipeNew = () => {
 
           {loading && (
             <div className="col-12">
-              <div className="text-muted">Loading lookups�</div>
+              <div className="text-muted">Loading lookups…</div>
             </div>
           )}
 

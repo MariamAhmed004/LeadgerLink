@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaRegImage } from "react-icons/fa";
 
-/*
-  MenuTabCard
-  - Select behavior:
-    - Quantity is initialized to 0.
-    - If quantity > 0 -> card considered selected (button shows "Selected").
-    - If quantity returns to 0 -> card considered deselected (button shows "Select").
-  - Prevents form submission by explicitly using type="button" on the Select control.
-*/
-
 const MenuTabCard = ({ data }) => {
   const {
     name,
@@ -20,12 +11,11 @@ const MenuTabCard = ({ data }) => {
     isSelected,           // selection state provided by TabbedMenu
     imageUrl,
     initialSelectedQty = 0,
+    enforceAvailability = true, // NEW: when true, cap selected qty to 'quantity' and set input max
   } = data;
 
-  // Selected quantity for this card (local state) — start at 0
   const [selectedQty, setSelectedQty] = useState(0);
 
-  // initialize from initialSelectedQty when provided
   useEffect(() => {
     const v = Number(initialSelectedQty || 0);
     if (Number.isFinite(v) && v > 0) {
@@ -34,35 +24,30 @@ const MenuTabCard = ({ data }) => {
     }
   }, [initialSelectedQty]);
 
-  // Ensure that when the parent toggles selection off, qty stays consistent (optional: keep current qty)
   useEffect(() => {
     if (!isSelected && selectedQty > 0) {
-      // If parent deselects, do not force reset qty; keep it as is
-      // If you prefer resetting to 0 when deselected, uncomment:
-      // setSelectedQty(0);
+      // keep qty as-is when deselected (design choice)
     }
   }, [isSelected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQtyChange = (e) => {
     let v = parseInt(e.target.value, 10);
     if (Number.isNaN(v)) v = 0;
-    if (quantity && v > quantity) v = quantity;
     if (v < 0) v = 0;
-    setSelectedQty(v);
 
-    // Inform parent selection map:
-    // - mark selected when v > 0
-    // - mark deselected when v === 0
+    // Only clamp to available when enforceAvailability is true
+    if (enforceAvailability && quantity && v > quantity) v = quantity;
+
+    setSelectedQty(v);
     if (typeof onSelect === "function") {
       onSelect(v);
     }
   };
 
   const handleSelectButton = () => {
-    // toggle between selected/deselected state by qty:
-    // - if currently 0, set to 1 (or min allowed) to select
-    // - if > 0, set to 0 to deselect
-    const nextQty = selectedQty > 0 ? 0 : Math.min(1, quantity || 1);
+    // Select toggles to 1, but clamp only if enforceAvailability
+    const minAllowed = enforceAvailability ? Math.min(1, quantity || 1) : 1;
+    const nextQty = selectedQty > 0 ? 0 : minAllowed;
     setSelectedQty(nextQty);
     if (typeof onSelect === "function") {
       onSelect(nextQty);
@@ -70,33 +55,26 @@ const MenuTabCard = ({ data }) => {
   };
 
   const selectedClass = isSelected || selectedQty > 0 ? "border-2 border-success shadow-sm" : "border border-light";
-  const isOutOfStock = quantity === 0;
+  const isOutOfStock = enforceAvailability ? quantity === 0 : false;
 
   const [imgSrc, setImgSrc] = useState(imageUrl || "");
-  const [imgFailed, setImgFailed] = useState(!imageUrl); // start failed if no url provided
+  const [imgFailed, setImgFailed] = useState(!imageUrl);
 
   useEffect(() => {
     setImgSrc(imageUrl || "");
     setImgFailed(!imageUrl);
   }, [imageUrl]);
 
-  const handleImgError = () => {
-    setImgFailed(true);
-  };
+  const handleImgError = () => setImgFailed(true);
 
   return (
-    <div
-      className={`bg-white rounded-3 p-4 ${selectedClass}`}
-      style={{ width: "100%" }}
-    >
+    <div className={`bg-white rounded-3 p-4 ${selectedClass}`} style={{ width: "100%" }}>
       <div className="row g-3" style={{ minHeight: 200 }}>
-        {/* Left column: title above image */}
         <div className="col-12 col-md-5">
           <div className="d-flex flex-column h-100">
             <div className="mb-3 text-start">
               <div className="fst-italic text-dark" style={{ fontSize: "1.1rem", whiteSpace: "normal" }}>{name}</div>
             </div>
-
             <div className="flex-grow-1 d-flex align-items-center justify-content-center bg-light rounded-2 shadow-sm overflow-hidden">
               {!imgFailed && imgSrc ? (
                 <img
@@ -115,7 +93,6 @@ const MenuTabCard = ({ data }) => {
           </div>
         </div>
 
-        {/* Right column: details */}
         <div className="col-12 col-md-7">
           <div className="d-flex flex-column h-100">
             <div className="mb-2 text-start mt-4">
@@ -135,13 +112,14 @@ const MenuTabCard = ({ data }) => {
                 <input
                   type="number"
                   className="form-control form-control-sm"
-                  style={{ width: 96 }}
+                  style={{ width: 75 }}
                   min={0}
-                  max={quantity || undefined}
+                  // Only enforce max when enforceAvailability is true
+                  max={enforceAvailability ? (quantity || undefined) : undefined}
                   value={selectedQty}
                   onChange={handleQtyChange}
                   aria-label="Select quantity"
-                  disabled={isOutOfStock}
+                  disabled={enforceAvailability ? isOutOfStock : false}
                 />
               </div>
 
@@ -150,7 +128,7 @@ const MenuTabCard = ({ data }) => {
                   type="button"
                   className={`btn btn-sm ${selectedQty > 0 ? "btn-success text-white" : "btn-outline-primary"}`}
                   onClick={handleSelectButton}
-                  disabled={isOutOfStock}
+                  disabled={enforceAvailability ? isOutOfStock : false}
                 >
                   {selectedQty > 0 ? "Selected" : "Select"}
                 </button>

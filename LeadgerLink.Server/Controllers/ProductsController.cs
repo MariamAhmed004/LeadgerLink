@@ -16,11 +16,35 @@ namespace LeadgerLink.Server.Controllers
     {
         private readonly LedgerLinkDbContext _context;
         private readonly IProductRepository _productRepository;
+        private readonly IRepository<VatCategory> _vatRepository;
 
-        public ProductsController(LedgerLinkDbContext context, IProductRepository productRepository)
+        public ProductsController(
+            LedgerLinkDbContext context,
+            IProductRepository productRepository,
+            IRepository<VatCategory> vatRepository)
         {
             _context = context;
             _productRepository = productRepository;
+            _vatRepository = vatRepository;
+        }
+
+        // GET api/products/vatcategories
+        // Returns VAT categories as { vatCategoryId, vatCategoryName } for select fields.
+        [HttpGet("vatcategories")]
+        public async Task<ActionResult> GetVatCategories()
+        {
+            var all = await _vatRepository.GetAllAsync();
+            var list = (all ?? Enumerable.Empty<VatCategory>())
+                .OrderBy(v => v.VatCategoryName)
+                .Select(v => new
+                {
+                    vatCategoryId = v.VatCategoryId,
+                    vatCategoryName = v.VatCategoryName,
+                    vatRate = v.VatRate
+                })
+                .ToList();
+
+            return Ok(list);
         }
 
         // GET api/products/for-current-store
@@ -40,9 +64,7 @@ namespace LeadgerLink.Server.Controllers
 
             var storeId = user.StoreId.Value;
 
-            // Delegate product retrieval and mapping to repository (preserves original logic)
             var list = await _productRepository.GetForStoreAsync(storeId);
-
             return Ok(list);
         }
 
