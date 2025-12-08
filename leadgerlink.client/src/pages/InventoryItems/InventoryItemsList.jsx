@@ -13,6 +13,7 @@ const InventoryItemsListPage = () => {
   const [stockLevel, setStockLevel] = useState('');
   const [supplier, setSupplier] = useState('');
   const [category, setCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination / entries state
   const [entriesPerPage, setEntriesPerPage] = useState(10);
@@ -103,7 +104,7 @@ const InventoryItemsListPage = () => {
   // Reset page to 1 when filters change to avoid out-of-range paging
   useEffect(() => {
     setCurrentPage(1);
-  }, [stockLevel, supplier, category, entriesPerPage]);
+  }, [stockLevel, supplier, category, entriesPerPage, searchTerm]);
 
   // Helper
   const getStockColor = (quantity, minimumQuantity) => {
@@ -124,11 +125,19 @@ const InventoryItemsListPage = () => {
     stockLevel === 'outOfStock' ? 'red' :
     '';
 
-  // Apply client-side filtering
+  // Apply client-side filtering (including search)
   const filtered = (items || []).filter(it => {
     if (selectedColor && getStockColor(it.quantity, it.minimumQuantity) !== selectedColor) return false;
     if (supplier && String(it.supplierId ?? '') !== String(supplier)) return false;
     if (category && String(it.categoryId ?? '') !== String(category)) return false;
+    if (searchTerm && searchTerm.trim() !== '') {
+      const s = searchTerm.trim().toLowerCase();
+      const name = (it.inventoryItemName ?? '').toLowerCase();
+      const cat = (it.categoryName ?? '').toLowerCase();
+      const sup = (it.supplierName ?? '').toLowerCase();
+      const unit = (it.unitName ?? '').toLowerCase();
+      if (!(name.includes(s) || cat.includes(s) || sup.includes(s) || unit.includes(s))) return false;
+    }
     return true;
   });
 
@@ -137,10 +146,10 @@ const InventoryItemsListPage = () => {
   const totalPages = Math.max(1, Math.ceil(totalFiltered / entriesPerPage));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const start = (safePage - 1) * entriesPerPage;
-  const paged = filtered.slice(start, start + entriesPerPage);
+  const pagedItems = filtered.slice(start, start + entriesPerPage);
 
   // Table rows from paged
-  const tableRows = paged.map((it) => {
+  const tableRows = pagedItems.map((it) => {
     const color = getStockColor(it.quantity, it.minimumQuantity);
     return [
       (
@@ -178,9 +187,9 @@ const InventoryItemsListPage = () => {
       />
 
       <FilterSection
-        searchValue={''}
-        onSearchChange={() => {}}
-        searchPlaceholder=""
+        searchValue={searchTerm}
+        onSearchChange={(v) => setSearchTerm(v)}
+        searchPlaceholder="Search items, category, supplier, unit..."
         entriesValue={entriesPerPage}
         onEntriesChange={setEntriesPerPage}
       >
@@ -208,7 +217,7 @@ const InventoryItemsListPage = () => {
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory items to display.')}
         linkColumnName="Item Name"
-        rowLink={(_, rowIndex) => `/inventory-items/${paged[rowIndex].inventoryItemId}`}
+        rowLink={(_, rowIndex) => `/inventory-items/${pagedItems[rowIndex].inventoryItemId}`}
       />
 
       <PaginationSection

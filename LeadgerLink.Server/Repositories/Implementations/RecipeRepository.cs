@@ -123,9 +123,10 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(r => r.Products)
                 .Include(r => r.RecipeInventoryItems)
                     .ThenInclude(rii => rii.InventoryItem)
-                .AsNoTracking();
+                .AsNoTracking()
+                .AsEnumerable();
 
-            var dto = await q.Select(r => new RecipeDetailDto
+            var dto = q.Select(r => new RecipeDetailDto
             {
                 RecipeId = r.RecipeId,
                 RecipeName = r.RecipeName,
@@ -135,7 +136,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 CreatedByName = r.CreatedByNavigation != null ? ((r.CreatedByNavigation.UserFirstname ?? "") + " " + (r.CreatedByNavigation.UserLastname ?? "")).Trim() : null,
                 CreatedAt = r.CreatedAt,
                 UpdatedAt = r.UpdatedAt,
-                Image = r.Image,
+                Image = (r.Image != null && r.Image.Length > 0)
+                    ? $"data:image;base64,{Convert.ToBase64String(r.Image)}"
+                    : null,
                 IsOnSale = r.Products.Any(),
                 RelatedProductId = r.Products.FirstOrDefault() != null ? (int?)r.Products.FirstOrDefault()!.ProductId : null,
                 Ingredients = r.RecipeInventoryItems.Select(rii => new RecipeIngredientDto
@@ -145,9 +148,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     InventoryItemName = rii.InventoryItem != null ? rii.InventoryItem.InventoryItemName : null,
                     Quantity = rii.Quantity
                 }).ToList()
-            }).FirstOrDefaultAsync();
+            }).FirstOrDefault();
 
-            return dto;
+            return await Task.FromResult(dto);
         }
     }
 }

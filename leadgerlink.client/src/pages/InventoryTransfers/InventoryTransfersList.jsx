@@ -21,6 +21,7 @@ export default function InventoryTransfersList() {
   const [transferFlow, setTransferFlow] = useState('');
   const [transferStatus, setTransferStatus] = useState('');
   const [transferStatusOptions, setTransferStatusOptions] = useState([{ label: 'All', value: '' }]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination state
   const [entriesPerPage, setEntriesPerPage] = useState(10);
@@ -66,8 +67,8 @@ export default function InventoryTransfersList() {
         const qs = new URLSearchParams();
         if (transferFlow) qs.append('flow', transferFlow);
         if (transferStatus) qs.append('status', transferStatus);
-        qs.append('page', String(currentPage));
-        qs.append('pageSize', String(entriesPerPage));
+        qs.append('page', String(1));
+        qs.append('pageSize', String(1000));
 
         const res = await fetch(`/api/inventorytransfers/list-for-current-store?${qs.toString()}`, {
           credentials: 'include'
@@ -82,7 +83,7 @@ export default function InventoryTransfersList() {
         if (!mounted) return;
 
         setRowsData(json.items || []);
-        setTotalCount(json.totalCount || 0);
+        setTotalCount((json.items || []).length);
       } catch (err) {
         console.error(err);
         if (mounted) setError(err.message || 'Failed to load transfers');
@@ -93,9 +94,43 @@ export default function InventoryTransfersList() {
 
     load();
     return () => { mounted = false; };
-  }, [transferFlow, transferStatus, currentPage, entriesPerPage]);
+  }, [transferFlow, transferStatus]);
 
-  const tableRows = rowsData.map((t) => {
+  // Reset page on filter/search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [transferFlow, transferStatus, entriesPerPage, searchTerm]);
+
+  // Client-side filtering including search
+  const filtered = (rowsData || []).filter(t => {
+    if (transferFlow) {
+      const dir = String(t.inOut || '').toLowerCase();
+      if (transferFlow === 'in' && dir !== 'in') return false;
+      if (transferFlow === 'out' && dir !== 'out') return false;
+    }
+    if (transferStatus) {
+      if (String(t.status || '').toLowerCase() !== String(transferStatus).toLowerCase()) return false;
+    }
+    if (searchTerm && searchTerm.trim() !== '') {
+      const s = searchTerm.trim().toLowerCase();
+      const dateStr = t.requestedAt ? new Date(t.requestedAt).toLocaleString().toLowerCase() : '';
+      const store = (t.storeInvolved ?? '').toLowerCase();
+      const status = (t.status ?? '').toLowerCase();
+      const driver = (t.driverName ?? '').toLowerCase();
+      const inout = (t.inOut ?? '').toString().toLowerCase();
+      if (!(dateStr.includes(s) || store.includes(s) || status.includes(s) || driver.includes(s) || inout.includes(s))) return false;
+    }
+    return true;
+  });
+
+  // Client-side paging
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / entriesPerPage));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const start = (safePage - 1) * entriesPerPage;
+  const paged = filtered.slice(start, start + entriesPerPage);
+
+  const tableRows = paged.map((t) => {
     const inOutCell = (t.inOut || '').toString().toLowerCase() === 'in'
       ? <span className="text-success" title="In"><FaArrowDown size={18} /></span>
       : (t.inOut || '').toString().toLowerCase() === 'out'
@@ -164,9 +199,9 @@ export default function InventoryTransfersList() {
       />
 
       <FilterSection
-        searchValue={''}
-        onSearchChange={() => {}}
-        searchPlaceholder=""
+        searchValue={searchTerm}
+        onSearchChange={(v) => setSearchTerm(v)}
+        searchPlaceholder="Search by date, store, status, driver..."
         entriesValue={entriesPerPage}
         onEntriesChange={setEntriesPerPage}
       >
@@ -202,7 +237,7 @@ export default function InventoryTransfersList() {
         // Use "Requested On" column as the link column - rowLink builds route from the original data item
         linkColumnName="Requested On"
         rowLink={(_, rowIndex) => {
-          const t = rowsData[rowIndex] || {};
+          const t = paged[rowIndex] || {};
           const id = t.transferId ?? t.id ?? t.inventoryTransferId ?? "";
           return id ? `/inventory/transfers/${id}` : "";
         }}
@@ -210,11 +245,11 @@ export default function InventoryTransfersList() {
       />
 
       <PaginationSection
-        currentPage={currentPage}
-        totalPages={Math.max(1, Math.ceil((totalCount || 0) / entriesPerPage))}
+        currentPage={safePage}
+        totalPages={totalPages}
         onPageChange={setCurrentPage}
         entriesPerPage={entriesPerPage}
-        totalEntries={totalCount}
+        totalEntries={totalFiltered}
       />
     </div>
   );

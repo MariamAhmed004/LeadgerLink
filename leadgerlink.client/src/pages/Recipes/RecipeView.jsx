@@ -59,7 +59,7 @@ const RecipeView = () => {
   // Note: actions are intentionally NOT set on headerProps; they are provided
   // separately to DetailViewWithImage as requested.
   const headerProps = {
-      icon: <FaBookBookmark size={35} />,
+    icon: <FaBookBookmark size={35} />,
     title: recipe ? `Recipe ${recipe.recipeId}` : "View Recipe",
     descriptionLines: [],
   };
@@ -82,6 +82,7 @@ const RecipeView = () => {
         detail={detail}
         metadataUnderImage={{ title: "", rows: [] }}
         actions={actions}
+        image={null}
       />
     );
   }
@@ -97,6 +98,7 @@ const RecipeView = () => {
         detail={detail}
         metadataUnderImage={{ title: "", rows: [] }}
         actions={actions}
+        image={null}
       />
     );
   }
@@ -109,16 +111,17 @@ const RecipeView = () => {
         detail={detail}
         metadataUnderImage={{ title: "", rows: [] }}
         actions={actions}
+        image={null}
       />
     );
   }
 
   const ingredientsJsx =
     recipe.ingredients && recipe.ingredients.length ? (
-      <ul style={{ margin: 0, paddingLeft: "1rem" }}>
+      <ul className="text-start ps-3" style={{ margin: 0, listStylePosition: "inside" }}>
         {recipe.ingredients.map((it) => (
           <li key={it.recipeInventoryItemId}>
-            {it.inventoryItemName ?? `Item ${it.inventoryItemId ?? ""}`} —{" "}
+            {it.inventoryItemName ?? `Item ${it.inventoryItemId ?? ""}`} - {" "}
             {it.quantity ?? ""}
           </li>
         ))}
@@ -163,7 +166,12 @@ const RecipeView = () => {
           : "",
       },
     ],
-  };
+    };
+
+    const image = {
+        url: recipe.image || "",
+        alt: recipe.recipeName || `recipe ${recipe.recipeId}`
+    };
 
   return (
     <DetailViewWithImage
@@ -171,6 +179,7 @@ const RecipeView = () => {
       detail={detail}
       metadataUnderImage={metadata}
       actions={actions}
+      image={image}
     />
   );
 };

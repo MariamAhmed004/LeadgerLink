@@ -13,7 +13,7 @@ namespace LeadgerLink.Server.Dtos
         public string? CreatedByName { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public byte[]? Image { get; set; }
+        public string? Image { get; set; }
         public bool IsOnSale { get; set; }
         public int? RelatedProductId { get; set; }
         public IEnumerable<RecipeIngredientDto> Ingredients { get; set; } = new List<RecipeIngredientDto>();
