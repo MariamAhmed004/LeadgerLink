@@ -88,11 +88,9 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("by-organization/{organizationId:int}")]
         public async Task<ActionResult<IEnumerable<object>>> GetByOrganization(int organizationId)
         {
-            // Use repository method that includes relations and filter server-side to ensure required nav props are available.
-            var stores = await _repository.GetAllWithRelationsAsync();
+            var stores = await _repository.GetAllWithRelationsAsync(organizationId);
 
             var filtered = stores
-                .Where(s => s.OrgId == organizationId)
                 .Select(s => new
                 {
                     storeId = s.StoreId,

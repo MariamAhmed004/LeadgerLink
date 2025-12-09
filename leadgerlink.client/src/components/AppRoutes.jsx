@@ -37,6 +37,7 @@ import StoreEmployeeHome from "../pages/HomePages/StoreEmployee-Home";
 import Users from "../pages/Users/UsersList";
 import UserNew from "../pages/Users/UserNew";
 import UserView from "../pages/Users/UserView";
+import UserEdit from "../pages/Users/UserEdit";
 
 // -----------------------------
 // Organizations
@@ -145,6 +146,7 @@ const AppRoutes = () => {
       <Route path="/users" element={<Users />} />
       <Route path="/users/create" element={<UserNew />} />
       <Route path="/users/:id" element={<UserView />} />
+      <Route path="/users/edit/:id" element={<UserEdit />} />
 
       {/* ---------------------------
           Organizations

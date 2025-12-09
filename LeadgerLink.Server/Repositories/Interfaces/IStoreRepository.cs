@@ -14,6 +14,6 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<Store?> GetByIdWithRelationsAsync(int id);
 
         // Return all stores including common relations (User, OperationalStatus) for listing.
-        Task<IEnumerable<Store>> GetAllWithRelationsAsync();
+        Task<IEnumerable<Store>> GetAllWithRelationsAsync(int? organizationId = null);
     }
 }

@@ -8,6 +8,7 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
+import { useAuth } from "../../Context/AuthContext";
 
 /*
   UserNew.jsx (clean)
@@ -34,6 +35,7 @@ const ROLE_OPTIONS = [
 
 export default function UserNew() {
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   // form fields (canonical names)
   const [firstName, setFirstName] = useState("");
@@ -54,7 +56,30 @@ export default function UserNew() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // load organizations (expects { orgId, orgName } items)
+  // role-based UI flags
+  const roles = (loggedInUser?.roles || []).map(String);
+  const isAppAdmin = roles.includes("Application Admin");
+  const isOrgAdmin = roles.includes("Organization Admin");
+  const isAccountant = roles.includes("Organization Accountant");
+  const isStoreManager = roles.includes("Store Manager");
+  const userOrgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+  const userStoreId = loggedInUser?.storeId ?? loggedInUser?.StoreId ?? null;
+
+  // Preselect/lock fields based on role
+  useEffect(() => {
+    // Org Admin/Accountant: lock org to user's org
+    if ((isOrgAdmin || isAccountant) && userOrgId) {
+      setOrganizationId(String(userOrgId));
+    }
+    // Store Manager: lock org, store and role
+    if (isStoreManager) {
+      if (userOrgId) setOrganizationId(String(userOrgId));
+      if (userStoreId) setStoreId(String(userStoreId));
+      setRole("Store Employee");
+    }
+  }, [isOrgAdmin, isAccountant, isStoreManager, userOrgId, userStoreId]);
+
+  // load organizations
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -78,14 +103,15 @@ export default function UserNew() {
     return () => { mounted = false; };
   }, []);
 
-  // load stores for selected organization (expects { storeId, storeName } items)
+  // load stores when organization or role changes, if role needs a store
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
+
+    const loadStores = async () => {
       setLoadingStores(true);
       setStoreOptions([{ label: "Select store", value: "" }]);
       try {
-        if (!organizationId) return;
         const res = await fetch(`/api/stores/by-organization/${encodeURIComponent(organizationId)}`, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to load stores");
         const json = await res.json();
@@ -93,6 +119,7 @@ export default function UserNew() {
         const arr = Array.isArray(json) ? json : (json.items || []);
         const opts = [{ label: "Select store", value: "" }, ...arr.map(s => ({ label: s.storeName, value: String(s.storeId) }))];
         setStoreOptions(opts);
+        setStoreId("");
       } catch (ex) {
         console.error("Load stores failed", ex);
         if (mounted) setError("Failed to load stores");
@@ -101,18 +128,40 @@ export default function UserNew() {
       }
     };
 
-    // only fetch stores when an organization is selected and role requires a store
-    const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
-    if (organizationId && roleRequiresStore) load();
+    if (organizationId && roleRequiresStore) {
+      loadStores();
+    } else {
+      // if role changed to one that doesn't need a store, clear selection/options
+      setStoreId("");
+      setStoreOptions([{ label: "Select store", value: "" }]);
+    }
 
     return () => { mounted = false; };
   }, [organizationId, role]);
+
+  // Adjust allowed role options based on caller role
+  const allowedRoleOptions = (() => {
+    if (isAppAdmin) return ROLE_OPTIONS; // full list
+    if (isOrgAdmin || isAccountant) {
+      return [
+        { label: "Select role", value: "" },
+        { label: "Organization Accountant", value: "Organization Accountant" },
+        { label: "Store Manager", value: "Store Manager" },
+        { label: "Store Employee", value: "Store Employee" }
+      ];
+    }
+    if (isStoreManager) {
+      return [
+        { label: "Store Employee", value: "Store Employee" }
+      ];
+    }
+    return [{ label: "Select role", value: "" }];
+  })();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // basic validation (canonical fields)
     if (!email.trim()) return setError("Email is required.");
     if (!emailIsValid(email)) return setError("Provide a valid email address.");
     if (!initialPassword) return setError("Initial password is required.");
@@ -122,7 +171,6 @@ export default function UserNew() {
     const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
     if (roleRequiresStore && !storeId) return setError("Store selection is required for the selected role.");
 
-    // additional validation
     if (!organizationId) {
       setSaving(false);
       return setError("Organization selection is required.");
@@ -156,7 +204,6 @@ export default function UserNew() {
         throw new Error(txt || `Server returned ${res.status}`);
       }
 
-      // navigate back with success state
       navigate("/users", { state: { created: true, createdName: `${firstName} ${lastName}`.trim() || email } });
     } catch (err) {
       console.error(err);
@@ -166,14 +213,16 @@ export default function UserNew() {
     }
   };
 
-  const storeDisabled = !(role === "Store Manager" || role === "Store Employee");
+  const storeDisabled = !(role === "Store Manager" || role === "Store Employee") || isStoreManager;
+  const orgDisabled = (isOrgAdmin || isAccountant || isStoreManager) && !!userOrgId;
+  const roleDisabled = isStoreManager; // fixed to Store Employee
 
   return (
     <div className="container py-5">
       <PageHeader
-              icon={<HiUsers size={55} />}
+        icon={<HiUsers size={55} />}
         title="Add User"
-              descriptionLines={["Following details are needed to create a new user:", "You can create a user for created organization."]}
+        descriptionLines={["Following details are needed to create a new user:", "You can create a user for created organization."]}
         actions={[]}
       />
 
@@ -196,15 +245,23 @@ export default function UserNew() {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Organization" value={organizationId} onChange={setOrganizationId} options={organizationOptions} searchable={true} />
+            <SelectField label="Organization" value={organizationId} onChange={setOrganizationId} options={organizationOptions} searchable={true} disabled={orgDisabled} />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Role" value={role} onChange={setRole} options={ROLE_OPTIONS} searchable={false} />
+            <SelectField label="Role" value={role} onChange={setRole} options={allowedRoleOptions} searchable={false} disabled={roleDisabled} />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Store" value={storeId} onChange={setStoreId} options={storeOptions} searchable={true} disabled={storeDisabled} />
+            <SelectField
+              key={`store-${organizationId}`}
+              label="Store"
+              value={storeId}
+              onChange={setStoreId}
+              options={storeOptions}
+              searchable={true}
+              disabled={storeDisabled}
+            />
           </div>
 
           <div className="col-12 col-md-6 text-start">

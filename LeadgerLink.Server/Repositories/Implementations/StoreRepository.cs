@@ -54,25 +54,25 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .ToListAsync<object>();
         }
 
-        // Return all stores INCLUDING relations, filtered to the current logged-in user's organization.
-        public async Task<IEnumerable<Store>> GetAllWithRelationsAsync()
+        // Return all stores INCLUDING relations, optionally filtered by provided organizationId.
+        // If organizationId is null, resolve from current logged-in user via IHttpContextAccessor.
+        public async Task<IEnumerable<Store>> GetAllWithRelationsAsync(int? organizationId = null)
         {
-            // Resolve current user email from claims
-            var email = _httpContext?.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? _httpContext?.HttpContext?.User?.Identity?.Name;
+            int? orgId = organizationId;
 
-            if (string.IsNullOrWhiteSpace(email))
-                return Enumerable.Empty<Store>();
+            if (!orgId.HasValue)
+            {
+                var email = _httpContext?.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? _httpContext?.HttpContext?.User?.Identity?.Name;
+                if (string.IsNullOrWhiteSpace(email)) return Enumerable.Empty<Store>();
 
-            // Find domain user and org id
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (domainUser == null || !domainUser.OrgId.HasValue)
-                return Enumerable.Empty<Store>();
-
-            var orgId = domainUser.OrgId.Value;
+                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (domainUser == null || !domainUser.OrgId.HasValue) return Enumerable.Empty<Store>();
+                orgId = domainUser.OrgId.Value;
+            }
 
             return await _context.Stores
-                .Where(s => s.OrgId == orgId)
+                .Where(s => s.OrgId == orgId.Value)
                 .Include(s => s.User)
                 .Include(s => s.OperationalStatus)
                 .AsNoTracking()
