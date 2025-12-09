@@ -67,7 +67,8 @@ namespace LeadgerLink.Server.Controllers
                     ? $"{userRecord.UserFirstname} {userRecord.UserLastname}"
                     : null,
                 UserId = userRecord?.UserId,
-                OrgId = userRecord?.OrgId
+                OrgId = userRecord?.OrgId,
+                StoreId = userRecord?.StoreId
 
             });
         }

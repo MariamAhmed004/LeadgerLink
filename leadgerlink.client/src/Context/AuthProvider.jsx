@@ -7,7 +7,9 @@ export const AuthProvider = ({ children }) => {
         userName: null,
         roles: [],
         fullName: null,
-        userId: null
+        userId: null,
+        orgId: null,
+        storeId: null
     });
 
     const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ export const AuthProvider = ({ children }) => {
                 const data = await res.json();
                 setLoggedInUser(data);
             } catch {
-                setLoggedInUser({ isAuthenticated: false, userName: null, roles: [], fullName: null, userId: null });
+                setLoggedInUser({ isAuthenticated: false, userName: null, roles: [], fullName: null, userId: null, orgId: null, storeId: null });
             } finally {
                 setLoading(false);
             }

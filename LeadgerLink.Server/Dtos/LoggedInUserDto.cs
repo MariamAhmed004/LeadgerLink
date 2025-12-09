@@ -10,5 +10,6 @@
 
         // Added to expose the organization id for the logged-in user
         public int? OrgId { get; set; }
+        public int? StoreId { get; set; }
     }
 }

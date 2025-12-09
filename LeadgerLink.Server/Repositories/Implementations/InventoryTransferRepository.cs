@@ -117,11 +117,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
             if (!string.IsNullOrWhiteSpace(flow) && resolvedStoreId.HasValue)
             {
                 var fl = flow.Trim().ToLowerInvariant();
-                if (fl == "in")
+                if (fl == "out")
                 {
                     q = q.Where(t => t.ToStore == resolvedStoreId.Value);
                 }
-                else if (fl == "out")
+                else if (fl == "in")
                 {
                     q = q.Where(t => t.FromStore == resolvedStoreId.Value);
                 }
@@ -164,12 +164,12 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     var sId = resolvedStoreId.Value;
                     if (t.FromStore == sId && t.ToStore != sId)
                     {
-                        dto.InOut = "Out";
+                        dto.InOut = "In";
                         dto.StoreInvolved = t.ToStoreNavigation?.StoreName;
                     }
                     else if (t.ToStore == sId && t.FromStore != sId)
                     {
-                        dto.InOut = "In";
+                        dto.InOut = "Out";
                         dto.StoreInvolved = t.FromStoreNavigation?.StoreName;
                     }
                     else

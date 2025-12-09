@@ -15,7 +15,7 @@ import TextArea from '../../components/Form/TextArea';
 export default function InventoryTransferNew() {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
-  const isEmployee = (loggedInUser?.roles || []).includes('Store Employee');
+  const isOrgAdmin = (loggedInUser?.roles || []).includes('Organization Admin');
 
   const [requester, setRequester] = useState('');
   const [fromStore, setFromStore] = useState('');
@@ -45,15 +45,31 @@ export default function InventoryTransferNew() {
         if (!mounted) return;
         const opts = [{ label: 'Select store', value: '' }, ...(Array.isArray(arr) ? arr.map(s => ({ label: s.storeName, value: String(s.storeId) })) : [])];
         setStoreOptions(opts);
-        const defaultStore = loggedInUser?.storeName ?? '';
-        setRequester(defaultStore);
+
+        const userStoreId = loggedInUser?.storeId ? String(loggedInUser.storeId) : '';
+        if (!isOrgAdmin) {
+          setRequester(userStoreId);
+          // ensure Request From not equal to requester
+          if (String(fromStore) === userStoreId) setFromStore('');
+        } else {
+          setRequester(userStoreId || '');
+          // if admin selected same store in both, clear fromStore to avoid duplicates
+          if (userStoreId && String(fromStore) === userStoreId) setFromStore('');
+        }
       } catch (err) {
         console.error('Failed to load stores', err);
       }
     };
     loadStores();
     return () => { mounted = false; };
-  }, [loggedInUser]);
+  }, [loggedInUser, isOrgAdmin]);
+
+  // When requester changes, if Request From equals requester, clear Request From
+  useEffect(() => {
+    if (requester && String(fromStore) === String(requester)) {
+      setFromStore('');
+    }
+  }, [requester]);
 
   // Fetch recipes and inventory items for tabs
   useEffect(() => {
@@ -75,7 +91,7 @@ export default function InventoryTransferNew() {
             description: r.description ?? 'NA',
             price: r.sellingPrice != null ? (Number(r.sellingPrice).toFixed(3) + ' BHD') : 'NA',
             quantity: Number(r.availableQuantity ?? 0),
-              imageUrl: r.imageUrl || ""
+            imageUrl: r.imageUrl || ''
           }));
           setRecipeItems(mappedRecipes);
         } else {
@@ -88,8 +104,7 @@ export default function InventoryTransferNew() {
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
           const mappedItems = (list || []).map(it => {
             const id = it.inventoryItemId ?? it.id ?? it.InventoryItemId;
-            const hasImage = Boolean(it.hasImage || it.InventoryItemImage);
-              const imgUrl = it.imageUrl || "";
+            const imgUrl = it.imageUrl || '';
             const desc = it.description ?? it.inventoryItemDescription ?? it.Description ?? '';
             const available = Number(it.quantity ?? it.Quantity ?? 0);
             const priceVal = Number(it.costPerUnit ?? it.CostPerUnit ?? 0);
@@ -117,22 +132,41 @@ export default function InventoryTransferNew() {
     return () => { mounted = false; };
   }, []);
 
-  // Save -> set Draft then navigate back (UI only)
-  const handleSubmit = (e) => {
+  // Save -> set Draft then navigate back (now posts to backend)
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus('Draft');
-    // Prepare payload for future API (do not submit now)
-    const items = (selection || []).filter(s => Number(s.quantity) > 0).map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+    setStatus('draft');
+
+    const items = (selection || [])
+      .filter(s => Number(s.quantity) > 0)
+      .map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+
     const payload = {
-      requesterStoreId: requester ? Number(storeOptions.find(o => o.label === requester)?.value || 0) : null,
+      requesterStoreId: requester ? Number(requester) : null,
       fromStoreId: fromStore ? Number(fromStore) : null,
       date,
-      status: 'Draft',
+      status: 'draft',
       notes: notes ? String(notes).trim() : null,
       items
     };
-    // Future: POST /api/inventory-transfers with payload
-    navigate('/inventory/transfers');
+
+    try {
+      const res = await fetch('/api/inventorytransfers', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Failed to save transfer (${res.status})`);
+      }
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error(err);
+      // optionally show error UI; for now, simple alert
+      alert(err.message || 'Failed to save transfer');
+    }
   };
 
   // Send request flow -> show modal, confirm sets Pending then navigate
@@ -143,14 +177,14 @@ export default function InventoryTransferNew() {
 
   const confirmSend = () => {
     setShowSendModal(false);
-    setStatus('Pending');
+    setStatus('pending');
     // Prepare payload for future API (do not submit now)
     const items = (selection || []).filter(s => Number(s.quantity) > 0).map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
     const payload = {
-      requesterStoreId: requester ? Number(storeOptions.find(o => o.label === requester)?.value || 0) : null,
+      requesterStoreId: requester ? Number(requester) : null,
       fromStoreId: fromStore ? Number(fromStore) : null,
       date,
-      status: 'Pending',
+      status: 'pending',
       notes: notes ? String(notes).trim() : null,
       items
     };
@@ -161,6 +195,9 @@ export default function InventoryTransferNew() {
   const cancelSend = () => {
     setShowSendModal(false);
   };
+
+  // Build Request From options excluding the requester store
+  const requestFromOptions = (storeOptions || []).filter(o => String(o.value) !== String(requester));
 
   const tabs = [
     {
@@ -186,10 +223,25 @@ export default function InventoryTransferNew() {
       <FormBody onSubmit={handleSubmit} plain>
         <div className="row gx-4 gy-4">
           <div className="col-12 col-md-6">
-            <SelectField label="Requester" value={requester} onChange={setRequester} options={storeOptions} disabled={isEmployee} />
+            <SelectField
+              label="Requester"
+              value={requester}
+              onChange={(val) => {
+                setRequester(val);
+                // If admin and "Request From" matches new requester, clear it
+                if (String(fromStore) === String(val)) setFromStore('');
+              }}
+              options={storeOptions}
+              disabled={!isOrgAdmin}
+            />
           </div>
           <div className="col-12 col-md-6">
-            <SelectField label="Request From" value={fromStore} onChange={setFromStore} options={storeOptions} />
+            <SelectField
+              label="Request From"
+              value={fromStore}
+              onChange={setFromStore}
+              options={requestFromOptions}
+            />
           </div>
 
           <div className="col-12 col-md-6">

@@ -167,5 +167,108 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to load inventory transfer");
             }
         }
+
+        // POST api/inventorytransfers
+        // Creates a new transfer request. Status is provided by client (e.g., Draft or Pending).
+        [Authorize]
+        [HttpPost]
+        public async Task<ActionResult> CreateTransfer()
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+
+            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            CreateInventoryTransferDto? dto;
+            try
+            {
+                using var sr = new System.IO.StreamReader(Request.Body);
+                var body = await sr.ReadToEndAsync();
+                dto = System.Text.Json.JsonSerializer.Deserialize<CreateInventoryTransferDto>(body, opts);
+            }
+            catch
+            {
+                return BadRequest("Invalid request body.");
+            }
+
+            if (dto == null) return BadRequest("Missing payload.");
+            if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
+
+            var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value;
+            var fromId = dto.FromStoreId;
+            if (!fromId.HasValue) return BadRequest("Request From store must be selected.");
+
+            var parsedDate = DateTime.UtcNow;
+            if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
+
+            var statusValue = string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft" ;
+
+            // Case-insensitive match supported by EF Core by normalizing both sides
+            var statusLower = statusValue.ToLower();
+            InventoryTransferStatus? Status = await _context.InventoryTransferStatuses
+                .FirstOrDefaultAsync(s => (s.TransferStatus != null ? s.TransferStatus.ToLower() : "") == statusLower);
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var transfer = new InventoryTransfer
+                {
+                    FromStore = requesterId,
+                    ToStore = fromId.Value,
+                    RequestedAt = parsedDate,
+                    InventoryTransferStatusId = Status != null ? Status.TransferStatusId : 1,
+                    Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
+                    RequestedBy = domainUser.UserId
+                };
+
+                _context.InventoryTransfers.Add(transfer);
+                await _context.SaveChangesAsync();
+
+                foreach (var it in dto.Items)
+                {
+                    if (it.RecipeId.HasValue || it.Quantity <= 0)
+                    {
+                        var ti = new TransferItem
+                        {
+                            InventoryTransferId = transfer.InventoryTransferId,
+                            RecipeId = it.RecipeId,
+                            Quantity = it.Quantity,
+                            IsRequested = true
+                        };
+                        _context.TransferItems.Add(ti);
+                    }
+                    else if (it.InventoryItemId.HasValue && it.Quantity > 0)
+                    {
+                        var ti = new TransferItem
+                        {
+                            InventoryTransferId = transfer.InventoryTransferId,
+                            InventoryItemId = it.InventoryItemId,
+                            Quantity = it.Quantity,
+                            IsRequested = true
+                        };
+                        _context.TransferItems.Add(ti);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Skipping invalid transfer item: {Item}", it);
+                    }
+                }
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return CreatedAtAction(nameof(GetById), new { id = transfer.InventoryTransferId }, new { id = transfer.InventoryTransferId });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                _logger.LogError(ex, "Failed to create inventory transfer");
+                return StatusCode(500, "Failed to create inventory transfer.");
+            }
+        }
     }
 }
