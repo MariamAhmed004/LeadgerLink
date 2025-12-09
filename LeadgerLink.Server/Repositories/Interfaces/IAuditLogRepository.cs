@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
@@ -9,7 +10,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
     /// Repository surface for audit log read operations.
     /// Keeps the same projections used by controllers (overview and detail DTOs).
     /// </summary>
-    public interface IAuditLogRepository
+    public interface IAuditLogRepository : IRepository<AuditLog>
     {
         /// <summary>
         /// Count audit log rows matching provided optional filters.

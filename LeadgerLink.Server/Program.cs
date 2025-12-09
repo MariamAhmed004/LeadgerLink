@@ -83,9 +83,15 @@ namespace LeadgerLink.Server
                           .AllowCredentials());
             });
 
+            // Register IHttpContextAccessor for services needing HttpContext (e.g., AuditLogger)
+            builder.Services.AddHttpContextAccessor();
+
+            // Register Audit logger
+            builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+
             // Register Email service (MailKit SMTP)
             builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-            builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<SmtpOptions>>().Value);
+            builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpOptions>>().Value);
             builder.Services.AddSingleton<IEmailService, EmailService>();
 
             var app = builder.Build();

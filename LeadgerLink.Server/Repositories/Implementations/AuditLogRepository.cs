@@ -9,11 +9,11 @@ using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
-    public class AuditLogRepository : IAuditLogRepository
+    public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
     {
         private readonly LedgerLinkDbContext _context;
 
-        public AuditLogRepository(LedgerLinkDbContext context)
+        public AuditLogRepository(LedgerLinkDbContext context) : base(context)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }

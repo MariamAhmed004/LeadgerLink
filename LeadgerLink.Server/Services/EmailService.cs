@@ -3,6 +3,33 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 
+// EmailService usage & setup (for future reference):
+// - Packages: install MailKit + MimeKit in LeadgerLink.Server.
+// - Configuration: add Smtp section in appsettings.json and bind via Program.cs.
+//   Example:
+//   {
+//     "Smtp": {
+//       "Host": "smtp.gmail.com",
+//       "Port": 587,           // 587 STARTTLS or 465 SSL
+//       "UseSsl": false,       // false for STARTTLS (587), true for SSL (465)
+//       "FromEmail": "leadgerlink@gmail.com",
+//       "FromName": "LedgerLink",
+//       "Username": "leadgerlink@gmail.com",
+//       "Password": "<Gmail App Password>"
+//     }
+//   }
+// - DI registration in Program.cs:
+//   builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+//   builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpOptions>>().Value);
+//   builder.Services.AddSingleton<IEmailService, EmailService>();
+// - Gmail notes: enable 2-Step Verification and create an App Password for SMTP.
+// - Usage: inject IEmailService and call:
+//   await _email.SendAsync("recipient@example.com", "Subject", "<p>HTML body</p>");
+// - Tips:
+//   * Prefer environment/user-secrets for credentials in production.
+//   * If 587/STARTTLS fails, try 465 with UseSsl=true.
+//   * Consider retries/queue for high-volume sending.
+
 namespace LeadgerLink.Server.Services
 {
     public interface IEmailService
