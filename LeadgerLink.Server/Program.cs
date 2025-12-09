@@ -2,8 +2,10 @@ using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
 
 namespace LeadgerLink.Server
@@ -80,6 +82,11 @@ namespace LeadgerLink.Server
                           .AllowAnyMethod()
                           .AllowCredentials());
             });
+
+            // Register Email service (MailKit SMTP)
+            builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+            builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<SmtpOptions>>().Value);
+            builder.Services.AddSingleton<IEmailService, EmailService>();
 
             var app = builder.Build();
 
