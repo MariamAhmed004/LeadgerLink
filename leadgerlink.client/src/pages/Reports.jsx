@@ -99,6 +99,16 @@ export default function Reports() {
           url = `/api/reports/sales-summary/excel?storeId=${encodeURIComponent(String(storeId))}`;
           filename = `sales-summary-${storeId}.xlsx`;
         }
+      } else if (reportId === "inventory_usage_trends") {
+        if (format === "PDF") {
+          if (!storeId) throw new Error("Store id not available for Inventory Usage Trends report.");
+          url = `/api/reports/inventory-usage-trends/pdf?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `inventory-usage-trends-${storeId}.pdf`;
+        } else {
+          if (!storeId) throw new Error("Store id not available for Inventory Usage Trends report.");
+          url = `/api/reports/inventory-usage-trends/excel?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `inventory-usage-trends-${storeId}.xlsx`;
+        }
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();

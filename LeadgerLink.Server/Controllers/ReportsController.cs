@@ -215,5 +215,42 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate Sales Summary Excel.");
             }
         }
+
+        // GET api/reports/inventory-usage-trends/pdf?storeId=123
+        [HttpGet("inventory-usage-trends/pdf")]
+        public async Task<IActionResult> GetInventoryUsageTrendsPdf([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateInventoryUsageTrendsReportPdfAsync(storeId);
+                var fileName = $"inventory-usage-trends-{storeId}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Inventory Usage Trends PDF for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Inventory Usage Trends PDF.");
+            }
+        }
+
+        // GET api/reports/inventory-usage-trends/excel?storeId=123
+        [HttpGet("inventory-usage-trends/excel")]
+        public async Task<IActionResult> GetInventoryUsageTrendsExcel([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateInventoryUsageTrendsReportExcelAsync(storeId);
+                var fileName = $"inventory-usage-trends-{storeId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Inventory Usage Trends Excel for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Inventory Usage Trends Excel.");
+            }
+        }
     }
 }

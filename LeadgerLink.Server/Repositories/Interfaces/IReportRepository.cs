@@ -59,5 +59,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Sales Summary
         Task<byte[]> GenerateSalesSummaryReportPdfAsync(int storeId);
         Task<byte[]> GenerateSalesSummaryReportExcelAsync(int storeId);
+
+        // Inventory Usage Trends
+        Task<byte[]> GenerateInventoryUsageTrendsReportPdfAsync(int storeId);
+        Task<byte[]> GenerateInventoryUsageTrendsReportExcelAsync(int storeId);
     }
 }//end IReportRepository
