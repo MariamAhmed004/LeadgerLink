@@ -78,6 +78,17 @@ export default function Reports() {
           url = `/api/reports/top-recipes-sales/excel?storeId=${encodeURIComponent(String(storeId))}`;
           filename = `top-recipes-sales-${storeId}.xlsx`;
         }
+      } else if (reportId === "top_employee") {
+        // Call dedicated Top Employee endpoints
+        if (format === "PDF") {
+          if (!storeId) throw new Error("Store id not available for Top Employee report.");
+          url = `/api/reports/top-employee/pdf?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `top-employee-${storeId}.pdf`;
+        } else {
+          if (!storeId) throw new Error("Store id not available for Top Employee report.");
+          url = `/api/reports/top-employee/excel?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `top-employee-${storeId}.xlsx`;
+        }
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();

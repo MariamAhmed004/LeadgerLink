@@ -141,5 +141,42 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate Top Recipes & Sales Excel.");
             }
         }
+
+        // GET api/reports/top-employee/pdf?storeId=123
+        [HttpGet("top-employee/pdf")]
+        public async Task<IActionResult> GetTopEmployeePdf([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateTopEmployeeReportPdfAsync(storeId);
+                var fileName = $"top-employee-{storeId}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Top Employee PDF for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Top Employee PDF.");
+            }
+        }
+
+        // GET api/reports/top-employee/excel?storeId=123
+        [HttpGet("top-employee/excel")]
+        public async Task<IActionResult> GetTopEmployeeExcel([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateTopEmployeeReportExcelAsync(storeId);
+                var fileName = $"top-employee-{storeId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Top Employee Excel for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Top Employee Excel.");
+            }
+        }
     }
 }

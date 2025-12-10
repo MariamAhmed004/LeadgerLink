@@ -51,5 +51,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Top Recipes & Sales
         Task<byte[]> GenerateTopRecipesSalesReportPdfAsync(int storeId);
         Task<byte[]> GenerateTopRecipesSalesReportExcelAsync(int storeId);
+
+        // Top Employee
+        Task<byte[]> GenerateTopEmployeeReportPdfAsync(int storeId);
+        Task<byte[]> GenerateTopEmployeeReportExcelAsync(int storeId);
     }
 }//end IReportRepository

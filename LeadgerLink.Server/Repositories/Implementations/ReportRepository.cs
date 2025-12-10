@@ -782,7 +782,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             wb.SaveAs(ms);
             return ms.ToArray();
         }
-
         public async Task<byte[]> GenerateTopRecipesSalesReportPdfAsync(int storeId)
         {
             // Fetch store, recipes and sales aggregates via context
@@ -798,7 +797,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Where(si => si.Sale.StoreId == storeId && si.Product != null && si.Product.RecipeId != null)
                 .GroupBy(si => si.Product!.RecipeId)
                 .Select(g => new {
-                    RecipeId = g.Key!.Value,
+                    RecipeId = g.Key,
                     TotalQty = g.Sum(x => x.Quantity),
                     TotalRevenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m)),
                     RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault()
@@ -874,7 +873,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Where(si => si.Sale.StoreId == storeId && si.Product != null && si.Product.RecipeId != null)
                 .GroupBy(si => si.Product!.RecipeId)
                 .Select(g => new {
-                    RecipeId = g.Key!.Value,
+                    RecipeId = g.Key,
                     TotalQty = g.Sum(x => x.Quantity),
                     TotalRevenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m)),
                     RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault()
@@ -883,17 +882,17 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .ToListAsync();
 
             var mostSelling = recipeSales.FirstOrDefault();
-            var mostSellingName = mostSelling?.RecipeName ?? "-";
-            var mostSellingCount = mostSelling?.TotalQty ?? 0m;
+            var topName = mostSelling?.RecipeName ?? "-";
+            var topAmount = mostSelling?.TotalQty ?? 0m;
             var totalRevenue = recipeSales.Sum(x => x.TotalRevenue);
 
             using var wb = CreateWorkbook();
             var ws = wb.Worksheets.Add("Top Recipes & Sales");
 
             int row = 1;
-            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Most Selling Recipe", "Times Sold", "Store Revenue (BHD)" };
+            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Top Recipe", "Times Sold", "Store Revenue (BHD)" };
             var summaryRows = new List<string[]> {
-                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), mostSellingName, mostSellingCount.ToString("F3"), totalRevenue.ToString("F3") }
+                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), topName, topAmount.ToString("F3"), totalRevenue.ToString("F3") }
             };
             row = AddStyledTableAt(ws, row, "Top Recipes & Sales", summaryHeaders, summaryRows, new[] { 35d, 24d, 35d, 18d, 22d });
 
@@ -904,6 +903,154 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 r.TotalRevenue.ToString("F3")
             }).ToList();
             row = AddStyledTableAt(ws, row, "Recipe Sales", headers, rows, new[] { 50d, 20d, 22d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateTopEmployeeReportPdfAsync(int storeId)
+        {
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+
+            // All employees in the store
+            var employees = await _context.Users
+                .Where(u => u.StoreId == storeId)
+                .Select(u => new
+                {
+                    u.UserId,
+                    FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim()
+                })
+                .ToListAsync();
+
+            // Aggregate employee sales (by user) for the store
+            var salesAgg = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.UserId != null)
+                .GroupBy(s => s.UserId)
+                .Select(g => new { UserId = g.Key, TotalSales = g.Sum(x => x.TotalAmount) })
+                .ToListAsync();
+
+            // Left-join employees with sales to include zero-sales users
+            var employeeSales = employees
+                .Select(e => new
+                {
+                    e.UserId,
+                    e.FullName,
+                    TotalSales = salesAgg.FirstOrDefault(x => x.UserId == e.UserId)?.TotalSales ?? 0m
+                })
+                .OrderByDescending(x => x.TotalSales)
+                .ToList();
+
+            var top = employeeSales.FirstOrDefault();
+            var topName = top?.FullName ?? "-";
+            var topAmount = top?.TotalSales ?? 0m;
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header
+                DrawSectionHeader(gfx, "Top Employee Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store: {storeName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Generated: {generatedAt:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Top Employee: {topName}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Total Sales: BHD {topAmount:F3}", textFont, x, ref y, contentWidth);
+
+                y += 6;
+
+                // Table: All employees sales
+                DrawSectionHeader(gfx, "Store Employee Sales", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.6, contentWidth * 0.4 };
+                DrawTableHeader(gfx, new[] { "Employee Name", "Total Sales (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var e in employeeSales)
+                {
+                    var name = string.IsNullOrWhiteSpace(e.FullName) ? ("User #" + e.UserId) : e.FullName;
+                    var cells = new[] { name, e.TotalSales.ToString("F3") };
+                    DrawTableRow(gfx, cells, textFont, x, ref y, widths, gridPen);
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Employee Name", "Total Sales (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateTopEmployeeReportExcelAsync(int storeId)
+        {
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+
+            // All employees in the store
+            var employees = await _context.Users
+                .Where(u => u.StoreId == storeId)
+                .Select(u => new
+                {
+                    u.UserId,
+                    FullName = ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim()
+                })
+                .ToListAsync();
+
+            // Aggregate employee sales (by user) for the store
+            var salesAgg = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.UserId != null)
+                .GroupBy(s => s.UserId)
+                .Select(g => new { UserId = g.Key, TotalSales = g.Sum(x => x.TotalAmount) })
+                .ToListAsync();
+
+            // Left-join employees with sales to include zero-sales users
+            var employeeSales = employees
+                .Select(e => new
+                {
+                    e.UserId,
+                    e.FullName,
+                    TotalSales = salesAgg.FirstOrDefault(x => x.UserId == e.UserId)?.TotalSales ?? 0m
+                })
+                .OrderByDescending(x => x.TotalSales)
+                .ToList();
+
+            var top = employeeSales.FirstOrDefault();
+            var topName = top?.FullName ?? "-";
+            var topAmount = top?.TotalSales ?? 0m;
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Top Employee Report");
+            int row = 1;
+
+            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Top Employee", "Total Sales (BHD)" };
+            var summaryRows = new List<string[]> {
+                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), topName, topAmount.ToString("F3") }
+            };
+            row = AddStyledTableAt(ws, row, "Top Employee Report", summaryHeaders, summaryRows, new[] { 35d, 24d, 35d, 22d });
+
+            var headers = new[] { "Employee Name", "Total Sales (BHD)" };
+            var rows = employeeSales.Select(e => new[] {
+                string.IsNullOrWhiteSpace(e.FullName) ? ("User #" + e.UserId) : e.FullName,
+                e.TotalSales.ToString("F3")
+            }).ToList();
+            row = AddStyledTableAt(ws, row, "Store Employee Sales", headers, rows, new[] { 50d, 22d });
 
             using var ms = new MemoryStream();
             wb.SaveAs(ms);
