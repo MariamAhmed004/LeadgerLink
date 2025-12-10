@@ -199,17 +199,15 @@ namespace LeadgerLink.Server.Controllers
             if (dto == null) return BadRequest("Missing payload.");
             if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
 
-            var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value;
-            var fromId = dto.FromStoreId;
+            var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value; // destination store (requester)
+            var fromId = dto.FromStoreId; // source store
             if (!fromId.HasValue) return BadRequest("Request From store must be selected.");
 
             var parsedDate = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
 
-            var statusValue = string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft" ;
-
-            // Case-insensitive match supported by EF Core by normalizing both sides
-            var statusLower = statusValue.ToLower();
+            var statusValue = !string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft";
+            var statusLower = statusValue.ToLowerInvariant();
             InventoryTransferStatus? Status = await _context.InventoryTransferStatuses
                 .FirstOrDefaultAsync(s => (s.TransferStatus != null ? s.TransferStatus.ToLower() : "") == statusLower);
 
@@ -218,8 +216,8 @@ namespace LeadgerLink.Server.Controllers
             {
                 var transfer = new InventoryTransfer
                 {
-                    FromStore = requesterId,
-                    ToStore = fromId.Value,
+                    FromStore = fromId.Value,       // source store
+                    ToStore = requesterId,          // destination store (requester)
                     RequestedAt = parsedDate,
                     InventoryTransferStatusId = Status != null ? Status.TransferStatusId : 1,
                     Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
@@ -231,33 +229,41 @@ namespace LeadgerLink.Server.Controllers
 
                 foreach (var it in dto.Items)
                 {
-                    if (it.RecipeId.HasValue || it.Quantity <= 0)
+                    var qty = it.Quantity;
+                    if (qty <= 0)
+                    {
+                        _logger.LogWarning("Skipping transfer item with non-positive quantity: {Item}", it);
+                        continue;
+                    }
+
+                    if (it.RecipeId.HasValue)
                     {
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
                             RecipeId = it.RecipeId,
-                            Quantity = it.Quantity,
+                            Quantity = qty,
                             IsRequested = true
                         };
                         _context.TransferItems.Add(ti);
                     }
-                    else if (it.InventoryItemId.HasValue && it.Quantity > 0)
+                    else if (it.InventoryItemId.HasValue)
                     {
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
                             InventoryItemId = it.InventoryItemId,
-                            Quantity = it.Quantity,
+                            Quantity = qty,
                             IsRequested = true
                         };
                         _context.TransferItems.Add(ti);
                     }
                     else
                     {
-                        _logger.LogWarning("Skipping invalid transfer item: {Item}", it);
+                        _logger.LogWarning("Skipping invalid transfer item (no ids): {Item}", it);
                     }
                 }
+
                 await _context.SaveChangesAsync();
                 await tx.CommitAsync();
 

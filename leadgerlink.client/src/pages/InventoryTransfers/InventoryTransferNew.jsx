@@ -26,7 +26,7 @@ export default function InventoryTransferNew() {
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
 
   // selection captured from TabbedMenu (for future submit)
-  const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity}]
+  const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity,recipeId}]
 
   // tabs data
   const [recipeItems, setRecipeItems] = useState([]);
@@ -86,6 +86,8 @@ export default function InventoryTransferNew() {
           const rlist = await recipesRes.json();
           const recipesArr = Array.isArray(rlist) ? rlist : [];
           const mappedRecipes = recipesArr.map(r => ({
+            // Ensure the actual recipe id is carried through for payload
+            recipeId: r.recipeId ?? r.RecipeId ?? null,
             productId: r.relatedProductId ?? r.productId ?? null,
             name: r.recipeName ?? r.productName ?? 'Recipe',
             description: r.description ?? 'NA',
@@ -132,14 +134,27 @@ export default function InventoryTransferNew() {
     return () => { mounted = false; };
   }, []);
 
+  // Build items payload using Tab label to distinguish recipe vs inventory items
+  const buildItemsPayload = () => {
+    return (selection || [])
+      .filter(s => Number(s.quantity) > 0)
+      .map(s => {
+        const qty = Number(s.quantity);
+        if (s.tabLabel === 'Others') {
+          // Inventory items
+          return { InventoryItemId: Number(s.productId), Quantity: qty };
+        }
+        // Recipes tab - send the actual recipe id
+        return { RecipeId: Number(s.recipeId), Quantity: qty };
+      });
+  };
+
   // Save -> set Draft then navigate back (now posts to backend)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('draft');
 
-    const items = (selection || [])
-      .filter(s => Number(s.quantity) > 0)
-      .map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+    const items = buildItemsPayload();
 
     const payload = {
       requesterStoreId: requester ? Number(requester) : null,
@@ -178,8 +193,7 @@ export default function InventoryTransferNew() {
   const confirmSend = () => {
     setShowSendModal(false);
     setStatus('pending');
-    // Prepare payload for future API (do not submit now)
-    const items = (selection || []).filter(s => Number(s.quantity) > 0).map(s => ({ productId: Number(s.productId), quantity: Number(s.quantity) }));
+    const items = buildItemsPayload();
     const payload = {
       requesterStoreId: requester ? Number(requester) : null,
       fromStoreId: fromStore ? Number(fromStore) : null,
@@ -188,7 +202,6 @@ export default function InventoryTransferNew() {
       notes: notes ? String(notes).trim() : null,
       items
     };
-    // Future: POST /api/inventory-transfers/send with payload
     navigate('/inventory/transfers');
   };
 
