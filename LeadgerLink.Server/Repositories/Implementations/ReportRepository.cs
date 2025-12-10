@@ -10,16 +10,19 @@ using PdfSharpCore.Pdf;
 using PdfSharpCore.Drawing;
 using LeadgerLink.Server.Dtos;
 using System.Collections.Generic;
+using ClosedXML.Excel;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
     public class ReportRepository : IReportRepository
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly IInventoryItemRepository _inventoryRepo;
 
-        public ReportRepository(LedgerLinkDbContext context)
+        public ReportRepository(LedgerLinkDbContext context, IInventoryItemRepository inventoryRepo)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _inventoryRepo = inventoryRepo ?? throw new ArgumentNullException(nameof(inventoryRepo));
         }
 
         // Cost of goods sold for a store in a given year/month.
@@ -381,7 +384,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Select(g => new { StoreId = g.Key, Total = g.Sum(x => x.TotalAmount) })
                 .ToListAsync();
 
-            // Fetch all org stores once; avoids nullable/int Contains mismatches
             var stores = await _context.Stores
                 .Where(st => st.OrgId == organizationId)
                 .Select(st => new { st.StoreId, st.StoreName })
@@ -396,6 +398,389 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     Value = x.Total
                 };
             });
+        }
+
+        // -------------------------
+        // Current Stock Report (PDF/CSV)
+        // -------------------------
+        private static (XFont title, XFont header, XFont text, XPen gridPen, XBrush headerBrush) CreatePdfStyle()
+        {
+            var title = new XFont("Arial", 16, XFontStyle.Bold);
+            var header = new XFont("Arial", 11, XFontStyle.Bold);
+            var text = new XFont("Arial", 10, XFontStyle.Regular);
+            var gridPen = new XPen(XColors.LightGray, 0.5);
+            var headerBrush = new XSolidBrush(XColor.FromArgb(0xEE, 0xF2, 0xFB)); // light blue
+            return (title, header, text, gridPen, headerBrush);
+        }
+
+        private static void DrawSectionHeader(XGraphics gfx, string title, XFont font, double x, ref double y, double width, XBrush? bg = null)
+        {
+            var rect = new XRect(x, y, width, 22);
+            if (bg != null) gfx.DrawRectangle(bg, rect);
+            gfx.DrawString(title, font, XBrushes.Black, rect, XStringFormats.CenterLeft);
+            y += 26;
+        }
+
+        private static void DrawTableHeader(XGraphics gfx, string[] columns, XFont font, double x, ref double y, double[] widths, XBrush bg, XPen border)
+        {
+            var height = 20;
+            var xx = x;
+            for (int i = 0; i < columns.Length; i++)
+            {
+                var rect = new XRect(xx, y, widths[i], height);
+                gfx.DrawRectangle(bg, rect);
+                gfx.DrawRectangle(border, rect);
+                gfx.DrawString(columns[i], font, XBrushes.Black, rect, XStringFormats.CenterLeft);
+                xx += widths[i];
+            }
+            y += height + 4;
+        }
+
+        private static void DrawTableRow(XGraphics gfx, string[] cells, XFont font, double x, ref double y, double[] widths, XPen border, XBrush? brushOverride = null)
+        {
+            var height = 18;
+            var xx = x;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                var rect = new XRect(xx, y, widths[i], height);
+                if (brushOverride != null) gfx.DrawRectangle(brushOverride, rect);
+                gfx.DrawRectangle(border, rect);
+                gfx.DrawString(cells[i], font, XBrushes.Black, rect, XStringFormats.CenterLeft);
+                xx += widths[i];
+            }
+            y += height;
+        }
+
+        public async Task<byte[]> GenerateCurrentStockReportPdfAsync(int storeId)
+        {
+            var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
+                .FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+            var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
+            var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
+            var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
+            var totalItems = allItems.Count();
+            var lowStockItems = allItems.Where(ii => ii.MinimumQuantity.HasValue && ii.Quantity < ii.MinimumQuantity.Value).ToList();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Report title block
+                DrawSectionHeader(gfx, "Current Stock Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store: {storeName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Generated: {generatedAt:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Low stock items: {lowStockCount}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Total items: {totalItems}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store inventory value: BHD {storeValue:F3}", textFont, x, ref y, contentWidth);
+
+                y += 6;
+
+                // All items table
+                DrawSectionHeader(gfx, "All Inventory Items", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.5, contentWidth * 0.3, contentWidth * 0.2 };
+                DrawTableHeader(gfx, new[] { "Item Name", "Category", "Quantity" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var ii in allItems)
+                {
+                    var cat = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : "-";
+                    var cells = new[] { ii.InventoryItemName ?? "-", cat, $"{ii.Quantity:F3}" };
+                    DrawTableRow(gfx, cells, textFont, x, ref y, widths, gridPen);
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Item Name", "Category", "Quantity" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                y += 10;
+
+                // Low stock table with highlight rows
+                DrawSectionHeader(gfx, "Low Stock Items", headerFont, x, ref y, contentWidth, headerBg);
+                var lWidths = new[] { contentWidth * 0.45, contentWidth * 0.25, contentWidth * 0.15, contentWidth * 0.15 };
+                DrawTableHeader(gfx, new[] { "Item Name", "Category", "Quantity", "Minimum" }, headerFont, x, ref y, lWidths, headerBg, gridPen);
+
+                var lowRowBg = new XSolidBrush(XColor.FromArgb(0xFF, 0xF5, 0xF5)); // light red-ish
+                foreach (var ii in lowStockItems)
+                {
+                    var cat = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : "-";
+                    var min = ii.MinimumQuantity.HasValue ? ii.MinimumQuantity.Value.ToString() : "-";
+                    var cells = new[] { ii.InventoryItemName ?? "-", cat, $"{ii.Quantity:F3}", min };
+                    DrawTableRow(gfx, cells, textFont, x, ref y, lWidths, gridPen, lowRowBg);
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Item Name", "Category", "Quantity", "Minimum" }, headerFont, x, ref y, lWidths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateCurrentStockReportCsvAsync(int storeId)
+        {
+            var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
+                .FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm") + " UTC";
+            var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
+            var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
+            var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
+            var totalItems = allItems.Count();
+
+            // CSV cannot control column widths or text styling; keep consistent headers for reuse across tools.
+            var sb = new StringBuilder();
+            sb.AppendLine("Current Stock Report");
+            sb.AppendLine($"Store,{EscapeCsv(storeName)}");
+            sb.AppendLine($"Generated,{generatedAt}");
+            sb.AppendLine($"LowStockCount,{lowStockCount}");
+            sb.AppendLine($"TotalItems,{totalItems}");
+            sb.AppendLine($"StoreInventoryValue,BHD {storeValue:F3}");
+            sb.AppendLine();
+
+            sb.AppendLine("All Inventory Items");
+            sb.AppendLine("Item Name,Category,Quantity");
+            foreach (var ii in allItems)
+            {
+                var cat = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : "-";
+                sb.AppendLine($"{EscapeCsv(ii.InventoryItemName)},{EscapeCsv(cat)},{ii.Quantity:F3}");
+            }
+            sb.AppendLine();
+
+            sb.AppendLine("Low Stock Items");
+            sb.AppendLine("Item Name,Category,Quantity,Minimum");
+            foreach (var ii in allItems.Where(x => x.MinimumQuantity.HasValue && x.Quantity < x.MinimumQuantity.Value))
+            {
+                var cat = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : "-";
+                var min = ii.MinimumQuantity.HasValue ? ii.MinimumQuantity.Value.ToString() : "-";
+                sb.AppendLine($"{EscapeCsv(ii.InventoryItemName)},{EscapeCsv(cat)},{ii.Quantity:F3},{min}");
+            }
+
+            var bom = new byte[] { 0xEF, 0xBB, 0xBF };
+            var content = Encoding.UTF8.GetBytes(sb.ToString());
+            var result = new byte[bom.Length + content.Length];
+            Buffer.BlockCopy(bom, 0, result, 0, bom.Length);
+            Buffer.BlockCopy(content, 0, result, bom.Length, content.Length);
+            return result;
+        }
+
+        private static string EscapeCsv(string? s)
+        {
+            var v = s ?? string.Empty;
+            if (v.Contains('"') || v.Contains(',') || v.Contains('\n'))
+            {
+                v = '"' + v.Replace("\"", "\"\"") + '"';
+            }
+            return v;
+        }
+
+        private static XLWorkbook CreateWorkbook()
+        {
+            var wb = new XLWorkbook();
+            wb.Style.Font.FontName = "Segoe UI";
+            wb.Style.Font.FontSize = 11;
+            return wb;
+        }
+
+        private static IXLWorksheet AddStyledTable(IXLWorkbook wb, string sheetName, string title,
+            string[] headers, IEnumerable<string[]> rows, Action<IXLRange>? extraStyle = null,
+            double[]? columnWidths = null)
+        {
+            var ws = wb.Worksheets.Add(sheetName);
+            int r = 1;
+
+            // Title
+            ws.Cell(r, 1).Value = title;
+            ws.Range(r, 1, r, headers.Length).Merge().Style
+                .Font.SetBold()
+                .Font.SetFontSize(14)
+                .Fill.SetBackgroundColor(XLColor.LightBlue)
+                .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
+            r += 2;
+
+            // Header row
+            for (int c = 0; c < headers.Length; c++)
+                ws.Cell(r, c + 1).Value = headers[c];
+
+            var headerRange = ws.Range(r, 1, r, headers.Length);
+            headerRange.Style.Font.SetBold();
+            headerRange.Style.Fill.SetBackgroundColor(XLColor.LightGray);
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            r++;
+
+            // Materialize data to avoid deferred execution issues
+            var materializedRows = rows as IList<string[]> ?? rows.ToList();
+
+            // Data rows
+            foreach (var row in materializedRows)
+            {
+                for (int c = 0; c < headers.Length && c < row.Length; c++)
+                    ws.Cell(r, c + 1).Value = row[c];
+                r++;
+            }
+
+            // Style only the actually used range
+            var lastRow = Math.Max(r - 1, 1);
+            var dataRange = ws.Range(1, 1, lastRow, headers.Length);
+            dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            dataRange.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+
+            // Column widths
+            if (columnWidths != null && columnWidths.Length == headers.Length)
+            {
+                for (int c = 0; c < headers.Length; c++)
+                    ws.Column(c + 1).Width = columnWidths[c];
+            }
+            else
+            {
+                ws.Columns(1, headers.Length).AdjustToContents();
+            }
+
+            // Optional extra styling (e.g., highlight). Limit to used cells only
+            extraStyle?.Invoke(ws.Range(1, 1, lastRow, headers.Length));
+
+            // Do not freeze panes to avoid sticky rows while scrolling
+            return ws;
+        }
+
+        private static int AddStyledTableAt(IXLWorksheet ws, int startRow, string title,
+            string[] headers, IList<string[]> rows, double[]? columnWidths = null, Action<IXLRange>? extraStyle = null)
+        {
+            var r = startRow;
+
+            // Title
+            ws.Cell(r, 1).Value = title;
+            ws.Range(r, 1, r, headers.Length).Merge().Style
+                .Font.SetBold()
+                .Font.SetFontSize(14)
+                .Fill.SetBackgroundColor(XLColor.LightBlue)
+                .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
+            r += 2; // keep one blank row between title and header
+
+            // Header row
+            for (int c = 0; c < headers.Length; c++)
+                ws.Cell(r, c + 1).Value = headers[c];
+
+            var headerRange = ws.Range(r, 1, r, headers.Length);
+            headerRange.Style.Font.SetBold();
+            headerRange.Style.Fill.SetBackgroundColor(XLColor.LightGray);
+            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            headerRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            r++;
+
+            // Data rows (already materialized)
+            foreach (var row in rows)
+            {
+                for (int c = 0; c < headers.Length && c < row.Length; c++)
+                    ws.Cell(r, c + 1).Value = row[c];
+                r++;
+            }
+
+            // Style only the actually used range
+            var lastRow = Math.Max(r - 1, startRow);
+            var usedRange = ws.Range(startRow, 1, lastRow, headers.Length);
+            usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            usedRange.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+
+            // Column widths per section
+            if (columnWidths != null && columnWidths.Length == headers.Length)
+            {
+                for (int c = 0; c < headers.Length; c++)
+                    ws.Column(c + 1).Width = columnWidths[c];
+            }
+            else
+            {
+                ws.Columns(1, headers.Length).AdjustToContents(startRow, lastRow);
+            }
+
+            // Optional extra styling (limit to used cells only)
+            extraStyle?.Invoke(usedRange);
+
+            // Return next row index after a spacer row for the next section
+            return lastRow + 2; // one blank row distance between sections
+        }
+
+        public async Task<byte[]> GenerateCurrentStockReportExcelAsync(int storeId)
+        {
+            var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
+                .FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+            var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
+            var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
+            var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
+            var totalItems = allItems.Count();
+            var lowStockItems = allItems.Where(ii => ii.MinimumQuantity.HasValue && ii.Quantity < ii.MinimumQuantity.Value).ToList();
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Current Stock");
+            int row = 1;
+
+            // Summary block
+            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Low Stock Items", "Total Items", "Inventory Value (BHD)" };
+            var summaryRows = new List<string[]> {
+                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), lowStockCount.ToString(), totalItems.ToString(), storeValue.ToString("F3") }
+            };
+            row = AddStyledTableAt(ws, row, "Current Stock Report", summaryHeaders, summaryRows, new[] { 35d, 24d, 20d, 18d, 22d });
+
+            // All items block
+            var allHeaders = new[] { "Item Name", "Category", "Quantity" };
+            var allRows = allItems.Select(ii => new[]
+            {
+                ii.InventoryItemName ?? "-",
+                ii.InventoryItemCategory?.InventoryItemCategoryName ?? "-",
+                ii.Quantity.ToString("F3")
+            }).ToList();
+            row = AddStyledTableAt(ws, row, "All Inventory Items", allHeaders, allRows, new[] { 45d, 30d, 18d });
+
+            // Low stock block (highlight rows)
+            var lowHeaders = new[] { "Item Name", "Category", "Quantity", "Minimum" };
+            var lowRows = lowStockItems.Select(ii => new[]
+            {
+                ii.InventoryItemName ?? "-",
+                ii.InventoryItemCategory?.InventoryItemCategoryName ?? "-",
+                ii.Quantity.ToString("F3"),
+                ii.MinimumQuantity?.ToString() ?? "-"
+            }).ToList();
+            row = AddStyledTableAt(ws, row, "Low Stock Items", lowHeaders, lowRows, new[] { 45d, 30d, 18d, 18d }, usedRange =>
+            {
+                var lastRow = usedRange.RangeAddress.LastAddress.RowNumber;
+                // data region starts after title(1) + blank(1) + header(1) => +3 rows from section start
+                var dataStart = usedRange.RangeAddress.FirstAddress.RowNumber + 3;
+                if (lastRow >= dataStart)
+                {
+                    var dataOnly = ws.Range(dataStart, 1, lastRow, lowHeaders.Length);
+                    dataOnly.Style.Fill.SetBackgroundColor(XLColor.PalePink);
+                }
+            });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
         }
     }
 }

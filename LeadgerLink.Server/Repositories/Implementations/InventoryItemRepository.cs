@@ -112,6 +112,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         public async Task<IEnumerable<InventoryItem>> GetItemsByStoreAsync(int storeId)
         {
             return await _context.InventoryItems
+                .Include(ii => ii.InventoryItemCategory)
                 .Where(ii => ii.StoreId == storeId)
                 .ToListAsync();
         }
