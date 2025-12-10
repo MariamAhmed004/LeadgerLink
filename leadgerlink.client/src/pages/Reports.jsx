@@ -67,6 +67,17 @@ export default function Reports() {
           url = `/api/reports/current-stock/excel?storeId=${encodeURIComponent(String(storeId))}`;
           filename = `current-stock-${storeId}.xlsx`;
         }
+      } else if (reportId === "top_recipes_and_sales") {
+        // Call dedicated Top Recipes & Sales endpoints
+        if (format === "PDF") {
+          if (!storeId) throw new Error("Store id not available for Top Recipes & Sales report.");
+          url = `/api/reports/top-recipes-sales/pdf?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `top-recipes-sales-${storeId}.pdf`;
+        } else {
+          if (!storeId) throw new Error("Store id not available for Top Recipes & Sales report.");
+          url = `/api/reports/top-recipes-sales/excel?storeId=${encodeURIComponent(String(storeId))}`;
+          filename = `top-recipes-sales-${storeId}.xlsx`;
+        }
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();

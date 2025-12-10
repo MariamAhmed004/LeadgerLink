@@ -104,5 +104,42 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate current stock Excel.");
             }
         }
+
+        // GET api/reports/top-recipes-sales/pdf?storeId=123
+        [HttpGet("top-recipes-sales/pdf")]
+        public async Task<IActionResult> GetTopRecipesSalesPdf([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateTopRecipesSalesReportPdfAsync(storeId);
+                var fileName = $"top-recipes-sales-{storeId}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Top Recipes & Sales PDF for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Top Recipes & Sales PDF.");
+            }
+        }
+
+        // GET api/reports/top-recipes-sales/excel?storeId=123
+        [HttpGet("top-recipes-sales/excel")]
+        public async Task<IActionResult> GetTopRecipesSalesExcel([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateTopRecipesSalesReportExcelAsync(storeId);
+                var fileName = $"top-recipes-sales-{storeId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Top Recipes & Sales Excel for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Top Recipes & Sales Excel.");
+            }
+        }
     }
 }

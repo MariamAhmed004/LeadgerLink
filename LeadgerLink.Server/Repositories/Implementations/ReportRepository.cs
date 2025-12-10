@@ -782,5 +782,132 @@ namespace LeadgerLink.Server.Repositories.Implementations
             wb.SaveAs(ms);
             return ms.ToArray();
         }
+
+        public async Task<byte[]> GenerateTopRecipesSalesReportPdfAsync(int storeId)
+        {
+            // Fetch store, recipes and sales aggregates via context
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+
+            // Aggregate recipe sales for the store
+            var recipeSales = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Include(si => si.Product)
+                .ThenInclude(p => p.Recipe)
+                .Where(si => si.Sale.StoreId == storeId && si.Product != null && si.Product.RecipeId != null)
+                .GroupBy(si => si.Product!.RecipeId)
+                .Select(g => new {
+                    RecipeId = g.Key!.Value,
+                    TotalQty = g.Sum(x => x.Quantity),
+                    TotalRevenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m)),
+                    RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault()
+                })
+                .OrderByDescending(x => x.TotalQty)
+                .ToListAsync();
+
+            var mostSelling = recipeSales.FirstOrDefault();
+            var mostSellingName = mostSelling?.RecipeName ?? "-";
+            var mostSellingCount = mostSelling?.TotalQty ?? 0m;
+            var totalRevenue = recipeSales.Sum(x => x.TotalRevenue);
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header
+                DrawSectionHeader(gfx, "Top Recipes & Sales", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store: {storeName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Generated: {generatedAt:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Most Selling Recipe: {mostSellingName}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Times Sold: {mostSellingCount}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store Revenue: BHD {totalRevenue:F3}", textFont, x, ref y, contentWidth);
+
+                y += 6;
+
+                // Table: All recipes and quantities
+                DrawSectionHeader(gfx, "Recipe Sales", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.6, contentWidth * 0.2, contentWidth * 0.2 };
+                DrawTableHeader(gfx, new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var r in recipeSales)
+                {
+                    var cells = new[] { r.RecipeName ?? ("Recipe #" + r.RecipeId), r.TotalQty.ToString("F3"), r.TotalRevenue.ToString("F3") };
+                    DrawTableRow(gfx, cells, textFont, x, ref y, widths, gridPen);
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateTopRecipesSalesReportExcelAsync(int storeId)
+        {
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+
+            var recipeSales = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Include(si => si.Product)
+                .ThenInclude(p => p.Recipe)
+                .Where(si => si.Sale.StoreId == storeId && si.Product != null && si.Product.RecipeId != null)
+                .GroupBy(si => si.Product!.RecipeId)
+                .Select(g => new {
+                    RecipeId = g.Key!.Value,
+                    TotalQty = g.Sum(x => x.Quantity),
+                    TotalRevenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m)),
+                    RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault()
+                })
+                .OrderByDescending(x => x.TotalQty)
+                .ToListAsync();
+
+            var mostSelling = recipeSales.FirstOrDefault();
+            var mostSellingName = mostSelling?.RecipeName ?? "-";
+            var mostSellingCount = mostSelling?.TotalQty ?? 0m;
+            var totalRevenue = recipeSales.Sum(x => x.TotalRevenue);
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Top Recipes & Sales");
+
+            int row = 1;
+            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Most Selling Recipe", "Times Sold", "Store Revenue (BHD)" };
+            var summaryRows = new List<string[]> {
+                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), mostSellingName, mostSellingCount.ToString("F3"), totalRevenue.ToString("F3") }
+            };
+            row = AddStyledTableAt(ws, row, "Top Recipes & Sales", summaryHeaders, summaryRows, new[] { 35d, 24d, 35d, 18d, 22d });
+
+            var headers = new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" };
+            var rows = recipeSales.Select(r => new[] {
+                r.RecipeName ?? ("Recipe #" + r.RecipeId),
+                r.TotalQty.ToString("F3"),
+                r.TotalRevenue.ToString("F3")
+            }).ToList();
+            row = AddStyledTableAt(ws, row, "Recipe Sales", headers, rows, new[] { 50d, 20d, 22d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
     }
 }

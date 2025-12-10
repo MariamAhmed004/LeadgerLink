@@ -40,11 +40,16 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesForOrganizationAsync(int organizationId, int topN);
         Task<IEnumerable<ChartPointDto>> GetStoreSalesContributionForOrganizationAsync(int organizationId, DateTime from, DateTime to);
 
-        Task<byte[]> GenerateCurrentStockReportExcelAsync(int storeId);
-        Task<byte[]> GenerateCurrentStockReportPdfAsync(int storeId);
-
-        // Placeholder report generation APIs (return raw file bytes).
+        // Existing report generators
         Task<byte[]> GenerateReportPdfAsync(string reportId, int? organizationId = null, int? storeId = null);
         Task<byte[]> GenerateReportCsvAsync(string reportId, int? organizationId = null, int? storeId = null);
+
+        // Current stock
+        Task<byte[]> GenerateCurrentStockReportPdfAsync(int storeId);
+        Task<byte[]> GenerateCurrentStockReportExcelAsync(int storeId);
+
+        // Top Recipes & Sales
+        Task<byte[]> GenerateTopRecipesSalesReportPdfAsync(int storeId);
+        Task<byte[]> GenerateTopRecipesSalesReportExcelAsync(int storeId);
     }
 }//end IReportRepository
