@@ -178,5 +178,42 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate Top Employee Excel.");
             }
         }
+
+        // GET api/reports/sales-summary/pdf?storeId=123
+        [HttpGet("sales-summary/pdf")]
+        public async Task<IActionResult> GetSalesSummaryPdf([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateSalesSummaryReportPdfAsync(storeId);
+                var fileName = $"sales-summary-{storeId}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Sales Summary PDF for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Sales Summary PDF.");
+            }
+        }
+
+        // GET api/reports/sales-summary/excel?storeId=123
+        [HttpGet("sales-summary/excel")]
+        public async Task<IActionResult> GetSalesSummaryExcel([FromQuery] int storeId)
+        {
+            if (storeId <= 0) return BadRequest("storeId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateSalesSummaryReportExcelAsync(storeId);
+                var fileName = $"sales-summary-{storeId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Sales Summary Excel for store {StoreId}", storeId);
+                return StatusCode(500, "Failed to generate Sales Summary Excel.");
+            }
+        }
     }
 }

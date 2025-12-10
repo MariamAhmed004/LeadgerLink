@@ -1056,5 +1056,123 @@ namespace LeadgerLink.Server.Repositories.Implementations
             wb.SaveAs(ms);
             return ms.ToArray();
         }
+
+        public async Task<byte[]> GenerateSalesSummaryReportPdfAsync(int storeId)
+        {
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+            var today = DateTime.UtcNow.Date;
+
+            // Daily counts and totals
+            var todaysSales = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.Timestamp.Date == today)
+                .ToListAsync();
+            var salesCountToday = todaysSales.Count;
+            var revenueToday = todaysSales.Sum(s => s.TotalAmount);
+            var cogsToday = await GetCOGSByStoreForMonthAsync(storeId, today.Year, today.Month); // approximate monthly COGS; adjust if per-day COGS exists
+
+            // Group sales by month for the store
+            var monthlySales = await _context.Sales
+                .Where(s => s.StoreId == storeId)
+                .GroupBy(s => new { s.Timestamp.Year, s.Timestamp.Month })
+                .Select(g => new { Year = g.Key.Year, Month = g.Key.Month, Total = g.Sum(x => x.TotalAmount) })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToListAsync();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header
+                DrawSectionHeader(gfx, "Sales Summary", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Store: {storeName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Generated: {generatedAt:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Sales Records Today: {salesCountToday}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Revenue Today: BHD {revenueToday:F3}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"COGS (Month): BHD {cogsToday:F3}", textFont, x, ref y, contentWidth);
+
+                y += 6;
+
+                // Table: Sales grouped by month
+                DrawSectionHeader(gfx, "Monthly Sales Totals", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.5, contentWidth * 0.5 };
+                DrawTableHeader(gfx, new[] { "Month", "Total Sales (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var m in monthlySales)
+                {
+                    var monthLabel = new DateTime(m.Year, m.Month, 1).ToString("yyyy-MM");
+                    var cells = new[] { monthLabel, m.Total.ToString("F3") };
+                    DrawTableRow(gfx, cells, textFont, x, ref y, widths, gridPen);
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Month", "Total Sales (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateSalesSummaryReportExcelAsync(int storeId)
+        {
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
+            var storeName = store?.StoreName ?? $"Store {storeId}";
+            var generatedAt = DateTime.UtcNow;
+            var today = DateTime.UtcNow.Date;
+
+            var todaysSales = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.Timestamp.Date == today)
+                .ToListAsync();
+            var salesCountToday = todaysSales.Count;
+            var revenueToday = todaysSales.Sum(s => s.TotalAmount);
+            var cogsToday = await GetCOGSByStoreForMonthAsync(storeId, today.Year, today.Month);
+
+            var monthlySales = await _context.Sales
+                .Where(s => s.StoreId == storeId)
+                .GroupBy(s => new { s.Timestamp.Year, s.Timestamp.Month })
+                .Select(g => new { Year = g.Key.Year, Month = g.Key.Month, Total = g.Sum(x => x.TotalAmount) })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToListAsync();
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Sales Summary");
+            int row = 1;
+
+            var summaryHeaders = new[] { "Store", "Generated (UTC)", "Sales Records Today", "Revenue Today (BHD)", "COGS (Month) (BHD)" };
+            var summaryRows = new List<string[]> {
+                new [] { storeName, generatedAt.ToString("yyyy-MM-dd HH:mm"), salesCountToday.ToString(), revenueToday.ToString("F3"), cogsToday.ToString("F3") }
+            };
+            row = AddStyledTableAt(ws, row, "Sales Summary", summaryHeaders, summaryRows, new[] { 35d, 24d, 25d, 22d, 22d });
+
+            var headers = new[] { "Month", "Total Sales (BHD)" };
+            var rows = monthlySales.Select(m => new[]
+            {
+                new DateTime(m.Year, m.Month, 1).ToString("yyyy-MM"),
+                m.Total.ToString("F3")
+            }).ToList();
+            row = AddStyledTableAt(ws, row, "Monthly Sales Totals", headers, rows, new[] { 30d, 24d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
     }
 }
