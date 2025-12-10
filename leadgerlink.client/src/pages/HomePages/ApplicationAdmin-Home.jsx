@@ -60,7 +60,7 @@ const AdminHomePage = () => {
     // Fetch recent activity logs for the main table using audit logs overview endpoint
     const fetchActivityLogs = async () => {
         try {
-            const res = await fetch("/api/auditlogs/overview?page=1&pageSize=10", { credentials: "include" });
+            const res = await fetch("/api/auditlogs/overview?page=1&pageSize=5", { credentials: "include" });
             if (!res.ok) {
                 setActivityLogs([]);
                 return;

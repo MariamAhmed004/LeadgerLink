@@ -69,7 +69,10 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     Role = u.Role != null ? u.Role.RoleTitle : null,
                     OrganizationName = u.Organization != null ? u.Organization.OrgName : null,
                     IsActive = u.IsActive,
-                    CreatedAt = u.CreatedAt
+                    CreatedAt = u.CreatedAt,
+                    StoreId = u.StoreId,
+                    OrgId = u.OrgId
+
                 })
                 .AsNoTracking()
                 .OrderBy(u => u.FullName);

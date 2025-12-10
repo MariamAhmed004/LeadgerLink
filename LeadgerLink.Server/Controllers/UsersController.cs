@@ -36,10 +36,18 @@ namespace LeadgerLink.Server.Controllers
 
         // GET: api/users
         // Return a lightweight projection (reuses UserDetailDto) for the list endpoint.
+        // Optional query: orgId, storeId
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserDetailDto>>> GetAll()
+        public async Task<ActionResult<IEnumerable<UserDetailDto>>> GetAll([FromQuery] int? orgId = null, [FromQuery] int? storeId = null)
         {
             var list = await _userRepository.GetListAsync();
+
+            if (orgId.HasValue)
+                list = list.Where(u => (u.OrgId ?? 0) == orgId.Value).ToList();
+
+            if (storeId.HasValue)
+                list = list.Where(u => (u.StoreId ?? 0) == storeId.Value).ToList();
+
             return Ok(list);
         }
 

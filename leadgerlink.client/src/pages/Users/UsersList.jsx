@@ -42,8 +42,24 @@ export default function UsersList() {
       setLoading(true);
       setError("");
       try {
+        const qs = new URLSearchParams();
+        const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
+        const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+        const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+        const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
+
+        if (!isAppAdmin) {
+          if (isOrgAdmin || isOrgAccountant) {
+            const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId;
+            if (orgId) qs.append("orgId", String(orgId));
+          } else if (isStoreManager) {
+            const storeId = loggedInUser?.storeId ?? loggedInUser?.StoreId;
+            if (storeId) qs.append("storeId", String(storeId));
+          }
+        }
+
         const [usersRes, orgsRes] = await Promise.all([
-          fetch("/api/users", { credentials: "include" }),
+          fetch(`/api/users?${qs.toString()}`, { credentials: "include" }),
           fetch("/api/organizations", { credentials: "include" })
         ]);
 
@@ -69,7 +85,7 @@ export default function UsersList() {
 
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [loggedInUser]);
 
   // lookup helpers using canonical names
   const findOrgName = (orgId) => {
@@ -77,9 +93,23 @@ export default function UsersList() {
     return o ? (o.orgName ?? o.OrgName ?? "") : "";
   };
 
-  // client-side filtering using canonical fields only
+  // client-side filtering using canonical fields + role-based scope
   const filtered = users.filter((u) => {
-    // expect u.isActive, u.createdAt, u.userFirstname, u.userLastname, u.email, u.phone, u.role
+    const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
+    const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
+    const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
+    const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
+
+    if (!isAppAdmin) {
+      if (isOrgAdmin || isOrgAccountant) {
+        const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId;
+        if (orgId && String(u.orgId ?? u.OrgId ?? "") !== String(orgId)) return false;
+      } else if (isStoreManager) {
+        const storeId = loggedInUser?.storeId ?? loggedInUser?.StoreId;
+        if (storeId && String(u.storeId ?? u.StoreId ?? "") !== String(storeId)) return false;
+      }
+    }
+
     if (statusFilter === "active" && u.isActive !== true) return false;
     if (statusFilter === "inactive" && u.isActive === true) return false;
 

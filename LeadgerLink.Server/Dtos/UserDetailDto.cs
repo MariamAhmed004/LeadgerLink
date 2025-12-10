@@ -28,5 +28,8 @@ namespace LeadgerLink.Server.Dtos
         // Account status and timestamps
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int? OrgId { get; set; }
+        public int? StoreId { get; set; }
+
     }
 }

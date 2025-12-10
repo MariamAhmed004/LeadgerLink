@@ -43,7 +43,7 @@ const StoreEmployeeHomePage = () => {
     // Fetch pending inventory transfers for current store (show up to 5 latest with status 'Pending')
     const fetchPendingTransfers = async () => {
         try {
-            const res = await fetch("/api/inventorytransfers/latest-for-current-store?pageSize=10", { credentials: "include" });
+            const res = await fetch("/api/inventorytransfers/latest-for-current-store?pageSize=5", { credentials: "include" });
             if (!res.ok) {
                 setPendingTransfers([]);
                 return;
