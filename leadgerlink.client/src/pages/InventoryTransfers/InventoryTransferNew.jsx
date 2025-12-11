@@ -57,7 +57,7 @@ export default function InventoryTransferNew() {
           if (userStoreId && String(fromStore) === userStoreId) setFromStore('');
         }
       } catch (err) {
-        console.error('Failed to load stores', err);
+        // noop
       }
     };
     loadStores();
@@ -125,7 +125,6 @@ export default function InventoryTransferNew() {
           setOtherItems([]);
         }
       } catch (err) {
-        console.error('Failed to load tabs data', err);
         setRecipeItems([]);
         setOtherItems([]);
       }
@@ -140,13 +139,27 @@ export default function InventoryTransferNew() {
       .filter(s => Number(s.quantity) > 0)
       .map(s => {
         const qty = Number(s.quantity);
+
         if (s.tabLabel === 'Others') {
-          // Inventory items
-          return { InventoryItemId: Number(s.productId), Quantity: qty };
+          const invId = Number(s.id);
+          if (!Number.isFinite(invId)) {
+            return null;
+          }
+          return { InventoryItemId: invId, Quantity: qty };
         }
-        // Recipes tab - send the actual recipe id
-        return { RecipeId: Number(s.recipeId), Quantity: qty };
-      });
+
+        const rid = Number(s.recipeId);
+        if (!Number.isFinite(rid)) {
+          return null;
+        }
+        return { RecipeId: rid, Quantity: qty };
+      })
+      .filter(Boolean);
+  };
+
+  // Defer selection updates to avoid setState during TabbedMenu render
+  const handleSelectionChange = (sel) => {
+    Promise.resolve().then(() => setSelection(sel));
   };
 
   // Save -> set Draft then navigate back (now posts to backend)
@@ -178,8 +191,6 @@ export default function InventoryTransferNew() {
       }
       navigate('/inventory/transfers');
     } catch (err) {
-      console.error(err);
-      // optionally show error UI; for now, simple alert
       alert(err.message || 'Failed to save transfer');
     }
   };
@@ -202,6 +213,7 @@ export default function InventoryTransferNew() {
       notes: notes ? String(notes).trim() : null,
       items
     };
+
     navigate('/inventory/transfers');
   };
 
@@ -212,16 +224,21 @@ export default function InventoryTransferNew() {
   // Build Request From options excluding the requester store
   const requestFromOptions = (storeOptions || []).filter(o => String(o.value) !== String(requester));
 
+  // Provide explicit id hints so TabbedMenu emits recipeId for recipes and id for inventory items
   const tabs = [
     {
       label: 'Recipes',
       items: recipeItems,
       cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+      idKey: 'recipeId',           // instruct TabbedMenu to read this id from items
+      selectionIdProp: 'recipeId', // include it in selection objects
     },
     {
       label: 'Others',
       items: otherItems,
       cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+      idKey: 'id',                 // inventory items use `id`
+      selectionIdProp: 'id',       // include it in selection objects
     },
   ];
 
@@ -269,7 +286,7 @@ export default function InventoryTransferNew() {
             <TabbedMenu
               tabs={tabs}
               contentMaxHeight={360}
-              onSelectionChange={(sel) => setSelection(sel)}
+              onSelectionChange={handleSelectionChange}
             />
           </div>
 

@@ -28,7 +28,7 @@ export default function InventoryTransferFill() {
   const [otherItems, setOtherItems] = useState([]);
 
   // requested quantities map from transfer details
-  const [requestedQtyByProduct, setRequestedQtyByProduct] = useState({}); // { [productId]: qty }
+  const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({}); // { [recipeId]: qty }
   const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({}); // { [inventoryItemId]: qty }
 
   // Build Request From options excluding the requester store
@@ -63,15 +63,15 @@ export default function InventoryTransferFill() {
           fetch('/api/inventoryitems/list-for-current-store?page=1&pageSize=1000', { credentials: 'include' }).catch(() => null),
         ]);
 
-        // Recipes tab items
+        // Recipes tab items - bind by recipeId, remove productId
         if (mounted && recipesRes && recipesRes.ok) {
           const rlist = await recipesRes.json();
           const recipesArr = Array.isArray(rlist) ? rlist : [];
           const mappedRecipes = recipesArr.map(r => {
-            const productId = r.relatedProductId ?? r.productId ?? null;
-            const initialQty = productId != null ? Number(requestedQtyByProduct[String(productId)] || 0) : 0;
+            const recipeId = r.recipeId ?? r.RecipeId ?? null;
+            const initialQty = recipeId != null ? Number(requestedQtyByRecipe[String(recipeId)] || 0) : 0;
             return {
-              productId,
+              recipeId,
               name: r.recipeName ?? r.productName ?? 'Recipe',
               description: r.description ?? 'NA',
               price: r.sellingPrice != null ? (Number(r.sellingPrice).toFixed(3) + ' BHD') : 'NA',
@@ -85,7 +85,7 @@ export default function InventoryTransferFill() {
           setRecipeItems([]);
         }
 
-        // Others tab items from inventory
+        // Others tab items from inventory (no productId)
         if (mounted && itemsRes && itemsRes.ok) {
           const json = await itemsRes.json();
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
@@ -93,11 +93,10 @@ export default function InventoryTransferFill() {
             const id = it.inventoryItemId ?? it.id ?? it.InventoryItemId;
             const imgUrl = it.imageUrl || '';
             const desc = it.description ?? it.inventoryItemDescription ?? it.Description ?? '';
-            const available = Number(it.quantity ?? it.Quantity ?? 0);
+            const available = Number(it.quantity ?? 0);
             const priceVal = Number(it.costPerUnit ?? it.CostPerUnit ?? 0);
             const initialQty = id != null ? Number(requestedQtyByInventory[String(id)] || 0) : 0;
             return {
-              productId: null, // inventory item, not a product
               id,
               name: it.inventoryItemName ?? it.name ?? it.InventoryItemName ?? 'Item',
               description: desc,
@@ -119,7 +118,7 @@ export default function InventoryTransferFill() {
     };
     load();
     return () => { mounted = false; };
-  }, [requestedQtyByProduct, requestedQtyByInventory]);
+  }, [requestedQtyByRecipe, requestedQtyByInventory]);
 
   // Load transfer details by id and bind to fields, including requested items quantities
   useEffect(() => {
@@ -127,7 +126,7 @@ export default function InventoryTransferFill() {
 
     async function loadTransfer() {
       try {
-          const res = await fetch(`/api/inventorytransfers/${id}`);
+        const res = await fetch(`/api/inventorytransfers/${id}`);
         if (res.ok) {
           const data = await res.json();
           if (!isMounted) return;
@@ -140,38 +139,40 @@ export default function InventoryTransferFill() {
           setStatus(data?.status ?? '');
           setNotes(data?.notes ?? '');
 
-          // Map requested items quantities
+          // Map requested items quantities by recipeId and inventoryItemId
           const itemsArr = Array.isArray(data?.items) ? data.items : [];
-          const prodMap = {};
+          const recipeMap = {};
           const invMap = {};
           itemsArr.forEach(it => {
             const qty = Number(it.quantity ?? 0);
             if (qty <= 0) return;
-            const pid = it.productId ?? it.ProductId ?? null;
+            const rid = it.recipeId ?? it.RecipeId ?? null;
             const iid = it.inventoryItemId ?? it.InventoryItemId ?? null;
-            if (pid != null) prodMap[String(pid)] = qty;
+            if (rid != null) recipeMap[String(rid)] = qty;
             if (iid != null) invMap[String(iid)] = qty;
           });
-          setRequestedQtyByProduct(prodMap);
+          setRequestedQtyByRecipe(recipeMap);
           setRequestedQtyByInventory(invMap);
         } else {
           if (!isMounted) return;
+          console.error('Transfer detail fetch failed', res.status);
           setRequester('');
           setFromStore('');
           setDate(new Date().toISOString().slice(0, 10));
           setStatus('Pending');
           setNotes('');
-          setRequestedQtyByProduct({});
+          setRequestedQtyByRecipe({});
           setRequestedQtyByInventory({});
         }
-      } catch {
+      } catch (err) {
         if (!isMounted) return;
+        console.error('Failed to fetch transfer detail', err);
         setRequester('');
         setFromStore('');
         setDate(new Date().toISOString().slice(0, 10));
         setStatus('Pending');
         setNotes('');
-        setRequestedQtyByProduct({});
+        setRequestedQtyByRecipe({});
         setRequestedQtyByInventory({});
       }
     }

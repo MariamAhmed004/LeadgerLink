@@ -238,10 +238,20 @@ namespace LeadgerLink.Server.Controllers
 
                     if (it.RecipeId.HasValue)
                     {
+                        // Validate recipe exists before adding to prevent FK violations
+                        var recipeId = it.RecipeId.Value;
+                        var recipeExists = await _context.Recipes.AnyAsync(r => r.RecipeId == recipeId);
+                        if (!recipeExists)
+                        {
+                            await tx.RollbackAsync();
+                            _logger.LogWarning("Invalid recipe id in transfer item: {RecipeId}", recipeId);
+                            return BadRequest("One or more recipe ids are invalid.");
+                        }
+
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
-                            RecipeId = it.RecipeId,
+                            RecipeId = recipeId,
                             Quantity = qty,
                             IsRequested = true
                         };
@@ -249,10 +259,20 @@ namespace LeadgerLink.Server.Controllers
                     }
                     else if (it.InventoryItemId.HasValue)
                     {
+                        // Validate inventory item exists before adding
+                        var inventoryItemId = it.InventoryItemId.Value;
+                        var itemExists = await _context.InventoryItems.AnyAsync(inv => inv.InventoryItemId == inventoryItemId);
+                        if (!itemExists)
+                        {
+                            await tx.RollbackAsync();
+                            _logger.LogWarning("Invalid inventory item id in transfer item: {InventoryItemId}", inventoryItemId);
+                            return BadRequest("One or more inventory item ids are invalid.");
+                        }
+
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
-                            InventoryItemId = it.InventoryItemId,
+                            InventoryItemId = inventoryItemId,
                             Quantity = qty,
                             IsRequested = true
                         };

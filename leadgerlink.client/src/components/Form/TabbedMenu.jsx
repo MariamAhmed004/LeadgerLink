@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import SearchField from "../Listing/SearchField";
 
 /*
@@ -7,6 +7,10 @@ import SearchField from "../Listing/SearchField";
   - Tracks selected quantities per tab and per item index.
   - Calls onSelectionChange with a flat array of { tabLabel, index, productId, name, price, quantity }
     whenever any item's quantity changes.
+  - Extras: supports optional per-tab id hints via `idKey` (read from item) and `selectionIdProp` (prop name in selection)
+    without breaking existing behavior.
+  - NEW: Supports preselection via `initialSelectedQty` on items. If > 0, the item is initialized as selected
+    with that quantity.
 */
 const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) => {
   const initialLabel = tabs?.[0]?.label ?? "";
@@ -14,6 +18,51 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
   const [selectedMap, setSelectedMap] = useState({}); // per-tab array of selected indices
   const [searchMap, setSearchMap] = useState({});
   const [quantityMap, setQuantityMap] = useState({}); // per-tab { index: qty }
+
+  const preparedTabs = useMemo(
+    () =>
+      tabs.map((t) => ({
+        ...t,
+        items: (t.items || []).map((it) => ({
+          ...it,
+          // normalize price numeric alongside display value, support string like "3.000 BHD"
+          priceValue: (() => {
+            const raw = it.price ?? it.sellingPrice ?? 0;
+            const num = typeof raw === "string" ? Number((raw.match(/[0-9.]+/) || [0])[0]) : Number(raw);
+            return Number.isFinite(num) ? num : 0;
+          })(),
+        })),
+      })),
+    [tabs]
+  );
+
+  // Initialize selection from items' initialSelectedQty (if provided)
+  useEffect(() => {
+    const nextQtyMap = {};
+    const nextSelMap = {};
+
+    preparedTabs.forEach((tab) => {
+      const label = tab.label;
+      const items = tab.items || [];
+      const qmap = {};
+      const sel = [];
+
+      items.forEach((it, idx) => {
+        const initQty = Number(it.initialSelectedQty ?? 0);
+        if (initQty > 0) {
+          qmap[idx] = initQty;
+          sel.push(idx);
+        }
+      });
+
+      if (Object.keys(qmap).length > 0) nextQtyMap[label] = qmap;
+      if (sel.length > 0) nextSelMap[label] = sel;
+    });
+
+    // Only update if different to avoid clobbering user edits
+    setQuantityMap((prev) => ({ ...prev, ...nextQtyMap }));
+    setSelectedMap((prev) => ({ ...prev, ...nextSelMap }));
+  }, [preparedTabs]);
 
   const setQtyForTab = (tabLabel, index, qty) => {
     setQuantityMap((prev) => {
@@ -25,21 +74,36 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
       // compute aggregated selection payload for callback
       if (typeof onSelectionChange === "function") {
         const selection = [];
-        tabs.forEach((t) => {
+        preparedTabs.forEach((t) => {
           const label = t.label;
           const items = t.items || [];
           const qmap = next[label] || {};
+
+          const idKey = t.idKey || null; // optional id key to read from items
+          const selectionIdProp = t.selectionIdProp || null; // optional prop name in selection
+
           Object.keys(qmap).forEach((k) => {
             const idx = Number(k);
             const item = items[idx] || {};
-            selection.push({
+
+            const fallbackProductId = item.productId ?? item.id ?? null;
+            const hintedIdValue = idKey ? item[idKey] ?? null : null;
+
+            const sel = {
               tabLabel: label,
               index: idx,
-              productId: item.productId ?? item.id ?? null,
+              productId: fallbackProductId,
               name: item.name ?? item.recipeName ?? item.productName ?? "",
               price: item.price ?? item.sellingPrice ?? 0,
               quantity: qmap[idx] ?? 0,
-            });
+            };
+
+            // Emit the hinted identifier alongside existing fields (non-breaking)
+            if (selectionIdProp && hintedIdValue != null) {
+              sel[selectionIdProp] = hintedIdValue;
+            }
+
+            selection.push(sel);
           });
         });
         onSelectionChange(selection);
@@ -69,19 +133,6 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
     const price = String(it.item.price ?? it.item.sellingPrice ?? "").toLowerCase();
     return name.includes(s) || description.includes(s) || price.includes(s);
   };
-
-  const preparedTabs = useMemo(() => tabs.map(t => ({
-    ...t,
-    items: (t.items || []).map(it => ({
-      ...it,
-      // normalize price numeric alongside display value, support string like "3.000 BHD"
-      priceValue: (() => {
-        const raw = it.price ?? it.sellingPrice ?? 0;
-        const num = typeof raw === "string" ? Number((raw.match(/[0-9.]+/) || [0])[0]) : Number(raw);
-        return Number.isFinite(num) ? num : 0;
-      })()
-    }))
-  })), [tabs]);
 
   return (
     <div className="mb-4">
@@ -135,9 +186,11 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
                     {visibleItems && visibleItems.length > 0 ? (
                       visibleItems.map(({ item, originalIndex }) => {
                         const isSelected = selIndices.includes(originalIndex);
+                        const qtyFromMap = (quantityMap[tabLabel] || {})[originalIndex] || 0;
                         const itemWithSelection = {
                           ...item,
                           isSelected,
+                          selectedQty: qtyFromMap,
                           onSelect: (selectedQty) => {
                             // selectedQty provided by MenuTabCard when user changes quantity or toggles select
                             setQtyForTab(tabLabel, originalIndex, Number(selectedQty) || 0);
