@@ -7,6 +7,7 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
+import InfoModal from "../../components/Ui/InfoModal";
 
 export default function UserEdit() {
   const navigate = useNavigate();
@@ -20,15 +21,28 @@ export default function UserEdit() {
   const [role, setRole] = useState("");
   const [storeId, setStoreId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [reassignStoreManager, setReassignStoreManager] = useState(false);
 
   const [organizationOptions, setOrganizationOptions] = useState([{ label: "Select organization", value: "" }]);
   const [storeOptions, setStoreOptions] = useState([{ label: "Select store", value: "" }]);
+  const [storeManagers, setStoreManagers] = useState({}); // { storeId: { userId, name } }
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [pendingActive, setPendingActive] = useState(true);
+  const [showStoreManagerModal, setShowStoreManagerModal] = useState(false);
+  const [pendingStoreId, setPendingStoreId] = useState("");
+  const [storeManagerToUnassign, setStoreManagerToUnassign] = useState(null);
+
+  // Only allow editing store if the user being edited is a Store Manager or Store Employee
+  const canEditStore = role.trim().toLowerCase() === "store manager" || role.trim().toLowerCase() === "store employee";
+  const isStoreManagerRole = role.trim().toLowerCase() === "store manager";
 
   useEffect(() => {
     let mounted = true;
+    let loadedOrgId = "";
+    let loadedStoreId = "";
     const loadUser = async () => {
       setLoading(true);
       setError("");
@@ -42,12 +56,15 @@ export default function UserEdit() {
         if (!mounted) return;
         setEmail(json.email || "");
         setPhone(json.phone || "");
-        setFirstName((json.fullName || "").split(" ")[0] || "");
-        setLastName((json.fullName || "").split(" ").slice(1).join(" ") || "");
-        setOrganizationId(json.organizationId ? String(json.organizationId) : "");
+        setFirstName((json.firstName ?? ((json.fullName || "").split(" ")[0] || "")) || "");
+        setLastName((json.lastName ?? ((json.fullName || "").split(" ").slice(1).join(" ") || "")) || "");
+        loadedOrgId = json.orgId ? String(json.orgId) : json.organizationId ? String(json.organizationId) : "";
+        setOrganizationId(loadedOrgId);
         setRole(json.role || "");
-        setStoreId(json.storeId ? String(json.storeId) : "");
+        loadedStoreId = json.storeId ? String(json.storeId) : "";
+        setStoreId(loadedStoreId);
         setIsActive(json.isActive === true);
+        setPendingActive(json.isActive === true);
       } catch (ex) {
         if (mounted) setError(ex.message || "Failed to load user");
       } finally {
@@ -61,14 +78,24 @@ export default function UserEdit() {
         if (orgRes.ok) {
           const arr = await orgRes.json();
           const list = Array.isArray(arr) ? arr : (arr.items || []);
-          setOrganizationOptions([{ label: "Select organization", value: "" }, ...list.map(o => ({ label: o.orgName, value: String(o.orgId) }))]);
+          setOrganizationOptions([{ label: "Select organization", value: "" }, ...list.map(o => ({ label: o.orgName, value: String(oorgId) }))]);
         }
-        if (organizationId) {
-          const storesRes = await fetch(`/api/stores/by-organization/${encodeURIComponent(organizationId)}`, { credentials: "include" });
+        if (loadedOrgId) {
+          const storesRes = await fetch(`/api/stores/by-organization/${encodeURIComponent(loadedOrgId)}`, { credentials: "include" });
           if (storesRes.ok) {
             const arr = await storesRes.json();
             const list = Array.isArray(arr) ? arr : (arr.items || []);
-            setStoreOptions([{ label: "Select store", value: "" }, ...list.map(s => ({ label: s.storeName, value: String(s.storeId) }))]);
+            const options = [{ label: "Select store", value: "" }, ...list.map(s => ({ label: s.storeName, value: String(s.storeId) }))];
+            setStoreOptions(options);
+            // Build storeManagers map
+            const managers = {};
+            list.forEach(s => {
+              if (s.userId && s.managerName) {
+                managers[String(s.storeId)] = { userId: s.userId, name: s.managerName };
+              }
+            });
+            setStoreManagers(managers);
+            if (loadedStoreId) setStoreId(loadedStoreId);
           }
         }
       } catch { /* ignore */ }
@@ -76,7 +103,55 @@ export default function UserEdit() {
 
     loadUser().then(loadLookups);
     return () => { mounted = false; };
-  }, [id, organizationId]);
+  }, [id]);
+
+  // Intercept deactivation and show modal
+  const handleActiveChange = (val) => {
+    if (!val) {
+      setShowDeactivateModal(true);
+      setPendingActive(false);
+    } else {
+      setPendingActive(true);
+    }
+  };
+
+  const confirmDeactivate = () => {
+    setShowDeactivateModal(false);
+    setPendingActive(false);
+  };
+
+  const cancelDeactivate = () => {
+    setShowDeactivateModal(false);
+    setPendingActive(true);
+  };
+
+  // Intercept store change for Store Manager role
+  const handleStoreChange = (newStoreId) => {
+    if (isStoreManagerRole && newStoreId && newStoreId !== storeId) {
+      const manager = storeManagers[newStoreId];
+      if (manager && manager.userId !== id) {
+        setStoreManagerToUnassign(manager);
+        setPendingStoreId(newStoreId);
+        setShowStoreManagerModal(true);
+        setReassignStoreManager(true);
+        return;
+      }
+    }
+    setStoreId(newStoreId);
+    setReassignStoreManager(false);
+  };
+
+  const confirmStoreManagerChange = () => {
+    setStoreId(pendingStoreId);
+    setShowStoreManagerModal(false);
+    setReassignStoreManager(true);
+  };
+
+  const cancelStoreManagerChange = () => {
+    setShowStoreManagerModal(false);
+    setPendingStoreId("");
+    setStoreManagerToUnassign(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,7 +162,9 @@ export default function UserEdit() {
         firstName: firstName || null,
         lastName: lastName || null,
         phone: phone || null,
-        isActive: Boolean(isActive)
+        isActive: Boolean(pendingActive),
+        storeId: canEditStore && storeId ? Number(storeId) : undefined,
+        reassignStoreManager: reassignStoreManager || undefined
       };
       const res = await fetch(`/api/users/${id}`, {
         method: "PUT",
@@ -112,7 +189,7 @@ export default function UserEdit() {
       <PageHeader
         icon={<HiUsers size={55} />}
         title="Edit User"
-        descriptionLines={["Update user basic information. Email, role, organization and store are immutable here."]}
+        descriptionLines={["Update user information. No changes will be done until save button is clicked ."]}
         actions={[]}
       />
 
@@ -143,11 +220,11 @@ export default function UserEdit() {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Store" value={storeId} onChange={() => {}} options={storeOptions} searchable={true} disabled />
+            <SelectField label="Store" value={storeId} onChange={handleStoreChange} options={storeOptions} searchable={true} disabled={!canEditStore} />
           </div>
 
           <div className="col-12 col-md-4 text-start d-flex align-items-center">
-            <SwitchField label="Active User" checked={isActive} onChange={setIsActive} />
+            <SwitchField label="Active User" checked={pendingActive} onChange={handleActiveChange} />
           </div>
 
           {error && (
@@ -165,6 +242,25 @@ export default function UserEdit() {
           </div>
         </div>
       </FormBody>
+
+      <InfoModal show={showDeactivateModal} title="Confirm Deactivation" onClose={cancelDeactivate}>
+        <p>Deactivating this user account will prevent the user from logging in to the system. Are you sure you want to proceed?</p>
+        <div className="mt-3 text-end">
+          <button className="btn btn-secondary me-2" onClick={cancelDeactivate}>Cancel</button>
+          <button className="btn btn-danger" onClick={confirmDeactivate}>Deactivate</button>
+        </div>
+      </InfoModal>
+
+      <InfoModal show={showStoreManagerModal} title="Confirm Store Manager Reassignment" onClose={cancelStoreManagerChange}>
+        <p>
+          The selected store already has a store manager assigned (<strong>{storeManagerToUnassign?.name}</strong>).<br />
+          If you proceed, <strong>{storeManagerToUnassign?.name}</strong> will be unassigned from this store and deactivated, and this user will be assigned as the new store manager.
+        </p>
+        <div className="mt-3 text-end">
+          <button className="btn btn-secondary me-2" onClick={cancelStoreManagerChange}>Cancel</button>
+          <button className="btn btn-danger" onClick={confirmStoreManagerChange}>Proceed</button>
+        </div>
+      </InfoModal>
     </div>
   );
 }

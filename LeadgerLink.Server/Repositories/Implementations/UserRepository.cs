@@ -99,7 +99,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     Role = u.Role != null ? u.Role.RoleTitle : null,
                     OrganizationName = u.Organization != null ? u.Organization.OrgName : null,
                     IsActive = u.IsActive,
-                    CreatedAt = u.CreatedAt
+                    CreatedAt = u.CreatedAt,
+                    OrgId = u.OrgId,
+                    StoreId = u.StoreId
                 })
                 .AsNoTracking()
                 .FirstOrDefaultAsync();

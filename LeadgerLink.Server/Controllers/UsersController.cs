@@ -10,6 +10,7 @@ using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -20,17 +21,20 @@ namespace LeadgerLink.Server.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IUserRepository _userRepository;
         private readonly IRepository<Role> _roleRepository;
+        private readonly IRepository<Store> _storeRepository;
         private readonly ILogger<UsersController> _logger;
 
         public UsersController(
             UserManager<ApplicationUser> userManager,
             IUserRepository userRepository,
             IRepository<Role> roleRepository,
+            IRepository<Store> storeRepository,
             ILogger<UsersController> logger)
         {
             _userManager = userManager;
             _userRepository = userRepository;
             _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
+            _storeRepository = storeRepository ?? throw new ArgumentNullException(nameof(storeRepository));
             _logger = logger;
         }
 
@@ -74,6 +78,61 @@ namespace LeadgerLink.Server.Controllers
 
             var total = await _userRepository.CountAsync(u => true);
             return Ok(total);
+        }
+
+        // PUT: api/users/{id}
+        // Updates basic profile fields: firstName, lastName, phone, isActive, and optionally StoreId
+        // If reassignStoreManager is true, unassign and deactivate previous manager of the store
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
+        {
+            if (dto == null) return BadRequest("Invalid payload.");
+
+            var existing = await _userRepository.GetByIdAsync(id);
+            if (existing == null) return NotFound();
+
+            // Server-side validations (minimal)
+            if (!string.IsNullOrWhiteSpace(dto.FirstName) && dto.FirstName.Trim().Length < 2)
+                return BadRequest("First name must be at least 2 characters.");
+            if (!string.IsNullOrWhiteSpace(dto.LastName) && dto.LastName.Trim().Length < 2)
+                return BadRequest("Last name must be at least 2 characters.");
+            if (!string.IsNullOrWhiteSpace(dto.Phone) && dto.Phone.Trim().Length < 3)
+                return BadRequest("Phone must be at least 3 characters.");
+
+            existing.UserFirstname = string.IsNullOrWhiteSpace(dto.FirstName) ? existing.UserFirstname : dto.FirstName!.Trim();
+            existing.UserLastname = string.IsNullOrWhiteSpace(dto.LastName) ? existing.UserLastname : dto.LastName!.Trim();
+            existing.Phone = dto.Phone == null ? existing.Phone : dto.Phone!.Trim();
+            existing.IsActive = dto.IsActive;
+
+            // Store Manager reassignment logic
+            if (dto.StoreId.HasValue)
+            {
+                // Only run logic if indicator is set and role is Store Manager
+                if (dto.ReassignStoreManager == true && existing.Role != null && existing.Role.RoleTitle == "Store Manager")
+                {
+                    // Find previous manager for the store
+                    var store = await _storeRepository.GetByIdAsync(dto.StoreId.Value);
+                    if (store != null && store.UserId.HasValue && store.UserId.Value != id)
+                    {
+                        var prevManager = await _userRepository.GetByIdAsync(store.UserId.Value);
+                        if (prevManager != null)
+                        {
+                            prevManager.StoreId = null;
+                            prevManager.IsActive = false;
+                            prevManager.UpdatedAt = DateTime.UtcNow;
+                            await _userRepository.UpdateAsync(prevManager);
+                        }
+                    }
+                    // Assign this user as manager
+                    store.UserId = id;
+                    await _storeRepository.UpdateAsync(store);
+                }
+                existing.StoreId = dto.StoreId.Value;
+            }
+
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _userRepository.UpdateAsync(existing);
+            return NoContent();
         }
 
         // POST: api/users
@@ -210,5 +269,15 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to create user.");
             }
         }
+    }
+
+    public class UpdateUserDto
+    {
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Phone { get; set; }
+        public bool IsActive { get; set; }
+        public int? StoreId { get; set; }
+        public bool? ReassignStoreManager { get; set; } // indicator for store manager reassignment
     }
 }
