@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext';
 import InputField from '../components/Form/InputField';
+import TitledGroup from '../components/Form/TitledGroup';
 
 /* Profile client mapping aligned to backend camelCase JSON:
    server now includes storeName; map dto.storeName into local state.
@@ -47,6 +48,10 @@ const Profile = () => {
     createdAt: null,
   });
   const [draft, setDraft] = useState({ ...user });
+
+  // Extra: load org and store details for admin/manager views
+  const [orgDetail, setOrgDetail] = useState(null);
+  const [storeDetail, setStoreDetail] = useState(null);
 
   // load user detail once auth context is ready
   useEffect(() => {
@@ -115,6 +120,42 @@ const Profile = () => {
 
     return () => { mounted = false; };
   }, [authLoading, loggedInUser]);
+
+  // Load organization details if Organization Admin
+  useEffect(() => {
+    let mounted = true;
+    const isOrgAdmin = (loggedInUser?.roles || []).includes('Organization Admin') || (user.role || '').toLowerCase().includes('organization admin');
+    const orgId = loggedInUser?.orgId ?? null;
+    if (!isOrgAdmin || !orgId) return;
+    const loadOrg = async () => {
+      try {
+        const res = await fetch(`/api/organizations/${orgId}`, { credentials: 'include' }).catch(() => null);
+        if (!mounted || !res || !res.ok) return;
+        const json = await res.json();
+        setOrgDetail(json || null);
+      } catch {}
+    };
+    loadOrg();
+    return () => { mounted = false; };
+  }, [loggedInUser, user.role]);
+
+  // Load store details if Store Manager
+  useEffect(() => {
+    let mounted = true;
+    const isStoreManager = (loggedInUser?.roles || []).includes('Store Manager') || (user.role || '').toLowerCase().includes('store manager');
+    const storeId = loggedInUser?.storeId ?? null;
+    if (!isStoreManager || !storeId) return;
+    const loadStore = async () => {
+      try {
+        const res = await fetch(`/api/stores/${storeId}`, { credentials: 'include' }).catch(() => null);
+        if (!mounted || !res || !res.ok) return;
+        const json = await res.json();
+        setStoreDetail(json || null);
+      } catch {}
+    };
+    loadStore();
+    return () => { mounted = false; };
+  }, [loggedInUser, user.role]);
 
   const startEdit = () => {
     setDraft({ ...user });
@@ -197,12 +238,15 @@ const Profile = () => {
 
   const subtitleParts = [];
   if (user.role) subtitleParts.push(user.role);
-    if (user.storeName) subtitleParts.push(user.storeName);
-    if (user.organizationName) subtitleParts.push(user.organizationName);
+  if (user.storeName) subtitleParts.push(user.storeName);
+  if (user.organizationName) subtitleParts.push(user.organizationName);
   const subtitle = subtitleParts.join(' , ');
 
   // action button minimum width for consistent appearance
   const actionBtnMinWidth = 160;
+
+  const isOrgAdmin = (loggedInUser?.roles || []).includes('Organization Admin');
+  const isStoreManager = (loggedInUser?.roles || []).includes('Store Manager');
 
   return (
     <div className="container py-5">
@@ -335,6 +379,40 @@ const Profile = () => {
           </div>
         </div>
       </form>
+
+      {/* Role-specific titled groups shown last */}
+      {isOrgAdmin && orgDetail && (
+        <TitledGroup title="Organization Details" className="mt-5">
+          <div className="row gx-4 gy-3">
+            <div className="col-12 col-md-6 text-start"><strong>Organization Name:</strong> {orgDetail.orgName ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Email:</strong> {orgDetail.email ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Phone:</strong> {orgDetail.phone ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Industry Type:</strong> {orgDetail.industryTypeName ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Registration Number:</strong> {orgDetail.regestirationNumber ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Establishment Date:</strong> {orgDetail.establishmentDate ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Website:</strong> {orgDetail.websiteUrl ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Created At:</strong> {orgDetail.createdAt ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Stores Count:</strong> {String(orgDetail.storesCount ?? 0)}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Users Count:</strong> {String(orgDetail.usersCount ?? 0)}</div>
+          </div>
+        </TitledGroup>
+      )}
+
+      {isStoreManager && storeDetail && (
+        <TitledGroup title="Store Details" className="mt-5">
+          <div className="row gx-4 gy-3">
+            <div className="col-12 col-md-6 text-start"><strong>Store Name:</strong> {storeDetail.storeName ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Location:</strong> {storeDetail.location ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Email:</strong> {storeDetail.email ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Phone Number:</strong> {storeDetail.phoneNumber ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Opening Date:</strong> {storeDetail.openingDate ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Operational Status:</strong> {storeDetail.operationalStatusName ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Working Hours:</strong> {storeDetail.workingHours ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Created At:</strong> {storeDetail.createdAt ?? ''}</div>
+            <div className="col-12 col-md-6 text-start"><strong>Updated At:</strong> {storeDetail.updatedAt ?? ''}</div>
+          </div>
+        </TitledGroup>
+      )}
     </div>
   );
 };
