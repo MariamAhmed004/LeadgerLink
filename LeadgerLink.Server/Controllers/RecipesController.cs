@@ -20,11 +20,15 @@ namespace LeadgerLink.Server.Controllers
     {
         private readonly LedgerLinkDbContext _context;
         private readonly IRecipeRepository _recipeRepository;
+        private readonly IInventoryItemRepository _inventoryRepository;
+        private readonly IRepository<VatCategory> _vatRepository;
 
-        public RecipesController(LedgerLinkDbContext context, IRecipeRepository recipeRepository)
+        public RecipesController(LedgerLinkDbContext context, IRecipeRepository recipeRepository, IInventoryItemRepository inventoryRepository, IRepository<VatCategory> vatRepository)
         {
             _context = context;
             _recipeRepository = recipeRepository;
+            _inventoryRepository = inventoryRepository;
+            _vatRepository = vatRepository;
         }
 
         // GET api/recipes
@@ -261,10 +265,9 @@ namespace LeadgerLink.Server.Controllers
                 _context.Recipes.Add(recipe);
                 await _context.SaveChangesAsync();
 
-                // Add ingredients using existing DTO fields
+                // Add ingredients using DTO
                 foreach (var ing in ingredients)
                 {
-                    // Expect InventoryItemId and Quantity from RecipeIngredientDto; ignore other fields
                     if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue || ing.Quantity.Value <= 0) continue;
 
                     var rii = new RecipeInventoryItem
@@ -282,6 +285,27 @@ namespace LeadgerLink.Server.Controllers
                 {
                     if (!vatCategoryId.HasValue) return BadRequest("VAT category is required when marking recipe on sale.");
 
+                    // compute cost price by summing ingredient costPerUnit * quantity
+                    decimal costPrice = 0m;
+                    foreach (var ing in ingredients)
+                    {
+                        if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
+                        var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
+                        if (inv != null)
+                        {
+                            costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                        }
+                    }
+
+                    // compute selling price = cost + VAT (if applicable)
+                    decimal sellingPrice = costPrice;
+                    var vatEntity = await _vatRepository.GetByIdAsync(vatCategoryId.Value);
+                    if (vatEntity != null)
+                    {
+                        var rate = vatEntity.VatRate; // assume percent
+                        sellingPrice = costPrice + (costPrice * (rate / 100m));
+                    }
+
                     var product = new Product
                     {
                         ProductName = recipe.RecipeName,
@@ -291,8 +315,8 @@ namespace LeadgerLink.Server.Controllers
                         InventoryItemId = null,
                         VatCategoryId = vatCategoryId.Value,
                         Description = string.IsNullOrWhiteSpace(productDescription) ? null : productDescription!.Trim(),
-                        SellingPrice = 0m,
-                        CostPrice = 0m
+                        SellingPrice = sellingPrice,
+                        CostPrice = costPrice
                     };
                     _context.Products.Add(product);
                     await _context.SaveChangesAsync();
@@ -307,5 +331,168 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to create recipe.");
             }
         }
+
+        // PUT api/recipes/{id}
+        // Update recipe details, ingredients and optionally product linkage when marking on sale.
+        [Authorize]
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id)
+        {
+            // payload can be JSON body or multipart form with 'payload' field as in Create
+            string? payloadStr = null;
+            if (Request.HasFormContentType)
+            {
+                payloadStr = Request.Form["payload"].FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(payloadStr))
+                {
+                    var jsonFile = Request.Form.Files.FirstOrDefault(f => f.Name.Equals("payload", StringComparison.OrdinalIgnoreCase));
+                    if (jsonFile != null)
+                    {
+                        using var sr = new StreamReader(jsonFile.OpenReadStream());
+                        payloadStr = await sr.ReadToEndAsync();
+                    }
+                }
+            }
+            else
+            {
+                using var sr = new StreamReader(Request.Body);
+                payloadStr = await sr.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(payloadStr)) return BadRequest("Missing payload.");
+
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            UpdateRecipeDto dto;
+            try
+            {
+                dto = JsonSerializer.Deserialize<UpdateRecipeDto>(payloadStr, opts)!;
+            }
+            catch
+            {
+                return BadRequest("Invalid payload format.");
+            }
+
+            if (dto == null) return BadRequest("Invalid payload.");
+            if (dto.RecipeId != id) return BadRequest("Recipe id mismatch.");
+
+            var recipe = await _context.Recipes.Include(r => r.RecipeInventoryItems).FirstOrDefaultAsync(r => r.RecipeId == id);
+            if (recipe == null) return NotFound();
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                recipe.RecipeName = string.IsNullOrWhiteSpace(dto.RecipeName) ? recipe.RecipeName : dto.RecipeName.Trim();
+                recipe.Instructions = string.IsNullOrWhiteSpace(dto.Instructions) ? null : dto.Instructions.Trim();
+                recipe.UpdatedAt = DateTime.UtcNow;
+
+                // handle image if present in multipart
+                if (Request.HasFormContentType && Request.Form.Files.Count > 0)
+                {
+                    var imageFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "image", StringComparison.OrdinalIgnoreCase)
+                        || (f.ContentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ?? false));
+                    if (imageFile != null && imageFile.Length > 0)
+                    {
+                        using var ms = new MemoryStream();
+                        await imageFile.CopyToAsync(ms);
+                        recipe.Image = ms.ToArray();
+                    }
+                }
+
+                // replace ingredients
+                var existingIngredients = _context.RecipeInventoryItems.Where(rii => rii.RecipeId == id);
+                _context.RecipeInventoryItems.RemoveRange(existingIngredients);
+                await _context.SaveChangesAsync();
+
+                if (dto.Ingredients != null && dto.Ingredients.Any())
+                {
+                    foreach (var ing in dto.Ingredients)
+                    {
+                        if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue || ing.Quantity.Value <= 0) continue;
+                        var rii = new RecipeInventoryItem
+                        {
+                            RecipeId = recipe.RecipeId,
+                            InventoryItemId = ing.InventoryItemId.Value,
+                            Quantity = ing.Quantity.Value
+                        };
+                        _context.RecipeInventoryItems.Add(rii);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // handle on-sale product linkage: only create product if missing; DO NOT update existing product fields here
+                var product = await _context.Products.FirstOrDefaultAsync(p => p.RecipeId == id);
+                if (dto.IsOnSale)
+                {
+                    if (product == null)
+                    {
+                        if (!dto.VatCategoryId.HasValue) return BadRequest("VAT category is required when marking recipe on sale.");
+
+                        // compute cost price by summing ingredient costPerUnit * quantity
+                        decimal costPrice = 0m;
+                        foreach (var ing in dto.Ingredients ?? Array.Empty<RecipeIngredientDto>())
+                        {
+                            if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
+                            var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
+                            if (inv != null)
+                            {
+                                costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                            }
+                        }
+
+                        decimal sellingPrice = costPrice;
+                        var vatEntity = await _vatRepository.GetByIdAsync(dto.VatCategoryId.Value);
+                        if (vatEntity != null)
+                        {
+                            sellingPrice = costPrice + (costPrice * (vatEntity.VatRate / 100m));
+                        }
+
+                        var newProduct = new Product
+                        {
+                            ProductName = recipe.RecipeName,
+                            StoreId = recipe.StoreId ?? 0,
+                            IsRecipe = true,
+                            RecipeId = recipe.RecipeId,
+                            InventoryItemId = null,
+                            VatCategoryId = dto.VatCategoryId!.Value,
+                            Description = string.IsNullOrWhiteSpace(dto.ProductDescription) ? null : dto.ProductDescription.Trim(),
+                            SellingPrice = sellingPrice,
+                            CostPrice = costPrice
+                        };
+                        _context.Products.Add(newProduct);
+                        await _context.SaveChangesAsync();
+                    }
+                    else
+                    {
+                        // existing product: per requirement do NOT update product here
+                    }
+                }
+                else
+                {
+                    // not on sale: do nothing to product for now
+                }
+
+                await tx.CommitAsync();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, "Failed to update recipe.");
+            }
+        }
+    }
+
+    public class UpdateRecipeDto
+    {
+        public int RecipeId { get; set; }
+        public string? RecipeName { get; set; }
+        public string? Instructions { get; set; }
+        public RecipeIngredientDto[]? Ingredients { get; set; }
+        public bool IsOnSale { get; set; }
+        public int? VatCategoryId { get; set; }
+        public string? ProductDescription { get; set; }
+        public decimal? SellingPrice { get; set; }
+        public decimal? CostPrice { get; set; }
     }
 }

@@ -97,6 +97,7 @@ import ProductEdit from "../pages/Products/ProductEdit";
 import Recipes from "../pages/Recipes/RecipesList";
 import RecipeNew from "../pages/Recipes/RecipeNew";
 import RecipeView from "../pages/Recipes/RecipeView";
+import RecipeEdit from "../pages/Recipes/RecipeEdit";
 
 // -----------------------------
 // Notifications
@@ -206,6 +207,7 @@ const AppRoutes = () => {
           --------------------------- */}
       <Route path="/recipes" element={<Recipes />} />
           <Route path="/recipes/new" element={<RecipeNew />} />
+          <Route path="/recipes/edit/:id" element={<RecipeEdit />} />
           <Route path="/recipes/:id" element={<RecipeView />} />
 
 
