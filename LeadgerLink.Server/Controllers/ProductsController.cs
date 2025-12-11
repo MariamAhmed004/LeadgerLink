@@ -76,5 +76,31 @@ namespace LeadgerLink.Server.Controllers
             if (dto == null) return NotFound();
             return Ok(dto);
         }
+
+        // PUT: api/products/{id}
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto)
+        {
+            if (dto == null || id != dto.ProductId) return BadRequest("Invalid payload.");
+            var product = await _productRepository.GetByIdAsync(id);
+            if (product == null) return NotFound();
+
+            product.ProductName = dto.ProductName?.Trim() ?? product.ProductName;
+            product.SellingPrice = dto.SellingPrice;
+            product.VatCategoryId = dto.VatCategoryId;
+            product.Description = dto.Description;
+            // CostPrice is not editable here
+            await _productRepository.UpdateAsync(product);
+            return NoContent();
+        }
+    }
+
+    public class UpdateProductDto
+    {
+        public int ProductId { get; set; }
+        public string? ProductName { get; set; }
+        public decimal SellingPrice { get; set; }
+        public int VatCategoryId { get; set; }
+        public string? Description { get; set; }
     }
 }
