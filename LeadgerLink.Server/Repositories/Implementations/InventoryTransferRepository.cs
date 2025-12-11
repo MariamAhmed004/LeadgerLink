@@ -246,5 +246,37 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return result;
         }
+
+        public async Task UpdateTransferItemsAsync(int transferId, IEnumerable<CreateInventoryTransferItemDto> items)
+        {
+            // Replace-all strategy: remove existing TransferItems and insert the new set.
+            var existing = await _context.TransferItems
+                .Where(ti => ti.InventoryTransferId == transferId)
+                .ToListAsync();
+
+            if (existing.Count > 0)
+            {
+                _context.TransferItems.RemoveRange(existing);
+            }
+
+            foreach (var it in items ?? Enumerable.Empty<CreateInventoryTransferItemDto>())
+            {
+                if (it == null) continue;
+                var qty = it.Quantity;
+                if (qty <= 0) continue;
+
+                var entity = new TransferItem
+                {
+                    InventoryTransferId = transferId,
+                    Quantity = qty,
+                    IsRequested = true,
+                    RecipeId = it.RecipeId,
+                    InventoryItemId = it.InventoryItemId
+                };
+                _context.TransferItems.Add(entity);
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 }

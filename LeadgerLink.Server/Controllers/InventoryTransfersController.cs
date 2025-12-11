@@ -238,20 +238,10 @@ namespace LeadgerLink.Server.Controllers
 
                     if (it.RecipeId.HasValue)
                     {
-                        // Validate recipe exists before adding to prevent FK violations
-                        var recipeId = it.RecipeId.Value;
-                        var recipeExists = await _context.Recipes.AnyAsync(r => r.RecipeId == recipeId);
-                        if (!recipeExists)
-                        {
-                            await tx.RollbackAsync();
-                            _logger.LogWarning("Invalid recipe id in transfer item: {RecipeId}", recipeId);
-                            return BadRequest("One or more recipe ids are invalid.");
-                        }
-
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
-                            RecipeId = recipeId,
+                            RecipeId = it.RecipeId,
                             Quantity = qty,
                             IsRequested = true
                         };
@@ -259,20 +249,10 @@ namespace LeadgerLink.Server.Controllers
                     }
                     else if (it.InventoryItemId.HasValue)
                     {
-                        // Validate inventory item exists before adding
-                        var inventoryItemId = it.InventoryItemId.Value;
-                        var itemExists = await _context.InventoryItems.AnyAsync(inv => inv.InventoryItemId == inventoryItemId);
-                        if (!itemExists)
-                        {
-                            await tx.RollbackAsync();
-                            _logger.LogWarning("Invalid inventory item id in transfer item: {InventoryItemId}", inventoryItemId);
-                            return BadRequest("One or more inventory item ids are invalid.");
-                        }
-
                         var ti = new TransferItem
                         {
                             InventoryTransferId = transfer.InventoryTransferId,
-                            InventoryItemId = inventoryItemId,
+                            InventoryItemId = it.InventoryItemId,
                             Quantity = qty,
                             IsRequested = true
                         };
@@ -294,6 +274,53 @@ namespace LeadgerLink.Server.Controllers
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to create inventory transfer");
                 return StatusCode(500, "Failed to create inventory transfer.");
+            }
+        }
+
+        // PUT api/inventorytransfers/{id}/items
+        // Replace all transfer items for a given transfer with the provided selection
+        [Authorize]
+        [HttpPut("{id:int}/items")]
+        public async Task<ActionResult> UpdateTransferItems(int id, [FromBody] CreateInventoryTransferItemDto[] items)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Validate transfer exists and user has access (belongs to one of the stores, unless admin)
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == id);
+            if (transfer == null) return NotFound();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return Unauthorized();
+
+            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+            if (!isOrgAdmin && domainUser.StoreId.HasValue)
+            {
+                var sId = domainUser.StoreId.Value;
+                if (transfer.FromStore != sId && transfer.ToStore != sId)
+                    return Forbid();
+            }
+
+            try
+            {
+                await _repository.UpdateTransferItemsAsync(id, items ?? Array.Empty<CreateInventoryTransferItemDto>());
+                return NoContent();
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "DB error updating transfer items for transfer {Id}", id);
+                return StatusCode(500, "Failed to update transfer items.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update transfer items for transfer {Id}", id);
+                return StatusCode(500, "Failed to update transfer items.");
             }
         }
     }

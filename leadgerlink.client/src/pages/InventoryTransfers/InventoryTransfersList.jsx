@@ -146,8 +146,26 @@ export default function InventoryTransfersList() {
 
     let statusCell = t.status ?? '';
 
+    // If requester is current user's store, role is Store Manager, and status is Draft -> show Proceed button
+    const currentStoreId = Number(loggedInUser?.storeId || 0);
+    const requesterStoreName = String(t.storeInvolved || '');
+    const isRequester = inOutLower === 'out' ? false : true; // when viewing from current store, 'In' means current store is ToStore
+    const canProceed = isStoreManager && statusLower === 'draft' && isRequester && id;
+
+    if (canProceed) {
+      statusCell = (
+        <button
+          type="button"
+          className="btn btn-sm btn-success"
+          onClick={() => navigate(`/inventory/transfers/send/${id}`)}
+          title="Proceed to send request"
+        >
+          Proceed Request
+        </button>
+      );
+    } 
     // Store Manager: if transfer is OUT and requested -> show approve button
-    if (isStoreManager && inOutLower === 'out' && statusLower === 'requested' && id) {
+    else if (isStoreManager && inOutLower === 'out' && statusLower === 'requested' && id) {
       statusCell = (
         <button
           type="button"

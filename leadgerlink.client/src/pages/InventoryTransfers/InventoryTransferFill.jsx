@@ -31,6 +31,9 @@ export default function InventoryTransferFill() {
   const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({}); // { [recipeId]: qty }
   const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({}); // { [inventoryItemId]: qty }
 
+  // selection from TabbedMenu
+  const [selection, setSelection] = useState([]);
+
   // Build Request From options excluding the requester store
   const requestFromOptions = (storeOptions || []).filter(o => String(o.value) !== String(requester));
 
@@ -187,18 +190,57 @@ export default function InventoryTransferFill() {
       label: 'Recipes',
       items: recipeItems,
       cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+      idKey: 'recipeId',
+      selectionIdProp: 'recipeId'
     },
     {
       label: 'Others',
       items: otherItems,
       cardComponent: (it) => <MenuTabCard data={{ ...it, enforceAvailability: false }} />,
+      idKey: 'id',
+      selectionIdProp: 'id'
     },
   ];
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e?.preventDefault?.();
-    // UI-only: navigate back
-    navigate('/inventory/transfers');
+
+    // Build payload from selection coming from TabbedMenu
+    const items = (selection || [])
+      .filter(s => Number(s.quantity) > 0)
+      .map(s => {
+        const qty = Number(s.quantity);
+        if (s.tabLabel === 'Others') {
+          const invId = Number(s.id);
+          if (!Number.isFinite(invId)) return null;
+          return { InventoryItemId: invId, Quantity: qty };
+        }
+        const rid = Number(s.recipeId);
+        if (!Number.isFinite(rid)) return null;
+        return { RecipeId: rid, Quantity: qty };
+      })
+      .filter(Boolean);
+
+    try {
+      const res = await fetch(`/api/inventorytransfers/${id}/items`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items)
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Failed to update transfer items (${res.status})`);
+      }
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error('Failed to update transfer items', err);
+      alert(err.message || 'Failed to update transfer');
+    }
+  };
+
+  const onSelectionChange = (sel) => {
+    setSelection(sel);
   };
 
   return (
@@ -240,7 +282,7 @@ export default function InventoryTransferFill() {
           </div>
 
           <div className="col-12">
-            <TabbedMenu tabs={tabs} contentMaxHeight={360} />
+            <TabbedMenu tabs={tabs} contentMaxHeight={360} onSelectionChange={onSelectionChange} />
           </div>
 
           <div className="col-12">

@@ -79,6 +79,7 @@ import InventoryTransferView from "../pages/InventoryTransfers/InventoryTransfer
 import InventoryTransferNew from "../pages/InventoryTransfers/InventoryTransferNew";
 import InventoryTransferApprove from "../pages/InventoryTransfers/InventoryTransferApprove";
 import InventoryTransferFill from "../pages/InventoryTransfers/InventoryTransferFill";
+import InventoryTransferSend from "../pages/InventoryTransfers/InventoryTransferSend";
 
 // Stores
 import StoresList from "../pages/Stores/StoresList";
@@ -187,6 +188,7 @@ const AppRoutes = () => {
           <Route path="/inventory/transfers/new" element={<InventoryTransferNew />} />
           <Route path="/inventory/transfers/approve/:id" element={<InventoryTransferApprove />} />
           <Route path="/inventory/transfers/fill/:id" element={<InventoryTransferFill />} />
+          <Route path="/inventory/transfers/send/:id" element={<InventoryTransferSend />} />
           <Route path="/inventory/transfers/:id" element={<InventoryTransferView />} />
 
           {/*Stores*/}

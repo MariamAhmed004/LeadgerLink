@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import SearchField from "../Listing/SearchField";
 
 /*
@@ -10,7 +10,7 @@ import SearchField from "../Listing/SearchField";
   - Extras: supports optional per-tab id hints via `idKey` (read from item) and `selectionIdProp` (prop name in selection)
     without breaking existing behavior.
   - NEW: Supports preselection via `initialSelectedQty` on items. If > 0, the item is initialized as selected
-    with that quantity.
+    with that quantity, and emits a single initial onSelectionChange when state actually changes.
 */
 const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) => {
   const initialLabel = tabs?.[0]?.label ?? "";
@@ -18,6 +18,7 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
   const [selectedMap, setSelectedMap] = useState({}); // per-tab array of selected indices
   const [searchMap, setSearchMap] = useState({});
   const [quantityMap, setQuantityMap] = useState({}); // per-tab { index: qty }
+  const initAppliedRef = useRef(false);
 
   const preparedTabs = useMemo(
     () =>
@@ -36,8 +37,74 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
     [tabs]
   );
 
-  // Initialize selection from items' initialSelectedQty (if provided)
+  const mapsEqual = (a, b) => {
+    const aKeys = Object.keys(a || {});
+    const bKeys = Object.keys(b || {});
+    if (aKeys.length !== bKeys.length) return false;
+    for (const k of aKeys) {
+      const va = a[k] || {};
+      const vb = b[k] || {};
+      const vaKeys = Object.keys(va);
+      const vbKeys = Object.keys(vb);
+      if (vaKeys.length !== vbKeys.length) return false;
+      for (const ik of vaKeys) {
+        if ((va[ik] ?? null) !== (vb[ik] ?? null)) return false;
+      }
+    }
+    return true;
+  };
+
+  const selEqual = (a, b) => {
+    const aKeys = Object.keys(a || {});
+    const bKeys = Object.keys(b || {});
+    if (aKeys.length !== bKeys.length) return false;
+    for (const k of aKeys) {
+      const va = Array.isArray(a[k]) ? a[k] : [];
+      const vb = Array.isArray(b[k]) ? b[k] : [];
+      if (va.length !== vb.length) return false;
+      for (let i = 0; i < va.length; i++) if (va[i] !== vb[i]) return false;
+    }
+    return true;
+  };
+
+  // Helper to emit selection snapshot
+  const emitSelection = (qmapByTab) => {
+    if (typeof onSelectionChange !== "function" || !Object.keys(qmapByTab || {}).some((k) => Object.keys(qmapByTab[k] || {}).length > 0))
+      return;
+    const selection = [];
+    preparedTabs.forEach((t) => {
+      const label = t.label;
+      const items = t.items || [];
+      const qmap = qmapByTab[label] || {};
+
+      const idKey = t.idKey || null;
+      const selectionIdProp = t.selectionIdProp || null;
+
+      Object.keys(qmap).forEach((k) => {
+        const idx = Number(k);
+        const item = items[idx] || {};
+        const fallbackProductId = item.productId ?? item.id ?? null;
+        const hintedIdValue = idKey ? item[idKey] ?? null : null;
+        const sel = {
+          tabLabel: label,
+          index: idx,
+          productId: fallbackProductId,
+          name: item.name ?? item.recipeName ?? item.productName ?? "",
+          price: item.price ?? item.sellingPrice ?? 0,
+          quantity: qmap[idx] ?? 0,
+        };
+        if (selectionIdProp && hintedIdValue != null) {
+          sel[selectionIdProp] = hintedIdValue;
+        }
+        selection.push(sel);
+      });
+    });
+    onSelectionChange(selection);
+  };
+
+  // Initialize selection from items' initialSelectedQty (if provided). Guard to avoid loops.
   useEffect(() => {
+    // Build desired maps from initialSelectedQty
     const nextQtyMap = {};
     const nextSelMap = {};
 
@@ -59,10 +126,22 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
       if (sel.length > 0) nextSelMap[label] = sel;
     });
 
-    // Only update if different to avoid clobbering user edits
-    setQuantityMap((prev) => ({ ...prev, ...nextQtyMap }));
-    setSelectedMap((prev) => ({ ...prev, ...nextSelMap }));
+    const qtyChanged = !mapsEqual(nextQtyMap, quantityMap);
+    const selChanged = !selEqual(nextSelMap, selectedMap);
+
+    if ((qtyChanged || selChanged) && !initAppliedRef.current) {
+      initAppliedRef.current = true;
+      setQuantityMap((prev) => ({ ...prev, ...nextQtyMap }));
+      setSelectedMap((prev) => ({ ...prev, ...nextSelMap }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preparedTabs]);
+
+  // Emit selection only when quantity map changes (avoid depending on preparedTabs to prevent loops)
+  useEffect(() => {
+    emitSelection(quantityMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantityMap]);
 
   const setQtyForTab = (tabLabel, index, qty) => {
     setQuantityMap((prev) => {
@@ -70,45 +149,6 @@ const TabbedMenu = ({ tabs = [], contentMaxHeight = 460, onSelectionChange }) =>
       if (qty > 0) map[index] = qty;
       else delete map[index];
       const next = { ...(prev || {}), [tabLabel]: map };
-
-      // compute aggregated selection payload for callback
-      if (typeof onSelectionChange === "function") {
-        const selection = [];
-        preparedTabs.forEach((t) => {
-          const label = t.label;
-          const items = t.items || [];
-          const qmap = next[label] || {};
-
-          const idKey = t.idKey || null; // optional id key to read from items
-          const selectionIdProp = t.selectionIdProp || null; // optional prop name in selection
-
-          Object.keys(qmap).forEach((k) => {
-            const idx = Number(k);
-            const item = items[idx] || {};
-
-            const fallbackProductId = item.productId ?? item.id ?? null;
-            const hintedIdValue = idKey ? item[idKey] ?? null : null;
-
-            const sel = {
-              tabLabel: label,
-              index: idx,
-              productId: fallbackProductId,
-              name: item.name ?? item.recipeName ?? item.productName ?? "",
-              price: item.price ?? item.sellingPrice ?? 0,
-              quantity: qmap[idx] ?? 0,
-            };
-
-            // Emit the hinted identifier alongside existing fields (non-breaking)
-            if (selectionIdProp && hintedIdValue != null) {
-              sel[selectionIdProp] = hintedIdValue;
-            }
-
-            selection.push(sel);
-          });
-        });
-        onSelectionChange(selection);
-      }
-
       return next;
     });
 
