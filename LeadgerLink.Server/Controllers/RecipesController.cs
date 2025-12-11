@@ -225,12 +225,24 @@ namespace LeadgerLink.Server.Controllers
             var vatCategoryId = root.TryGetProperty("vatCategoryId", out var vat) && vat.ValueKind != JsonValueKind.Null ? vat.GetInt32() : (int?)null;
             var productDescription = root.TryGetProperty("productDescription", out var pd) ? pd.GetString() : null;
 
-            // Deserialize ingredients as existing DTO type
-            var ingredients = Array.Empty<RecipeIngredientDto>();
-            if (root.TryGetProperty("ingredients", out var ingArr) && ingArr.ValueKind == JsonValueKind.Array)
+            // Optional client-supplied pricing (use if provided)
+            decimal? clientCostPrice = null;
+            decimal? clientSellingPrice = null;
+            if (root.TryGetProperty("productCostPrice", out var pcp) && pcp.ValueKind != JsonValueKind.Null)
             {
-                ingredients = JsonSerializer.Deserialize<RecipeIngredientDto[]>(ingArr.GetRawText(), opts) ?? Array.Empty<RecipeIngredientDto>();
+                try { clientCostPrice = pcp.GetDecimal(); } catch { /* ignore parse error */ }
             }
+            if (root.TryGetProperty("productSellingPrice", out var psp) && psp.ValueKind != JsonValueKind.Null)
+            {
+                try { clientSellingPrice = psp.GetDecimal(); } catch { /* ignore parse error */ }
+            }
+
+             // Deserialize ingredients as existing DTO type
+             var ingredients = Array.Empty<RecipeIngredientDto>();
+             if (root.TryGetProperty("ingredients", out var ingArr) && ingArr.ValueKind == JsonValueKind.Array)
+             {
+                 ingredients = JsonSerializer.Deserialize<RecipeIngredientDto[]>(ingArr.GetRawText(), opts) ?? Array.Empty<RecipeIngredientDto>();
+             }
 
             if (string.IsNullOrWhiteSpace(recipeName)) return BadRequest("Recipe name is required.");
             if (ingredients.Length == 0) return BadRequest("Add at least one ingredient.");
@@ -285,25 +297,35 @@ namespace LeadgerLink.Server.Controllers
                 {
                     if (!vatCategoryId.HasValue) return BadRequest("VAT category is required when marking recipe on sale.");
 
-                    // compute cost price by summing ingredient costPerUnit * quantity
+                    // compute cost price by summing ingredient costPerUnit * quantity unless client provided value
                     decimal costPrice = 0m;
-                    foreach (var ing in ingredients)
+                    if (clientCostPrice.HasValue)
                     {
-                        if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
-                        var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
-                        if (inv != null)
+                        costPrice = clientCostPrice.Value;
+                    }
+                    else
+                    {
+                        foreach (var ing in ingredients)
                         {
-                            costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                            if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
+                            var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
+                            if (inv != null)
+                            {
+                                costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                            }
                         }
                     }
 
-                    // compute selling price = cost + VAT (if applicable)
-                    decimal sellingPrice = costPrice;
-                    var vatEntity = await _vatRepository.GetByIdAsync(vatCategoryId.Value);
-                    if (vatEntity != null)
+                    // compute selling price: prefer client value, otherwise cost + VAT
+                    decimal sellingPrice = clientSellingPrice ?? costPrice;
+                    if (!clientSellingPrice.HasValue)
                     {
-                        var rate = vatEntity.VatRate; // assume percent
-                        sellingPrice = costPrice + (costPrice * (rate / 100m));
+                        var vatEntity = await _vatRepository.GetByIdAsync(vatCategoryId.Value);
+                        if (vatEntity != null)
+                        {
+                            var rate = vatEntity.VatRate; // assume percent
+                            sellingPrice = costPrice + (costPrice * (rate / 100m));
+                        }
                     }
 
                     var product = new Product
@@ -428,23 +450,30 @@ namespace LeadgerLink.Server.Controllers
                     {
                         if (!dto.VatCategoryId.HasValue) return BadRequest("VAT category is required when marking recipe on sale.");
 
-                        // compute cost price by summing ingredient costPerUnit * quantity
-                        decimal costPrice = 0m;
-                        foreach (var ing in dto.Ingredients ?? Array.Empty<RecipeIngredientDto>())
+                        // compute cost price by summing ingredient costPerUnit * quantity unless DTO provided
+                        decimal costPrice = dto.CostPrice ?? 0m;
+                        if (!dto.CostPrice.HasValue)
                         {
-                            if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
-                            var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
-                            if (inv != null)
+                            costPrice = 0m;
+                            foreach (var ing in dto.Ingredients ?? Array.Empty<RecipeIngredientDto>())
                             {
-                                costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                                if (!ing.InventoryItemId.HasValue || !ing.Quantity.HasValue) continue;
+                                var inv = await _inventoryRepository.GetByIdAsync(ing.InventoryItemId.Value);
+                                if (inv != null)
+                                {
+                                    costPrice += inv.CostPerUnit * ing.Quantity.Value;
+                                }
                             }
                         }
 
-                        decimal sellingPrice = costPrice;
-                        var vatEntity = await _vatRepository.GetByIdAsync(dto.VatCategoryId.Value);
-                        if (vatEntity != null)
+                        decimal sellingPrice = dto.SellingPrice ?? costPrice;
+                        if (!dto.SellingPrice.HasValue)
                         {
-                            sellingPrice = costPrice + (costPrice * (vatEntity.VatRate / 100m));
+                            var vatEntity = await _vatRepository.GetByIdAsync(dto.VatCategoryId.Value);
+                            if (vatEntity != null)
+                            {
+                                sellingPrice = costPrice + (costPrice * (vatEntity.VatRate / 100m));
+                            }
                         }
 
                         var newProduct = new Product

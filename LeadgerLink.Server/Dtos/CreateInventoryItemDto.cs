@@ -10,6 +10,8 @@ namespace LeadgerLink.Server.Dtos
         public int? unitId { get; set; }
         public decimal? quantity { get; set; }
         public decimal? costPerUnit { get; set; }
+        // Optional client-supplied cost for product record
+        public decimal? costPrice { get; set; }
         public decimal? minimumQuantity { get; set; }
         public bool isOnSale { get; set; }
         public decimal? sellingPrice { get; set; }

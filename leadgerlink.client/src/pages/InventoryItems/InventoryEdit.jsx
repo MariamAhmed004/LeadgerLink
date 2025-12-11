@@ -42,10 +42,13 @@ const InventoryItemEdit = () => {
 
   // Product details
   const [isOnSale, setIsOnSale] = useState(false);
-  const [sellingPrice, setSellingPrice] = useState("");
+  const [sellingPrice, setSellingPrice] = useState(0);
+  const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
   const [vatCategoryId, setVatCategoryId] = useState("");
   const [vatCategories, setVatCategories] = useState([]);
   const [productDescription, setProductDescription] = useState("");
+  const [vatList, setVatList] = useState([]);
+  const [costPrice, setCostPrice] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -84,6 +87,7 @@ const InventoryItemEdit = () => {
         const lookData = await lookRes.json();
         setUnits(lookData.units || []);
         setVatCategories(lookData.vatCategories || []);
+        setVatList(lookData.vatCategories || []);
       }
     } catch { /* empty */ }
   };
@@ -203,6 +207,7 @@ const InventoryItemEdit = () => {
         isOnSale: true,
         sellingPrice: sp == null ? null : Number(Number(sp).toFixed(3)),
         vatCategoryId: vat,
+        costPrice: Number(Number(costPrice).toFixed(3)),
         productDescription: productDescription ? String(productDescription).trim() : null,
       };
     }
@@ -351,30 +356,40 @@ const InventoryItemEdit = () => {
                   </div>
                 ) : (
                   <div className="row gx-3 gy-3">
-                    <div className="col-12">
-                      <div className="col-12 col-md-4">
+                    <div className="col-12 d-flex align-items-center gap-3">
+                                                  <div className="flex-shrink-0 col-md-6 align-items-center mt-3">
                         <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
                       </div>
+                                                  <div className="flex-grow-1 col-md-6">
+                        <SelectField
+                          label="VAT Category"
+                          value={vatCategoryId}
+                          onChange={(v) => setVatCategoryId(v)}
+                          options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
+                        />
+                      </div>
                     </div>
-                    {/* Show VAT/Price/Description inputs only when user toggles switch on */}
+
                     {isOnSale && (
                       <>
-                        <div className="col-12 col-md-6">
-                          <SelectField
-                            label="VAT Category"
-                            value={vatCategoryId}
-                            onChange={(v) => setVatCategoryId(v)}
-                            options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")]}
-                          />
-                        </div>
-                        <div className="col-12 col-md-6">
+                        <div className="col-12 col-md-6 text-start">
                           <InputField
                             label="Selling Price"
-                            value={sellingPrice}
-                            onChange={setSellingPrice}
+                            value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"}
+                            onChange={(v) => { const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0; setSellingPrice(num); setSellingPriceTouched(true); }}
                             type="number"
                             step="0.001"
                             placeholder="0.000"
+                          />
+                        </div>
+                        <div className="col-12 col-md-6 text-start">
+                          <InputField
+                            label="Cost Price (BHD)"
+                            value={costPrice != null ? Number(costPrice).toFixed(3) : ""}
+                            readOnly
+                            disabled
+                            placeholder="XX.XXX BHD"
+                            inputProps={{ inputMode: 'decimal' }}
                           />
                         </div>
                         <div className="col-12">

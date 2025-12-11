@@ -35,10 +35,12 @@ const RecipeEdit = () => {
   const [isForSale, setIsForSale] = useState(false);
   const [vatId, setVatId] = useState("");
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT", value: "" }]);
+  const [vatList, setVatList] = useState([]);
   const [saleDescription, setSaleDescription] = useState("");
   const [relatedProductId, setRelatedProductId] = useState(null);
   const [originalOnSale, setOriginalOnSale] = useState(false);
-  const [sellingPrice, setSellingPrice] = useState("");
+  const [sellingPrice, setSellingPrice] = useState(0);
+  const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -113,6 +115,7 @@ const RecipeEdit = () => {
         // vat categories
         if (vatRes && vatRes.ok) {
           const vJson = await vatRes.json();
+          setVatList(Array.isArray(vJson) ? vJson : []);
           const opts = [{ label: 'Select VAT', value: '' }, ...(Array.isArray(vJson) ? vJson.map(v => ({ label: v.vatCategoryName + (v.vatRate ? ` (${Number(v.vatRate).toFixed(3)}%)` : ''), value: String(v.vatCategoryId) })) : [])];
           setVatOptions(opts);
           // if recipe has related product, fetch product to get its vat id and description
@@ -124,7 +127,8 @@ const RecipeEdit = () => {
                 if (!mounted) return;
                 setVatId(pJson.vatCategoryId ? String(pJson.vatCategoryId) : "");
                 setSaleDescription(pJson.description ?? "");
-                setSellingPrice(pJson.sellingPrice != null ? String(Number(pJson.sellingPrice).toFixed(3)) : "");
+                setSellingPrice(pJson.sellingPrice != null ? Number(pJson.sellingPrice) : 0);
+                setSellingPriceTouched(false);
               }
             } catch { }
           }
@@ -188,7 +192,10 @@ const RecipeEdit = () => {
     const ingredientsPayload = (selectedItems || []).filter(s => s.isSelected && Number(s.quantity) > 0).map(s => ({ inventoryItemId: Number(s.id), quantity: Number(s.quantity) }));
     const base = { recipeId: Number(id), recipeName: String(recipeName).trim(), instructions: instructions ? String(instructions).trim() : null, ingredients: ingredientsPayload };
     if (isForSale) {
-      return { ...base, isOnSale: true, vatCategoryId: vatId ? Number(vatId) : null, productDescription: saleDescription ? String(saleDescription).trim() : null };
+      const payload = { ...base, isOnSale: true, vatCategoryId: vatId ? Number(vatId) : null, productDescription: saleDescription ? String(saleDescription).trim() : null };
+      if (recipeCost != null) payload.costPrice = Number(Number(recipeCost).toFixed(3));
+      if (sellingPrice || sellingPrice === 0) payload.sellingPrice = Number(Number(sellingPrice).toFixed(3));
+      return payload;
     }
     return { ...base, isOnSale: false };
   };
@@ -238,6 +245,42 @@ const RecipeEdit = () => {
     }, 0);
     setRecipeCost(total);
   }, [selectedItems, ingredients]);
+
+  // initialize selling price when cost/vat change and user hasn't edited selling price
+  useEffect(() => {
+    if (sellingPriceTouched) return;
+    const v = (vatList || []).find(x => String(x.vatCategoryId) === String(vatId));
+    const rate = v ? Number(v.vatRate || 0) : 0;
+    const sp = Number((recipeCost * (1 + rate / 100)).toFixed(3));
+    setSellingPrice(sp);
+  }, [recipeCost, vatId, vatList, sellingPriceTouched]);
+
+  const onSellingPriceChange = (v) => {
+    const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0;
+    setSellingPrice(num);
+    setSellingPriceTouched(true);
+  };
+
+  // toggle handler that supports event or boolean
+  const onSaleToggle = (val) => {
+    const v = typeof val === 'boolean' ? val : (val && val.target ? Boolean(val.target.checked) : false);
+    setIsForSale(v);
+  };
+
+  // debounced warning state to avoid flashing when prices update rapidly
+  const [showWarning, setShowWarning] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const shouldWarn = Number(sellingPrice || 0) < Number(recipeCost || 0) && Number(sellingPrice || 0) > 0;
+    // debounce to prevent flash when cost/selling update in quick succession
+    const t = setTimeout(() => {
+      if (!mounted) return;
+      setShowWarning(shouldWarn);
+    }, 250);
+
+    return () => { mounted = false; clearTimeout(t); };
+  }, [sellingPrice, recipeCost]);
 
   return (
     <div className="container py-5">
@@ -289,13 +332,13 @@ const RecipeEdit = () => {
               ) : (
                 <div className="row gx-3 gy-3">
                   <div className="col-12 col-md-6 d-flex align-items-center text-start">
-                    <SwitchField label="Set recipe for sale?" checked={isForSale} onChange={setIsForSale} />
+                    <SwitchField label="Set recipe for sale?" checked={isForSale} onChange={onSaleToggle} />
                   </div>
                   <div className="col-12 col-md-6 text-start">
                     <SelectField label="VAT Category" value={vatId} onChange={setVatId} options={vatOptions} searchable={false} />
                   </div>
                   <div className="col-12 col-md-6 text-start">
-                    <InputField label="Selling Price (BHD)" value={sellingPrice} onChange={setSellingPrice} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
+                    <InputField label="Selling Price (BHD)" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={onSellingPriceChange} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
                   </div>
                   <div className="col-12 col-md-6 text-start">
                     <InputField label="Cost Price (BHD)" value={recipeCost != null ? Number(recipeCost).toFixed(3) : ""} readOnly disabled placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
@@ -303,6 +346,11 @@ const RecipeEdit = () => {
                   <div className="col-12 text-start">
                     <TextArea label="Recipe Description (Sale)" value={saleDescription} onChange={setSaleDescription} rows={3} placeholder="Description shown when recipe is on sale" />
                   </div>
+                  {showWarning && (
+                    <div className="col-12">
+                      <div className="alert alert-warning">Selling price is lower than the computed cost price.</div>
+                    </div>
+                  )}
                   <div className="col-12">
                     <div className="alert alert-secondary text-start">
                       To put the recipe on sale, enable "Set recipe for sale?", then select VAT category and provide a selling price. These values are saved when you click Save Recipe.

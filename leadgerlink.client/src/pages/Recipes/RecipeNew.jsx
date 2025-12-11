@@ -31,14 +31,20 @@ const RecipeNew = () => {
   const [instructions, setInstructions] = useState("");
 
   // ingredients source (inventory items) and selection state
-  const [ingredients, setIngredients] = useState([]); // [{id,name,desc,qtyAvailable,imageUrl,price,quantity,isSelected}]
+  const [ingredients, setIngredients] = useState([]); // [{id,name,desc,qtyAvailable,imageUrl,costPerUnit,quantity,isSelected}]
   const [selectedItems, setSelectedItems] = useState([]);
 
   // product sale fields
   const [isForSale, setIsForSale] = useState(false);
   const [vatId, setVatId] = useState("");
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT", value: "" }]);
+  const [vatList, setVatList] = useState([]); // store full vat objects including rate
   const [saleDescription, setSaleDescription] = useState("");
+
+  // pricing
+  const [costPrice, setCostPrice] = useState(0); // computed, readonly
+  const [sellingPrice, setSellingPrice] = useState(0); // editable
+  const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +66,8 @@ const RecipeNew = () => {
         // VAT options
         if (mounted && vatRes && vatRes.ok) {
           const v = await vatRes.json();
+          // keep full list for rates
+          setVatList(Array.isArray(v) ? v : []);
           const opts = [{ label: "Select VAT", value: "" }, ...(Array.isArray(v)
             ? v.map(x => {
                 const id = x.vatCategoryId;
@@ -78,25 +86,25 @@ const RecipeNew = () => {
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
           const mapped = (list || []).map(it => {
             const id = it.inventoryItemId ?? it.id ?? it.InventoryItemId;
-            // If server didn't include image bytes metadata, use placeholder right away
-              const hasInlineImageMeta = it.imageUrl != null || it.InventoryItemImage != null;
-              const imgUrl = it.imageUrl ?? PLACEHOLDER_IMG;
+            const imgUrl = it.imageUrl ?? PLACEHOLDER_IMG;
             const desc = it.description ?? it.inventoryItemDescription ?? it.Description ?? "";
             const available = Number(it.quantity ?? it.Quantity ?? 0);
-            const priceVal = Number(it.costPerUnit ?? it.CostPerUnit ?? 0);
+            const costVal = Number(it.costPerUnit ?? it.CostPerUnit ?? 0);
             return {
               id,
               name: it.inventoryItemName ?? it.name ?? it.InventoryItemName ?? "Item",
               desc,
               qtyAvailable: available,
               imageUrl: imgUrl || PLACEHOLDER_IMG,
-                price: priceVal > 0 ? `${priceVal.toFixed(3)} BHD` : "",
-                quantity: available,
+              costPerUnit: costVal,
+              price: costVal > 0 ? `${costVal.toFixed(3)} BHD` : "",
+              quantity: available,
               isSelected: false,
             };
           });
           setIngredients(mapped);
-          setSelectedItems(mapped.map(i => ({ ...i, isSelected: false })));
+          // initialize selectedItems entries with zeros
+          setSelectedItems(mapped.map(i => ({ id: i.id, isSelected: false, quantity: 0 })));
         }
       } catch (ex) {
         console.error("Failed to load lookups for recipe form", ex);
@@ -109,6 +117,33 @@ const RecipeNew = () => {
     load();
     return () => { mounted = false; };
   }, [retry]);
+
+  // Compute cost price whenever selectedItems or ingredients change
+  useEffect(() => {
+    const computeCost = () => {
+      let total = 0;
+      (selectedItems || []).forEach(si => {
+        const qty = Number(si.quantity || 0);
+        if (!si.isSelected || qty <= 0) return;
+        const ing = ingredients.find(i => Number(i.id) === Number(si.id));
+        if (!ing) return;
+        const cpu = Number(ing.costPerUnit || 0);
+        total += cpu * qty;
+      });
+      return total;
+    };
+
+    const newCost = computeCost();
+    setCostPrice(newCost);
+
+    // if selling price not touched, initialize sellingPrice = cost + vat (if applied)
+    if (!sellingPriceTouched) {
+      const vatObj = vatList.find(v => String(v.vatCategoryId) === String(vatId));
+      const rate = vatObj ? Number(vatObj.vatRate ?? 0) : 0;
+      const sp = newCost * (1 + rate / 100);
+      setSellingPrice(Number(sp.toFixed(3)));
+    }
+  }, [selectedItems, ingredients, vatId, vatList, sellingPriceTouched]);
 
   // Toggle selection for an ingredient card
   const toggleSelectItem = (itemId) => {
@@ -124,23 +159,22 @@ const RecipeNew = () => {
         );
     };
 
-
   // Build tabs for TabbedMenu (single tab "Ingredients")
   const tabs = [
     {
       label: "Ingredients",
-      items: ingredients.map((it) => ({
+      items: ingredients.map((it, idx) => ({
         // display fields
         name: it.name,
         description: it.desc || "",
         price: it.price,
         // quantity prop is AVAILABLE stock shown by the card; card manages selected quantity internally
         quantity: Number(it.qtyAvailable || 0),
-        isSelected: (selectedItems.find(s => s.id === it.id)?.isSelected) || false,
+        isSelected: (selectedItems.find(s => Number(s.id) === Number(it.id))?.isSelected) || false,
         imageUrl: it.imageUrl || "",
         extraTop: (<div className="small text-muted">Available: {Number(it.qtyAvailable || 0)}</div>),
-        // let TabbedMenu own the selection; no local state updates here
-        // Note: TabbedMenu will replace onSelect and call it with the selectedQty when user changes it
+        // include index so TabbedMenu can map back
+        inventoryId: it.id,
       })),
       cardComponent: (item) => (
         <MenuTabCard
@@ -197,9 +231,18 @@ const RecipeNew = () => {
       ingredients: ingredientsPayload,
     };
 
-    return isForSale
-      ? { ...base, isOnSale: true, vatCategoryId: vatId ? Number(vatId) : null, productDescription: saleDescription ? String(saleDescription).trim() : null }
-      : { ...base, isOnSale: false };
+    if (isForSale) {
+      return {
+        ...base,
+        isOnSale: true,
+        vatCategoryId: vatId ? Number(vatId) : null,
+        productDescription: saleDescription ? String(saleDescription).trim() : null,
+        costPrice: Number(costPrice.toFixed(3)),
+        sellingPrice: Number(sellingPrice || 0)
+      };
+    }
+
+    return { ...base, isOnSale: false };
   };
 
   const submitJson = async (payload) => {
@@ -240,6 +283,27 @@ const RecipeNew = () => {
       setSaving(false);
     }
   };
+
+  // handle selling price edit by user
+  const onSellingPriceChange = (v) => {
+    const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0;
+    setSellingPrice(num);
+    setSellingPriceTouched(true);
+  };
+
+  // show warning when selling < cost
+  const [showWarning, setShowWarning] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const shouldWarn = Number(sellingPrice || 0) < Number(costPrice || 0) && Number(sellingPrice || 0) > 0;
+    const t = setTimeout(() => {
+      if (!mounted) return;
+      setShowWarning(shouldWarn);
+    }, 250);
+
+    return () => { mounted = false; clearTimeout(t); };
+  }, [sellingPrice, costPrice]);
 
   return (
     <div className="container py-5">
@@ -291,9 +355,25 @@ const RecipeNew = () => {
                     searchable={false}
                   />
                 </div>
+
+                <div className="col-12 col-md-6 text-start">
+                  <InputField label="Selling Price (BHD)" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={onSellingPriceChange} />
+                </div>
+
+                <div className="col-12 col-md-6 text-start">
+                  <InputField label="Cost Price (BHD)" value={costPrice ? costPrice.toFixed(3) : "0.000"} onChange={() => {}} disabled />
+                </div>
+
                 <div className="col-12 text-start">
                   <TextArea label="Recipe Description (Sale)" value={saleDescription} onChange={setSaleDescription} rows={3} placeholder="Description shown when recipe is on sale" />
                 </div>
+
+                {showWarning && (
+                  <div className="col-12">
+                    <div className="alert alert-warning">Selling price is lower than the computed cost price.</div>
+                  </div>
+                )}
+
               </div>
             </TitledGroup>
           </div>

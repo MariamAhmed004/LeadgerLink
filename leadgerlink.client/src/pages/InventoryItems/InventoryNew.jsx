@@ -39,10 +39,13 @@ const InventoryItemNew = () => {
 
   // UI-only: Product details (not used in submit logic per request)
   const [isOnSale, setIsOnSale] = useState(false);
-  const [sellingPrice, setSellingPrice] = useState("");
+  const [sellingPrice, setSellingPrice] = useState(0);
+  const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
   const [vatCategoryId, setVatCategoryId] = useState("");
   const [vatCategories, setVatCategories] = useState([]);
   const [productDescription, setProductDescription] = useState("");
+  const [vatList, setVatList] = useState([]);
+  const [costPrice, setCostPrice] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -82,11 +85,13 @@ const InventoryItemNew = () => {
       if (lookRes && lookRes.ok) {
         const lookData = await lookRes.json();
         setUnits(lookData.units || []);
-        // vatCategories are loaded for UI only (they won't be submitted per request)
+        // vatCategories are loaded for UI only
         setVatCategories(lookData.vatCategories || []);
+        setVatList(lookData.vatCategories || []);
       } else {
         setUnits([]);
         setVatCategories([]);
+        setVatList([]);
       }
     } catch (ex) {
       console.error(ex);
@@ -94,6 +99,7 @@ const InventoryItemNew = () => {
       setCategories([]);
       setUnits([]);
       setVatCategories([]);
+      setVatList([]);
     }
   };
 
@@ -104,6 +110,30 @@ const InventoryItemNew = () => {
     const s = suppliers.find((x) => String(x.supplierId ?? x.id ?? x.SupplierId) === String(supplierId));
     setSelectedSupplierContactMethod(s ? (s.contactMethod ?? s.contact_method ?? s.ContactMethod ?? "") : "");
   }, [supplierId, suppliers]);
+
+  // compute costPrice from costPerUnit (per requirement: cost depends on price per unit)
+  useEffect(() => {
+    const cpu = parseNonNegativeNumber(costPerUnit);
+    setCostPrice(cpu == null || Number.isNaN(cpu) ? 0 : cpu);
+    // if user hasn't edited selling price, initialize sellingPrice = cost + VAT
+    if (!sellingPriceTouched) {
+      const v = (vatList || []).find(x => String(x.vatCategoryId || x.id) === String(vatCategoryId));
+      // robustly get rate from various possible property names
+      const rate = v ? (Number(v.vatRate ?? v.rate ?? v.VatRate ?? v.vat_rate ?? 0)) : 0;
+      const vatAmount = (cpu == null || Number.isNaN(cpu)) ? 0 : cpu * (rate / 100);
+      const sp = (cpu == null || Number.isNaN(cpu)) ? 0 : Number((cpu + vatAmount).toFixed(3));
+      setSellingPrice(sp);
+    }
+  }, [costPerUnit, vatCategoryId, vatList, sellingPriceTouched]);
+
+  // debounce warning to avoid flashing
+  const [showWarning, setShowWarning] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    const shouldWarn = Number(sellingPrice || 0) < Number(costPrice || 0) && Number(sellingPrice || 0) > 0;
+    const t = setTimeout(() => { if (!mounted) return; setShowWarning(shouldWarn); }, 250);
+    return () => { mounted = false; clearTimeout(t); };
+  }, [sellingPrice, costPrice]);
 
   const validate = () => {
     const errors = [];
@@ -167,6 +197,7 @@ const InventoryItemNew = () => {
         isOnSale: true,
         sellingPrice: sp == null ? null : Number(Number(sp).toFixed(3)),
         vatCategoryId: vat,
+        costPrice: Number(Number(costPrice).toFixed(3)),
         productDescription: productDescription ? String(productDescription).trim() : null,
       };
     }
@@ -243,7 +274,7 @@ const InventoryItemNew = () => {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField searchable label="Supplier" value={supplierId} onChange={(v) => setSupplierId(v)} options={[{ label: "Select supplier", value: "" }, ...mapOptions(suppliers, "supplierName", "supplierId")]} />
+            <SelectField searchable label="Supplier" value={supplierId} onChange={(v) => setSupplierId(v)} options={[{ label: "Select supplier", value: "" }, ...mapOptions(suppliers, "supplierName", "supplierId")] } />
           </div>
           <div className="col-12 col-md-6 text-start d-flex align-items-end">
             <div>
@@ -288,20 +319,26 @@ const InventoryItemNew = () => {
           <div className="col-12 mt-5">
             <TitledGroup title="Product Details" subtitle="Sale flag, VAT, selling price and description">
               <div className="row gx-3 gy-3">
-                <div className="col-12">
-                  <div className="col-12 col-md-4">
-                    <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
-                  </div>
+                <div className="col-12 col-md-6 d-flex align-items-center text-start">
+                  <SwitchField label="Set On Sale" checked={isOnSale} onChange={setIsOnSale} />
                 </div>
-                <div className="col-12 col-md-6">
+                <div className="col-12 col-md-6 text-start">
                   <SelectField label="VAT Category" value={vatCategoryId} onChange={(v) => setVatCategoryId(v)} options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")] } />
                 </div>
-                <div className="col-12 col-md-6">
-                  <InputField label="Selling Price" value={sellingPrice} onChange={setSellingPrice} type="number" step="0.001" placeholder="0.000" />
+                <div className="col-12 col-md-6 text-start">
+                  <InputField label="Selling Price" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={(v)=>{ const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0; setSellingPrice(num); setSellingPriceTouched(true); }} type="number" step="0.001" placeholder="0.000" />
                 </div>
-                <div className="col-12">
+                <div className="col-12 col-md-6 text-start">
+                  <InputField label="Cost Price (BHD)" value={costPrice != null ? Number(costPrice).toFixed(3) : ""} readOnly disabled placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
+                </div>
+                <div className="col-12 text-start">
                   <TextArea label="Product Description" value={productDescription} onChange={setProductDescription} rows={4} placeholder="Full product description" />
                 </div>
+                {showWarning && (
+                  <div className="col-12">
+                    <div className="alert alert-warning">Selling price is lower than the computed cost price.</div>
+                  </div>
+                )}
               </div>
             </TitledGroup>
           </div>

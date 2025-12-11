@@ -300,11 +300,25 @@ namespace LeadgerLink.Server.Controllers
                 // If the frontend requested to put the item on sale, create a Product linked to this inventory item.
                 if (dto.isOnSale)
                 {
+                    // Prefer client-provided costPrice, otherwise use item cost per unit
+                    var finalCost = dto.costPrice ?? item.CostPerUnit;
+                    decimal finalSelling = dto.sellingPrice ?? finalCost;
+                    // If client didn't provide sellingPrice but VAT provided, try compute using VAT rate
+                    if (!dto.sellingPrice.HasValue && dto.vatCategoryId.HasValue)
+                    {
+                        var vatEntity = await _context.Set<Models.VatCategory>().FindAsync(dto.vatCategoryId.Value);
+                        if (vatEntity != null)
+                        {
+                            var rate = vatEntity.VatRate; // percent
+                            finalSelling = finalCost + (finalCost * (rate / 100m));
+                        }
+                    }
+
                     var product = new Product
                     {
                         ProductName = item.InventoryItemName,
-                        SellingPrice = dto.sellingPrice ?? item.CostPerUnit,
-                        CostPrice = item.CostPerUnit,
+                        SellingPrice = finalSelling,
+                        CostPrice = finalCost,
                         StoreId = item.StoreId,
                         IsRecipe = false,
                         RecipeId = null,
@@ -489,11 +503,23 @@ namespace LeadgerLink.Server.Controllers
                 {
                     if (existingProduct == null)
                     {
+                        var finalCost = dto.costPrice ?? existing.CostPerUnit;
+                        decimal finalSelling = dto.sellingPrice ?? finalCost;
+                        if (!dto.sellingPrice.HasValue && dto.vatCategoryId.HasValue)
+                        {
+                            var vatEntity = await _context.Set<Models.VatCategory>().FindAsync(dto.vatCategoryId.Value);
+                            if (vatEntity != null)
+                            {
+                                var rate = vatEntity.VatRate;
+                                finalSelling = finalCost + (finalCost * (rate / 100m));
+                            }
+                        }
+
                         var product = new Product
                         {
                             ProductName = existing.InventoryItemName,
-                            SellingPrice = dto.sellingPrice ?? existingProduct.SellingPrice,
-                            CostPrice = existing.CostPerUnit,
+                            SellingPrice = finalSelling,
+                            CostPrice = finalCost,
                             StoreId = existing.StoreId,
                             IsRecipe = false,
                             RecipeId = null,
@@ -507,7 +533,7 @@ namespace LeadgerLink.Server.Controllers
                     {
                         existingProduct.ProductName = existing.InventoryItemName;
                         existingProduct.SellingPrice = dto.sellingPrice ?? existingProduct.SellingPrice;
-                        existingProduct.CostPrice = existing.CostPerUnit;
+                        existingProduct.CostPrice = dto.costPrice ?? existing.CostPerUnit;
                         existingProduct.VatCategoryId = dto.vatCategoryId!.Value;
                         existingProduct.Description = string.IsNullOrWhiteSpace(dto.productDescription) ? existing.Description : dto.productDescription!.Trim();
                         await _productRepo.UpdateAsync(existingProduct);
