@@ -121,6 +121,19 @@ export default function Reports() {
           url = `/api/reports/monthly-cogs/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
           filename = `monthly-cogs-${orgId}-${year}-${month}.xlsx`;
         }
+      } else if (reportId === "gross_profit_and_margin") {
+        if (!orgId) throw new Error("Organization id not available for Gross Profit & Margin report.");
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = now.getUTCMonth() + 1;
+        if (format === "PDF") {
+          url = `/api/reports/monthly-gross-profit/pdf?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+          filename = `monthly-gross-profit-${orgId}-${year}-${month}.pdf`;
+        } else {
+          url = `/api/reports/monthly-gross-profit/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+          filename = `monthly-gross-profit-${orgId}-${year}-${month}.xlsx`;
+          }
+
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();

@@ -67,5 +67,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Monthly COGS report (organization-level): generated file outputs
         Task<byte[]> GenerateMonthlyCogsReportPdfAsync(int organizationId, int year, int month);
         Task<byte[]> GenerateMonthlyCogsReportExcelAsync(int organizationId, int year, int month);
+
+        // Monthly Gross Profit & Profit Margin (organization-level): generated file outputs
+        Task<byte[]> GenerateMonthlyGrossProfitReportPdfAsync(int organizationId, int year, int month);
+        Task<byte[]> GenerateMonthlyGrossProfitReportExcelAsync(int organizationId, int year, int month);
     }
 }//end IReportRepository

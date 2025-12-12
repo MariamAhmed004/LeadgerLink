@@ -291,5 +291,44 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate monthly COGS Excel.");
             }
         }
+
+        // GET api/reports/monthly-gross-profit/pdf?organizationId=123&year=2025&month=11
+        [HttpGet("monthly-gross-profit/pdf")]
+        public async Task<IActionResult> GetMonthlyGrossProfitPdf([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateMonthlyGrossProfitReportPdfAsync(organizationId, year, month);
+                var fileName = $"monthly-gross-profit-{organizationId}-{year}-{month}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate monthly Gross Profit PDF for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate monthly Gross Profit PDF.");
+            }
+        }
+
+        // GET api/reports/monthly-gross-profit/excel?organizationId=123&year=2025&month=11
+        [HttpGet("monthly-gross-profit/excel")]
+        public async Task<IActionResult> GetMonthlyGrossProfitExcel([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateMonthlyGrossProfitReportExcelAsync(organizationId, year, month);
+                var fileName = $"monthly-gross-profit-{organizationId}-{year}-{month}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate monthly Gross Profit Excel for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate monthly Gross Profit Excel.");
+            }
+        }
     }
 }

@@ -1449,5 +1449,104 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return ms.ToArray();
         }
+
+
+        // Monthly Gross Profit & Profit Margin Report (PDF & Excel)
+        public async Task<byte[]> GenerateMonthlyGrossProfitReportExcelAsync(int organizationId, int year, int month)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? ($"Org {organizationId}");
+            var orgGrossProfit = await GetGrossProfitByOrganizationForMonthAsync(organizationId, year, month);
+            var orgProfitMargin = await GetProfitMarginByOrganizationForMonthAsync(organizationId, year, month);
+
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+            var rows = new List<string[]>();
+            foreach (var st in stores)
+            {
+                var gp = await GetGrossProfitByStoreForMonthAsync(st.StoreId, year, month);
+                var margin = await GetProfitMarginByStoreForMonthAsync(st.StoreId, year, month);
+                rows.Add(new[] {
+                    st.StoreName ?? ($"Store {st.StoreId}"),
+                    gp.ToString("F3"),
+                    margin.ToString("F2")
+                });
+            }
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Monthly Gross Profit");
+            int r = 1;
+
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization Gross Profit (BHD)", "Organization Profit Margin (%)" };
+            var summaryRows = new List<string[]> {
+                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgGrossProfit.ToString("F3"), orgProfitMargin.ToString("F2") }
+            };
+            r = AddStyledTableAt(ws, r, "Monthly Gross Profit & Margin Report", summaryHeaders, summaryRows, new[] { 30d, 22d, 18d, 28d, 20d });
+
+            var headers = new[] { "Store", "Gross Profit (BHD)", "Profit Margin (%)" };
+            AddStyledTableAt(ws, r, "Store Gross Profit & Margin", headers, rows, new[] { 55d, 30d, 20d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateMonthlyGrossProfitReportPdfAsync(int organizationId, int year, int month)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? ($"Org {organizationId}");
+            var orgGrossProfit = await GetGrossProfitByOrganizationForMonthAsync(organizationId, year, month);
+            var orgProfitMargin = await GetProfitMarginByOrganizationForMonthAsync(organizationId, year, month);
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                DrawSectionHeader(gfx, "Monthly Gross Profit & Margin Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Period: {new DateTime(year, month, 1):yyyy-MM}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization Gross Profit: BHD {orgGrossProfit:F3}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization Profit Margin: {orgProfitMargin:F2} %", textFont, x, ref y, contentWidth);
+
+                y += 8;
+                DrawSectionHeader(gfx, "Store Gross Profit & Margin", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.6, contentWidth * 0.2, contentWidth * 0.2 };
+                DrawTableHeader(gfx, new[] { "Store", "Gross Profit (BHD)", "Profit Margin (%)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var st in stores)
+                {
+                    var gp = await GetGrossProfitByStoreForMonthAsync(st.StoreId, year, month);
+                    var margin = await GetProfitMarginByStoreForMonthAsync(st.StoreId, year, month);
+                    DrawTableRow(gfx, new[] { st.StoreName ?? ($"Store {st.StoreId}"), gp.ToString("F3"), margin.ToString("F2") }, textFont, x, ref y, widths, gridPen);
+
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Store", "Gross Profit (BHD)", "Profit Margin (%)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+
+
     }
 }
