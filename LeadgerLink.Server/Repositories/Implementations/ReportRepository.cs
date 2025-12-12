@@ -1546,7 +1546,103 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return ms.ToArray();
         }
 
+        // Inventory Valuation Report (Excel only)
+        // - Uses helper workbook functions to match existing report style.
+        // - Summary header: title, organization name, generated-at, organization inventory value.
+        // - Then per-store section: store inventory value + table of items (name, quantity, supplier, contact, cost/unit, unit).
 
+public async Task<byte[]> GenerateInventoryValuationReportExcelAsync(int organizationId)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? ($"Org {organizationId}");
+
+            // gather stores
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            // compute per-store and org inventory value using inventory repo when available,
+            // fallback to summing InventoryItem.Quantity * InventoryItem.CostPerUnit
+            var perStoreValues = new Dictionary<int, decimal>();
+            decimal orgInventoryValue = 0m;
+            foreach (var st in stores)
+            {
+                decimal storeValue = 0m;
+                try
+                {
+                    storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(st.StoreId);
+                }
+                catch
+                {
+                    // fallback: use strongly-typed InventoryItem properties
+                    var fallbackItems = await _inventory_repo_safe_GetItemsByStoreAsync(st.StoreId);
+                    storeValue = fallbackItems.Sum(ii => ii.Quantity * ii.CostPerUnit);
+                }
+
+                perStoreValues[st.StoreId] = storeValue;
+                orgInventoryValue += storeValue;
+            }
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Inventory Valuation");
+            int r = 1;
+
+            // Summary block
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Organization Inventory Value (BHD)" };
+            var summaryRows = new List<string[]>
+    {
+        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), orgInventoryValue.ToString("F3") }
+    };
+            r = AddStyledTableAt(ws, r, "Inventory Valuation Report", summaryHeaders, summaryRows, new[] { 40d, 30d, 30d });
+
+            // Per-store detail blocks
+            var itemHeaders = new[] { "Item Name", "Quantity", "Supplier", "Contact", "Cost/Unit (BHD)", "Unit" };
+            foreach (var st in stores)
+            {
+                var storeValue = perStoreValues.TryGetValue(st.StoreId, out var sv) ? sv : 0m;
+
+                // Store summary
+                var storeSummaryHeaders = new[] { "Store", "Inventory Value (BHD)" };
+                var storeSummaryRows = new List<string[]> { new[] { st.StoreName ?? ($"Store {st.StoreId}"), storeValue.ToString("F3") } };
+                r = AddStyledTableAt(ws, r, $"Store: {st.StoreName ?? ($"Store {st.StoreId}")}", storeSummaryHeaders, storeSummaryRows, new[] { 60d, 30d });
+
+                // Items - strongly-typed fetch (InventoryItemRepository includes Supplier and Unit)
+                var items = await _inventory_repo_safe_GetItemsByStoreAsync(st.StoreId);
+
+                var itemRows = items.Select(ii => new[]
+                {
+            ii.InventoryItemName ?? "-",
+            ii.Quantity.ToString("F3"),
+            ii.Supplier?.SupplierName ?? "-",
+            ii.Supplier?.ContactMethod ?? "-",
+            ii.CostPerUnit.ToString("F3"),
+            ii.Unit?.UnitName ?? "-"
+        }).ToList();
+
+                r = AddStyledTableAt(ws, r, "Inventory Items", itemHeaders, itemRows, new[] { 35d, 12d, 23d, 20d, 20d, 10d });
+            }
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        // helper: try inventory repo then fallback to context items
+        private async Task<List<InventoryItem>> _inventory_repo_safe_GetItemsByStoreAsync(int storeId)
+        {
+            try
+            {
+                var items = await _inventoryRepo.GetItemsByStoreAsync(storeId);
+                return items.ToList();
+            }
+            catch
+            {
+                var items = await _context.InventoryItems
+                    .Include(ii => ii.Supplier)
+                    .Include(ii => ii.Unit)
+                    .Where(ii => ii.StoreId == storeId)
+                    .ToListAsync();
+                return items;
+            }
+        }
 
     }
 }

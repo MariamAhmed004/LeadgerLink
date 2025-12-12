@@ -134,6 +134,11 @@ export default function Reports() {
           filename = `monthly-gross-profit-${orgId}-${year}-${month}.xlsx`;
           }
 
+      } else if (reportId === "inventory_valuation") {
+          if (!orgId) throw new Error("Organization id not available for Inventory Valuation report.");
+          // use current UTC month/year only for filename context; API only requires organizationId
+          url = `/api/reports/inventory-valuation/excel?organizationId=${encodeURIComponent(String(orgId))}`;
+          filename = `inventory-valuation-${orgId}.xlsx`;
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();

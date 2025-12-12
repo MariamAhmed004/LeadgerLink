@@ -71,5 +71,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Monthly Gross Profit & Profit Margin (organization-level): generated file outputs
         Task<byte[]> GenerateMonthlyGrossProfitReportPdfAsync(int organizationId, int year, int month);
         Task<byte[]> GenerateMonthlyGrossProfitReportExcelAsync(int organizationId, int year, int month);
+
+        // Inventory Valuation report (organization-level): Excel output only
+        Task<byte[]> GenerateInventoryValuationReportExcelAsync(int organizationId);
     }
 }//end IReportRepository

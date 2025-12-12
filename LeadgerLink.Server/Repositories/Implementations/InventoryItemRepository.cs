@@ -113,6 +113,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             return await _context.InventoryItems
                 .Include(ii => ii.InventoryItemCategory)
+                .Include(ii => ii.Unit)
+                .Include(ii => ii.Supplier)
                 .Where(ii => ii.StoreId == storeId)
                 .ToListAsync();
         }

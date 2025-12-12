@@ -330,5 +330,25 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate monthly Gross Profit Excel.");
             }
         }
+
+        // GET api/reports/inventory-valuation/excel?organizationId=123
+        [HttpGet("inventory-valuation/excel")]
+        public async Task<IActionResult> GetInventoryValuationExcel([FromQuery] int organizationId)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateInventoryValuationReportExcelAsync(organizationId);
+                var fileName = $"inventory-valuation-{organizationId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate inventory valuation Excel for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate inventory valuation Excel.");
+            }
+        }
+
     }
 }
