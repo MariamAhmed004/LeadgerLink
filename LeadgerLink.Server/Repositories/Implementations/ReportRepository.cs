@@ -1355,5 +1355,99 @@ namespace LeadgerLink.Server.Repositories.Implementations
             wb.SaveAs(ms);
             return ms.ToArray();
         }
+
+        // Monthly COGS Report (PDF & Excel)
+        public async Task<byte[]> GenerateMonthlyCogsReportExcelAsync(int organizationId, int year, int month)
+        {
+            // Organization metadata and totals
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? ($"Org {organizationId}");
+            var orgCogs = await GetCOGSByOrganizationForMonthAsync(organizationId, year, month);
+
+            // Per-store breakdown
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+            var tableRows = new List<string[]>();
+            foreach (var st in stores)
+            {
+                var cogs = await GetCOGSByStoreForMonthAsync(st.StoreId, year, month);
+                tableRows.Add(new[] { st.StoreName ?? ($"Store {st.StoreId}"), cogs.ToString("F3") });
+            }
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Monthly COGS");
+            int r = 1;
+
+            // Header / summary block
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization COGS (BHD)" };
+            var summaryRows = new List<string[]>
+            {
+                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgCogs.ToString("F3") }
+            };
+            r = AddStyledTableAt(ws, r, "Monthly COGS Report", summaryHeaders, summaryRows, new[] { 40d, 30d, 20d, 20d });
+
+            // Stores table
+            var headers = new[] { "Store", "COGS (BHD)" };
+            AddStyledTableAt(ws, r, "Store COGS Breakdown", headers, tableRows, new[] { 60d, 30d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateMonthlyCogsReportPdfAsync(int organizationId, int year, int month)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? ($"Org {organizationId}");
+            var orgCogs = await GetCOGSByOrganizationForMonthAsync(organizationId, year, month);
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header block
+                DrawSectionHeader(gfx, "Monthly COGS Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Period: {new DateTime(year, month, 1):yyyy-MM}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization COGS: BHD {orgCogs:F3}", textFont, x, ref y, contentWidth);
+
+                y += 8;
+
+                // Stores table
+                DrawSectionHeader(gfx, "Store COGS Breakdown", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.7, contentWidth * 0.3 };
+                DrawTableHeader(gfx, new[] { "Store", "COGS (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var st in stores)
+                {
+                    var cogs = await GetCOGSByStoreForMonthAsync(st.StoreId, year, month);
+                    DrawTableRow(gfx, new[] { st.StoreName ?? ($"Store {st.StoreId}"), cogs.ToString("F3") }, textFont, x, ref y, widths, gridPen);
+
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Store", "COGS (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
     }
 }

@@ -252,5 +252,44 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate Inventory Usage Trends Excel.");
             }
         }
+
+        // GET api/reports/monthly-cogs/pdf?organizationId=123&year=2025&month=11
+        [HttpGet("monthly-cogs/pdf")]
+        public async Task<IActionResult> GetMonthlyCogsPdf([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateMonthlyCogsReportPdfAsync(organizationId, year, month);
+                var fileName = $"monthly-cogs-{organizationId}-{year}-{month}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate monthly COGS PDF for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate monthly COGS PDF.");
+            }
+        }
+
+        // GET api/reports/monthly-cogs/excel?organizationId=123&year=2025&month=11
+        [HttpGet("monthly-cogs/excel")]
+        public async Task<IActionResult> GetMonthlyCogsExcel([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateMonthlyCogsReportExcelAsync(organizationId, year, month);
+                var fileName = $"monthly-cogs-{organizationId}-{year}-{month}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate monthly COGS Excel for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate monthly COGS Excel.");
+            }
+        }
     }
 }

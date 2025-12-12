@@ -63,5 +63,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Inventory Usage Trends
         Task<byte[]> GenerateInventoryUsageTrendsReportPdfAsync(int storeId);
         Task<byte[]> GenerateInventoryUsageTrendsReportExcelAsync(int storeId);
+
+        // Monthly COGS report (organization-level): generated file outputs
+        Task<byte[]> GenerateMonthlyCogsReportPdfAsync(int organizationId, int year, int month);
+        Task<byte[]> GenerateMonthlyCogsReportExcelAsync(int organizationId, int year, int month);
     }
 }//end IReportRepository

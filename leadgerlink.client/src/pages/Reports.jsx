@@ -109,6 +109,18 @@ export default function Reports() {
           url = `/api/reports/inventory-usage-trends/excel?storeId=${encodeURIComponent(String(storeId))}`;
           filename = `inventory-usage-trends-${storeId}.xlsx`;
         }
+      } else if (reportId === "monthly_cogs") {
+        if (!orgId) throw new Error("Organization id not available for Monthly COGS report.");
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = now.getUTCMonth() + 1; // JS months are 0-based
+        if (format === "PDF") {
+          url = `/api/reports/monthly-cogs/pdf?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+          filename = `monthly-cogs-${orgId}-${year}-${month}.pdf`;
+        } else {
+          url = `/api/reports/monthly-cogs/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+          filename = `monthly-cogs-${orgId}-${year}-${month}.xlsx`;
+        }
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();
