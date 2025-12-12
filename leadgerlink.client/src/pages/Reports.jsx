@@ -151,6 +151,18 @@ export default function Reports() {
               url = `/api/reports/sales-by-recipe/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
               filename = `sales-by-recipe-${orgId}-${year}-${month}.xlsx`;
           }
+      } else if (reportId === "monthly_sales") {
+          if (!orgId) throw new Error("Organization id not available for Monthly Sales report.");
+          const now = new Date();
+          const year = now.getUTCFullYear();
+          const month = now.getUTCMonth() + 1;
+          if (format === "PDF") {
+              url = `/api/reports/monthly-sales/pdf?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+              filename = `monthly-sales-${orgId}-${year}-${month}.pdf`;
+          } else {
+              url = `/api/reports/monthly-sales/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+              filename = `monthly-sales-${orgId}-${year}-${month}.xlsx`;
+          }
       } else {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();
