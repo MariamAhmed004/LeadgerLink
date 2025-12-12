@@ -23,5 +23,8 @@ namespace LeadgerLink.Server.Dtos
 
         // Available quantity for inventory items (client uses this to display stock)
         public decimal? InventoryItemQuantity { get; set; }
+
+        // For recipe-backed products: how many full recipes can be made from current ingredient stocks
+        public int? AvailableQuantity { get; set; }
     }
 }

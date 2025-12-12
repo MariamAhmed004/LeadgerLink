@@ -92,13 +92,13 @@ const SalesNew = () => {
           (arr || []).forEach(p => {
             // derive description and available quantity if provided by backend
             const description = p.description ?? p.productDescription ?? p.desc ?? "";
-            const availableQty = p.inventoryItemQuantity ?? p.quantity ?? p.availableQuantity ?? null;
+            const availableQty = p.availableQuantity ?? p.inventoryItemQuantity ?? p.quantity ?? null;
             const item = {
               productId: p.productId,
               name: p.productName,
-              description: p.description || "",
+              description: description,
               price: Number(p.sellingPrice).toFixed(3) + " BHD",
-              quantity: Number(p.inventoryItemQuantity ?? 0)    
+              quantity: Number(availableQty ?? 0)
             };
             const isRecipe = (p.isRecipe === true) || (String(p.source || "").toLowerCase() === "recipe");
             if (isRecipe) rec.push(item); else oth.push(item);

@@ -91,6 +91,24 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
                         dto.IsAvailable = string.IsNullOrEmpty(missing);
                         dto.AvailabilityMessage = dto.IsAvailable ? "Available" : $"Unavailable: {missing}";
+                        // For recipes compute how many full recipe portions can be made: min floor(ingredientQty / requiredQty)
+                        try
+                        {
+                            var perIngCounts = recipe.RecipeInventoryItems
+                                .Where(rii => rii.Quantity > 0)
+                                .Select(rii =>
+                                {
+                                    var avail = rii.InventoryItem != null ? rii.InventoryItem.Quantity : 0m;
+                                    var req = rii.Quantity;
+                                    return req > 0 ? (int)Math.Floor(avail / req) : 0;
+                                })
+                                .ToList();
+                            dto.AvailableQuantity = perIngCounts.Count > 0 ? (int?)perIngCounts.Min() : 0;
+                        }
+                        catch
+                        {
+                            dto.AvailableQuantity = null;
+                        }
                         // For recipes we do not expose a single InventoryItemQuantity; leave null.
                         dto.InventoryItemQuantity = null;
                     }

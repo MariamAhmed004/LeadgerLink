@@ -96,8 +96,8 @@ const SaleEdit = () => {
               name: p.productName,
               description,
               price: Number(p.sellingPrice).toFixed(3) + " BHD",
-              // inventory products use inventoryItemQuantity; recipes get a UI cap (selectable)
-              quantity: isRecipe ? 9999 : Number(p.inventoryItemQuantity ?? 0),
+              // use backend-provided availableQuantity for recipes, fallback to inventoryItemQuantity
+              quantity: isRecipe ? Number(p.availableQuantity ?? p.inventoryItemQuantity ?? 0) : Number(p.inventoryItemQuantity ?? 0),
               initialSelectedQty: byProductIdQty.get(Number(p.productId)) || 0
             };
 
@@ -129,7 +129,6 @@ const SaleEdit = () => {
 
     const appliedDiscountAmount = Number(discountDeduction.toFixed(3));
     const payload = {
-      saleId: Number(id),
       timestamp: timestamp.toISOString(),
       totalAmount: Number(totalAmount.toFixed(3)),
       appliedDiscount: appliedDiscountAmount,

@@ -356,6 +356,7 @@ namespace LeadgerLink.Server.Controllers
                 sale.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim();
                 sale.UpdatedAt = DateTime.UtcNow.ToString("o");
 
+                // Replace existing sale items with those provided by client
                 _context.SaleItems.RemoveRange(sale.SaleItems);
                 foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
                 {
