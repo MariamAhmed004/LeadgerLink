@@ -37,5 +37,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Update transfer items for a transfer id with the provided selection (replace-all strategy).
         Task UpdateTransferItemsAsync(int transferId, IEnumerable<CreateInventoryTransferItemDto> items);
+
+        // Update transfer data by transfer id.
+        Task UpdateTransferAsync(int transferId, CreateInventoryTransferDto dto);
     }
 }

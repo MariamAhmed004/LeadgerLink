@@ -323,5 +323,65 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to update transfer items.");
             }
         }
+
+
+        [Authorize]
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult> UpdateTransfer(int id, [FromBody] CreateInventoryTransferDto dto)
+        {
+            if (dto == null) return BadRequest("Invalid payload.");
+            if (id <= 0) return BadRequest("Invalid transfer id.");
+
+            // Validate transfer exists and user has access (same checks as UpdateTransferItems)
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == id);
+            if (transfer == null) return NotFound();
+
+            var email = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return Unauthorized();
+
+            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+            if (!isOrgAdmin && domainUser.StoreId.HasValue)
+            {
+                var sId = domainUser.StoreId.Value;
+                if (transfer.FromStore != sId && transfer.ToStore != sId)
+                    return Forbid();
+            }
+
+            try
+            {
+                // Update metadata (status, notes, date, stores)
+                await _repository.UpdateTransferAsync(id, dto);
+
+                // If items present in DTO, replace items as well
+                if (dto.Items != null && dto.Items.Length > 0)
+                {
+                    await _repository.UpdateTransferItemsAsync(id, dto.Items);
+                }
+
+                return NoContent();
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound();
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "DB error updating transfer {Id}", id);
+                return StatusCode(500, "Failed to update transfer.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update transfer {Id}", id);
+                return StatusCode(500, "Failed to update transfer.");
+            }
+        }
+
     }
 }

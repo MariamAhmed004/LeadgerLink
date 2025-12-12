@@ -23,6 +23,8 @@ export default function InventoryTransferSend() {
   const [selection, setSelection] = useState([]);
   const [recipeItems, setRecipeItems] = useState([]);
   const [otherItems, setOtherItems] = useState([]);
+  const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({});
+  const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({});
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +51,7 @@ export default function InventoryTransferSend() {
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;
+
         const requesterId = data?.requesterStoreId ?? data?.requesterId ?? null;
         const fromStoreId = data?.fromStoreId ?? data?.requestedFromStoreId ?? null;
         setRequester(requesterId != null ? String(requesterId) : '');
@@ -67,8 +70,10 @@ export default function InventoryTransferSend() {
           if (rid != null) reqByRecipe[String(rid)] = qty;
           if (iid != null) reqByInv[String(iid)] = qty;
         });
-        setRecipeItems(prev => prev.map(r => ({ ...r, initialSelectedQty: reqByRecipe[String(r.recipeId)] || 0 })));
-        setOtherItems(prev => prev.map(o => ({ ...o, initialSelectedQty: reqByInv[String(o.id)] || 0 })));
+
+        // set maps — actual tab item arrays will be built using these maps
+        setRequestedQtyByRecipe(reqByRecipe);
+        setRequestedQtyByInventory(reqByInv);
       } catch { /* noop */ }
     }
     if (id) loadTransfer();
@@ -88,15 +93,19 @@ export default function InventoryTransferSend() {
         if (mounted && recipesRes && recipesRes.ok) {
           const rlist = await recipesRes.json();
           const recipesArr = Array.isArray(rlist) ? rlist : [];
-          setRecipeItems(recipesArr.map(r => ({
-            recipeId: r.recipeId ?? r.RecipeId ?? null,
-            name: r.recipeName ?? r.productName ?? 'Recipe',
-            description: r.description ?? 'NA',
-            price: r.sellingPrice != null ? (Number(r.sellingPrice).toFixed(3) + ' BHD') : 'NA',
-            quantity: Number(r.availableQuantity ?? 0),
-            imageUrl: r.imageUrl || '',
-            initialSelectedQty: 0,
-          })));
+          setRecipeItems(recipesArr.map(r => {
+            const recipeId = r.recipeId ?? r.RecipeId ?? null;
+            const initialQty = recipeId != null ? Number(requestedQtyByRecipe[String(recipeId)] || 0) : 0;
+            return {
+              recipeId,
+              name: r.recipeName ?? r.productName ?? 'Recipe',
+              description: r.description ?? 'NA',
+              price: r.sellingPrice != null ? (Number(r.sellingPrice).toFixed(3) + ' BHD') : 'NA',
+              quantity: Number(r.availableQuantity ?? 0),
+              imageUrl: r.imageUrl || '',
+              initialSelectedQty: initialQty,
+            };
+          }));
         } else {
           setRecipeItems([]);
         }
@@ -104,15 +113,19 @@ export default function InventoryTransferSend() {
         if (mounted && itemsRes && itemsRes.ok) {
           const json = await itemsRes.json();
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
-          setOtherItems((list || []).map(it => ({
-            id: it.inventoryItemId ?? it.id ?? it.InventoryItemId,
-            name: it.inventoryItemName ?? it.name ?? it.InventoryItemName ?? 'Item',
-            description: it.description ?? it.inventoryItemDescription ?? it.Description ?? '',
-            price: Number(it.costPerUnit ?? it.CostPerUnit ?? 0) > 0 ? `${Number(it.costPerUnit ?? it.CostPerUnit ?? 0).toFixed(3)} BHD` : '',
-            quantity: Number(it.quantity ?? it.Quantity ?? 0),
-            imageUrl: it.imageUrl || '',
-            initialSelectedQty: 0,
-          })));
+          setOtherItems((list || []).map(it => {
+            const id = it.inventoryItemId ?? it.id ?? it.InventoryItemId;
+            const initialQty = id != null ? Number(requestedQtyByInventory[String(id)] || 0) : 0;
+            return {
+              id,
+              name: it.inventoryItemName ?? it.name ?? it.InventoryItemName ?? 'Item',
+              description: it.description ?? it.inventoryItemDescription ?? it.Description ?? '',
+              price: Number(it.costPerUnit ?? it.CostPerUnit ?? 0) > 0 ? `${Number(it.costPerUnit ?? it.CostPerUnit ?? 0).toFixed(3)} BHD` : '',
+              quantity: Number(it.quantity ?? it.Quantity ?? 0),
+              imageUrl: it.imageUrl || '',
+              initialSelectedQty: initialQty,
+            };
+          }));
         } else {
           setOtherItems([]);
         }
@@ -120,7 +133,7 @@ export default function InventoryTransferSend() {
     };
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [requestedQtyByRecipe, requestedQtyByInventory]);
 
   const tabs = [
     {
@@ -143,6 +156,81 @@ export default function InventoryTransferSend() {
     setSelection(sel);
   };
 
+  const handleFromStoreChange = (e) => {
+    const v = e && e.target ? e.target.value : e;
+    setFromStore(String(v ?? ''));
+  };
+
+  const handleDateChange = (e) => {
+    const v = e && e.target ? e.target.value : e;
+    setDate(String(v ?? new Date().toISOString().slice(0,10)));
+  };
+
+  const buildItemsPayload = () => {
+    return (selection || [])
+      .filter(s => Number(s.quantity) > 0)
+      .map(s => {
+        const qty = Number(s.quantity);
+        if (s.tabLabel === 'Others' || s.tabLabel === 'Other') {
+          const invId = Number(s.id ?? s.inventoryItemId);
+          if (!Number.isFinite(invId)) return null;
+          return { inventoryItemId: invId, quantity: qty };
+        }
+        const rid = Number(s.recipeId);
+        if (!Number.isFinite(rid)) return null;
+        return { recipeId: rid, quantity: qty };
+      })
+      .filter(Boolean);
+  };
+
+  const handleSend = async (e) => {
+    e?.preventDefault?.();
+
+    if (!window.confirm('Send this transfer request? This will set status to Requested.')) return;
+
+    try {
+      const meta = {
+        requesterStoreId: requester ? Number(requester) : null,
+        fromStoreId: fromStore ? Number(fromStore) : null,
+        date,
+        notes: notes ? String(notes).trim() : null,
+          status: 'requested'
+      };
+
+      // update transfer metadata (sets status to pending)
+      const metaRes = await fetch(`/api/inventorytransfers/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(meta)
+      });
+
+      if (!metaRes.ok) {
+        const txt = await metaRes.text().catch(() => null);
+        throw new Error(txt || `Failed to send transfer (${metaRes.status})`);
+      }
+
+      // update items (replace existing)
+      const items = buildItemsPayload();
+      const itemsRes = await fetch(`/api/inventorytransfers/${encodeURIComponent(id)}/items`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items)
+      });
+
+      if (!itemsRes.ok) {
+        const txt = await itemsRes.text().catch(() => null);
+        throw new Error(txt || `Failed to update transfer items (${itemsRes.status})`);
+      }
+
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error('Send failed', err);
+      alert(err?.message || 'Failed to send transfer');
+    }
+  };
+
   return (
     <div className="container py-5">
       <PageHeader
@@ -151,39 +239,53 @@ export default function InventoryTransferSend() {
         descriptionLines={["Review and send your transfer request."]}
       />
 
-      <FormBody onSubmit={(e) => e.preventDefault()} plain>
-        <div className="row gx-4 gy-4">
-          <div className="col-12 col-md-6">
-            <SelectField label="Requester" value={requester} onChange={() => {}} options={storeOptions} disabled />
-          </div>
-          <div className="col-12 col-md-6">
-            <SelectField label="Request From" value={fromStore} onChange={() => {}} options={storeOptions.filter(o => String(o.value) !== String(requester))} disabled />
-          </div>
+          <FormBody onSubmit={(e) => e.preventDefault()} plain>
+              <div className="row gx-4 gy-4">
+                  <div className="col-12 col-md-6">
+                      <SelectField label="Requester" value={requester} onChange={() => { }} options={storeOptions} disabled />
+                  </div>
 
-          <div className="col-12 col-md-6">
-            <InputField label="Date" value={date} onChange={() => {}} type="date" readOnly disabled />
-          </div>
+                  <div className="col-12 col-md-6">
+                      {/* Request From - editable */}
+                      <SelectField
+                          label="Request From"
+                          value={fromStore}
+                          onChange={handleFromStoreChange}
+                          options={storeOptions.filter(o => String(o.value) !== String(requester))}
+                      />
+                  </div>
 
-          <div className="col-12 text-start">
-            <label className="mb-3">Select the items you want to request supplies from the other store for</label>
-            <TabbedMenu tabs={tabs} contentMaxHeight={360} onSelectionChange={handleSelectionChange} />
-          </div>
+                  <div className="col-12 col-md-6">
+                      {/* Date - editable */}
+                      <InputField
+                          label="Date"
+                          value={date}
+                          onChange={handleDateChange}
+                          type="date"
+                      />
+                  </div>
 
-          <div className="col-12">
-            <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} readOnly disabled />
-          </div>
+                  <div className="col-12 text-start">
+                      <label className="mb-3">Select the items you want to request supplies from the other store for</label>
+                      <TabbedMenu tabs={tabs} contentMaxHeight={360} onSelectionChange={handleSelectionChange} />
+                  </div>
 
-          <div className="col-12 d-flex justify-content-between align-items-center">
-            <div>
-              <button type="button" className="btn btn-danger" onClick={() => navigate('/inventory/transfers')}>Cancel</button>
-            </div>
+                  <div className="col-12">
+                      {/* Notes editable so user can adjust before sending */}
+                      <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} />
+                  </div>
 
-            <div>
-              <button type="button" className="btn btn-success">Send Request</button>
-            </div>
-          </div>
-        </div>
-      </FormBody>
+                  <div className="col-12 d-flex justify-content-between align-items-center">
+                      <div>
+                          <button type="button" className="btn btn-danger" onClick={() => navigate('/inventory/transfers')}>Cancel</button>
+                      </div>
+
+                      <div>
+                          <button type="button" className="btn btn-success" onClick={handleSend}>Send Request</button>
+                      </div>
+                  </div>
+              </div>
+          </FormBody>
     </div>
   );
 }

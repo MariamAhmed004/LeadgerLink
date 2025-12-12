@@ -278,5 +278,95 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             await _context.SaveChangesAsync();
         }
+        public async Task UpdateTransferAsync(int transferId, CreateInventoryTransferDto dto)
+        {
+            var transfer = await _context.InventoryTransfers.FindAsync(transferId);
+            if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
+
+            // Map store ids if provided
+            if (dto.RequesterStoreId.HasValue)
+            {
+                transfer.ToStore = dto.RequesterStoreId.Value;
+            }
+
+            if (dto.FromStoreId.HasValue)
+            {
+                transfer.FromStore = dto.FromStoreId.Value;
+            }
+
+            // Parse date similar to Create endpoint (set RequestedAt)
+            if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var parsedDate))
+            {
+                transfer.RequestedAt = parsedDate;
+            }
+
+            // Notes
+            if (dto.Notes != null)
+            {
+                transfer.Notes = dto.Notes.Trim();
+            }
+
+            // Status -> resolve status id if supplied (trim both sides to tolerate trailing spaces)
+            if (!string.IsNullOrWhiteSpace(dto.Status))
+            {
+                var requested = dto.Status.Trim().ToLowerInvariant();
+                var st = await _context.InventoryTransferStatuses
+                    .AsQueryable()
+                    .FirstOrDefaultAsync(s => (s.TransferStatus ?? string.Empty).Trim().ToLower() == requested);
+
+                if (st != null)
+                {
+                    transfer.InventoryTransferStatusId = st.TransferStatusId;
+                }
+                else
+                {
+                    // No matching status found — do not change existing status id.
+                    // Optionally log if you have a logger in this repository.
+                }
+            }
+
+            _context.InventoryTransfers.Update(transfer);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateTransferItemsAsync(int transferId, CreateInventoryTransferItemDto[] items)
+        {
+            // Remove existing transfer items for this transfer
+            var existing = await _context.TransferItems
+                .Where(ti => ti.InventoryTransferId == transferId)
+                .ToListAsync();
+
+            if (existing.Any())
+            {
+                _context.TransferItems.RemoveRange(existing);
+                await _context.SaveChangesAsync();
+            }
+
+            // Add new items
+            var toAdd = new List<TransferItem>();
+            foreach (var it in items ?? Array.Empty<CreateInventoryTransferItemDto>())
+            {
+                var qty = it.Quantity;
+                if (qty <= 0) continue;
+
+                var ti = new TransferItem
+                {
+                    InventoryTransferId = transferId,
+                    Quantity = qty,
+                    IsRequested = true
+                };
+
+                if (it.RecipeId.HasValue) ti.RecipeId = it.RecipeId.Value;
+                if (it.InventoryItemId.HasValue) ti.InventoryItemId = it.InventoryItemId.Value;
+
+                toAdd.Add(ti);
+            }
+
+            if (toAdd.Any())
+            {
+                await _context.TransferItems.AddRangeAsync(toAdd);
+                await _context.SaveChangesAsync();
+            }
+        }
     }
 }
