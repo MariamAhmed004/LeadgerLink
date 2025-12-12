@@ -165,7 +165,7 @@ export default function InventoryTransferNew() {
   // Save -> set Draft then navigate back (now posts to backend)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus('draft');
+    setStatus('draft'); // Save posts status = "draft"
 
     const items = buildItemsPayload();
 
@@ -191,7 +191,8 @@ export default function InventoryTransferNew() {
       }
       navigate('/inventory/transfers');
     } catch (err) {
-      alert(err.message || 'Failed to save transfer');
+      console.error('Save failed', err);
+      alert(err?.message || 'Failed to save transfer');
     }
   };
 
@@ -201,20 +202,36 @@ export default function InventoryTransferNew() {
     setShowSendModal(true);
   };
 
-  const confirmSend = () => {
+  const confirmSend = async () => {
     setShowSendModal(false);
-    setStatus('pending');
+    setStatus('requested'); // Send posts status = "requested"
+
     const items = buildItemsPayload();
     const payload = {
       requesterStoreId: requester ? Number(requester) : null,
       fromStoreId: fromStore ? Number(fromStore) : null,
       date,
-      status: 'pending',
+      status: 'requested',
       notes: notes ? String(notes).trim() : null,
       items
     };
 
-    navigate('/inventory/transfers');
+    try {
+      const res = await fetch('/api/inventorytransfers', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Failed to send transfer (${res.status})`);
+      }
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error('Send failed', err);
+      alert(err?.message || 'Failed to send transfer');
+    }
   };
 
   const cancelSend = () => {
@@ -312,7 +329,7 @@ export default function InventoryTransferNew() {
 
       <InfoModal show={showSendModal} title="Send Transfer Request" onClose={cancelSend}>
         <p>
-          Sending this transfer request will officially notify the requested store manager. Please wait until they reply.
+          This request will be immediately sent to the other store. The requested store manager will be notified right away.
           Do you want to proceed?
         </p>
         <div className="mt-3 text-end">
