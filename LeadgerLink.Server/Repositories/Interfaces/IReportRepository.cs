@@ -74,5 +74,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Inventory Valuation report (organization-level): Excel output only
         Task<byte[]> GenerateInventoryValuationReportExcelAsync(int organizationId);
+
+        // Sales By Recipe (organization-level): generated file outputs
+        Task<byte[]> GenerateSalesByRecipeReportPdfAsync(int organizationId, int year, int month);
+        Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organizationId, int year, int month);
     }
 }//end IReportRepository

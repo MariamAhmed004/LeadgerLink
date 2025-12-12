@@ -1644,5 +1644,215 @@ public async Task<byte[]> GenerateInventoryValuationReportExcelAsync(int organiz
             }
         }
 
+
+// Add these two methods to ReportRepository (place near other report generation methods)
+
+public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organizationId, int year, int month)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            // Organization level aggregation (recipes sold across all stores)
+            var orgRecipeSales = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Include(si => si.Product)
+                .ThenInclude(p => p.Recipe)
+                .Where(si => si.Sale.Store != null
+                             && si.Sale.Store.OrgId == organizationId
+                             && si.Sale.Timestamp >= periodStart
+                             && si.Sale.Timestamp <= periodEnd
+                             && si.Product != null
+                             && si.Product.RecipeId != null)
+                .GroupBy(si => si.Product!.RecipeId)
+                .Select(g => new
+                {
+                    RecipeId = g.Key,
+                    RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault(),
+                    QtySold = g.Sum(x => x.Quantity),
+                    Revenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m))
+                })
+                .ToListAsync();
+
+            var orgTotalCount = orgRecipeSales.Sum(x => x.QtySold);
+            var orgTotalRevenue = orgRecipeSales.Sum(x => x.Revenue);
+
+            // Per-store breakdown
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Sales by Recipe");
+            int row = 1;
+
+            // Summary block
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Recipes Sold (Qty)", "Total Revenue (BHD)" };
+            var summaryRows = new List<string[]> {
+        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotalCount.ToString("F3"), orgTotalRevenue.ToString("F3") }
+    };
+            row = AddStyledTableAt(ws, row, "Sales Summary by Recipe", summaryHeaders, summaryRows, new[] { 30d, 24d, 18d, 18d, 22d });
+
+            // For each store: summary + table of recipes
+            var recipeHeaders = new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" };
+            foreach (var st in stores)
+            {
+                // store-level aggregation by recipe
+                var storeRecipeSales = await _context.SaleItems
+                    .Include(si => si.Sale)
+                    .Include(si => si.Product)
+                    .ThenInclude(p => p.Recipe)
+                    .Where(si => si.Sale.StoreId == st.StoreId
+                                 && si.Sale.Timestamp >= periodStart
+                                 && si.Sale.Timestamp <= periodEnd
+                                 && si.Product != null
+                                 && si.Product.RecipeId != null)
+                    .GroupBy(si => si.Product!.RecipeId)
+                    .Select(g => new
+                    {
+                        RecipeId = g.Key,
+                        RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault(),
+                        QtySold = g.Sum(x => x.Quantity),
+                        Revenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m))
+                    })
+                    .OrderByDescending(x => x.QtySold)
+                    .ToListAsync();
+
+                var storeSummaryHeaders = new[] { "Store", "Recipes Sold (Qty)", "Store Revenue (BHD)" };
+                var storeSummaryRows = new List<string[]>
+        {
+            new[] { st.StoreName ?? $"Store {st.StoreId}", storeRecipeSales.Sum(x => x.QtySold).ToString("F3"), storeRecipeSales.Sum(x => x.Revenue).ToString("F3") }
+        };
+                row = AddStyledTableAt(ws, row, $"Store: {st.StoreName ?? $"Store {st.StoreId}"}", storeSummaryHeaders, storeSummaryRows, new[] { 45d, 25d, 25d });
+
+                var rows = storeRecipeSales.Select(s => new[]
+                {
+            s.RecipeName ?? $"Recipe #{s.RecipeId}",
+            s.QtySold.ToString("F3"),
+            s.Revenue.ToString("F3")
+        }).ToList();
+
+                row = AddStyledTableAt(ws, row, "Sales by Recipe (Store)", recipeHeaders, rows, new[] { 50d, 20d, 22d });
+            }
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        public async Task<byte[]> GenerateSalesByRecipeReportPdfAsync(int organizationId, int year, int month)
+        {
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            // Organization level aggregation
+            var orgRecipeSales = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Include(si => si.Product)
+                .ThenInclude(p => p.Recipe)
+                .Where(si => si.Sale.Store != null
+                             && si.Sale.Store.OrgId == organizationId
+                             && si.Sale.Timestamp >= periodStart
+                             && si.Sale.Timestamp <= periodEnd
+                             && si.Product != null
+                             && si.Product.RecipeId != null)
+                .GroupBy(si => si.Product!.RecipeId)
+                .Select(g => new
+                {
+                    RecipeId = g.Key,
+                    RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault(),
+                    QtySold = g.Sum(x => x.Quantity),
+                    Revenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m))
+                })
+                .ToListAsync();
+
+            var orgTotalCount = orgRecipeSales.Sum(x => x.QtySold);
+            var orgTotalRevenue = orgRecipeSales.Sum(x => x.Revenue);
+
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header / summary
+                DrawSectionHeader(gfx, "Sales Summary by Recipe", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Recipes Sold (Qty): {orgTotalCount:F3}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Total Revenue: BHD {orgTotalRevenue:F3}", textFont, x, ref y, contentWidth);
+
+                y += 8;
+
+                // Per-store sections
+                var widths = new[] { contentWidth * 0.6, contentWidth * 0.2, contentWidth * 0.2 };
+                foreach (var st in stores)
+                {
+                    // store-level aggregation
+                    var storeRecipeSales = await _context.SaleItems
+                        .Include(si => si.Sale)
+                        .Include(si => si.Product)
+                        .ThenInclude(p => p.Recipe)
+                        .Where(si => si.Sale.StoreId == st.StoreId
+                                     && si.Sale.Timestamp >= periodStart
+                                     && si.Sale.Timestamp <= periodEnd
+                                     && si.Product != null
+                                     && si.Product.RecipeId != null)
+                        .GroupBy(si => si.Product!.RecipeId)
+                        .Select(g => new
+                        {
+                            RecipeId = g.Key,
+                            RecipeName = g.Select(x => x.Product!.Recipe!.RecipeName).FirstOrDefault(),
+                            QtySold = g.Sum(x => x.Quantity),
+                            Revenue = g.Sum(x => x.Quantity * (x.Product!.SellingPrice ?? 0m))
+                        })
+                        .OrderByDescending(x => x.QtySold)
+                        .ToListAsync();
+
+                    DrawSectionHeader(gfx, $"Store: {st.StoreName ?? $"Store {st.StoreId}"}", headerFont, x, ref y, contentWidth, headerBg);
+                    // table header
+                    DrawTableHeader(gfx, new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                    foreach (var r in storeRecipeSales)
+                    {
+                        DrawTableRow(gfx, new[] { r.RecipeName ?? $"Recipe #{r.RecipeId}", r.QtySold.ToString("F3"), r.Revenue.ToString("F3") }, textFont, x, ref y, widths, gridPen);
+                        if (y > page.Height.Point - 72)
+                        {
+                            page = document.AddPage();
+                            gfx.Dispose();
+                            gfx = XGraphics.FromPdfPage(page);
+                            y = 36;
+                            DrawTableHeader(gfx, new[] { "Recipe Name", "Qty Sold", "Revenue (BHD)" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                        }
+                    }
+
+                    y += 8;
+                    if (y > page.Height.Point - 120)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                    }
+                }
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
     }
 }
