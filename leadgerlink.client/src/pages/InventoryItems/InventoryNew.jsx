@@ -10,14 +10,22 @@ import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
 import { MdOutlineInventory } from "react-icons/md";
+import { useAuth } from "../../Context/AuthContext";
 
 const InventoryItemNew = () => {
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin");
+
+  // Store selection (for org admin)
+  const [storeId, setStoreId] = useState("");
+  const [stores, setStores] = useState([]);
 
   // Primary fields
   const [itemName, setItemName] = useState("");
   const [imageFile, setImageFile] = useState(null);
-  const [shortDescription, setShortDescription] = useState("");
+    const [shortDescription, setShortDescription] = useState("");
 
   // Suppliers
   const [supplierId, setSupplierId] = useState("");
@@ -65,7 +73,11 @@ const InventoryItemNew = () => {
 
   const loadLookups = async () => {
     try {
-      const supRes = await fetch("/api/suppliers", { credentials: "include" }).catch(() => null);
+      let suppliersUrl = "/api/suppliers";
+      if (isOrgAdmin && storeId) {
+        suppliersUrl += `?storeId=${storeId}`;
+      }
+      const supRes = await fetch(suppliersUrl, { credentials: "include" }).catch(() => null);
       if (supRes && supRes.ok) {
         const data = await supRes.json();
         setSuppliers(data || []);
@@ -103,7 +115,7 @@ const InventoryItemNew = () => {
     }
   };
 
-  useEffect(() => { loadLookups(); }, []);
+  useEffect(() => { loadLookups(); }, [storeId, isOrgAdmin]);
 
   useEffect(() => {
     if (!supplierId) { setSelectedSupplierContactMethod(""); return; }
@@ -188,7 +200,9 @@ const InventoryItemNew = () => {
       costPerUnit: (() => { const v = parseNonNegativeNumber(costPerUnit); return v == null ? 0 : v; })(),
       minimumQuantity: (() => { const v = parseNonNegativeNumber(threshold); return v == null ? null : v; })(),
     };
-
+    if (isOrgAdmin && storeId) {
+      base.storeId = Number(storeId);
+    }
     if (isOnSale) {
       const sp = parseNonNegativeNumber(sellingPrice);
       const vat = vatCategoryId ? Number(vatCategoryId) : null;
@@ -201,7 +215,6 @@ const InventoryItemNew = () => {
         productDescription: productDescription ? String(productDescription).trim() : null,
       };
     }
-
     return { ...base, isOnSale: false };
   };
 
@@ -255,12 +268,46 @@ const InventoryItemNew = () => {
 
   const supplierContactDisplay = selectedSupplierContactMethod || "";
 
+  // Helper for store options
+  const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
+
+  useEffect(() => {
+  if (!isOrgAdmin) return;
+  const loadStores = async () => {
+    try {
+      const orgId = loggedInUser?.orgId ?? null;
+      if (!orgId) { setStores([]); return; }
+      const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setStores(data || []);
+      } else {
+        setStores([]);
+      }
+    } catch {
+      setStores([]);
+    }
+  };
+  loadStores();
+}, [isOrgAdmin, loggedInUser]);
+
   return (
     <div className="container py-5">
       <PageHeader icon={<MdOutlineInventory size={55} />} title="Add Inventory Item" descriptionLines={["Fill In the form to add a new item to the entry.", "You can add an image optionally", "If the supplier is added before you can select it from the list, if not add it", "You can set the item on sale and input the VAT Category"]} actions={[]} />
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4">
+          {isOrgAdmin && (
+            <div className="col-12 text-start">
+              <SelectField
+                label="Store"
+                value={storeId}
+                onChange={setStoreId}
+                options={[{ label: "Select store", value: "" }, ...storeOptions]}
+                required
+              />
+            </div>
+          )}
           <div className="col-12 text-start">
             <InputField label="Item Name" required value={itemName} onChange={setItemName} placeholder="Item name" />
           </div>

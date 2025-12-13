@@ -17,5 +17,6 @@ namespace LeadgerLink.Server.Dtos
         public decimal? sellingPrice { get; set; }
         public int? vatCategoryId { get; set; }
         public string? productDescription { get; set; }
+        public int? storeId { get; set; }
     }
 }

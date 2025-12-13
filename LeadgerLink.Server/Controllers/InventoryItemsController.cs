@@ -156,7 +156,7 @@ namespace LeadgerLink.Server.Controllers
             if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
             var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+            if (domainUser == null) return BadRequest("Unable to resolve user.");
 
             CreateInventoryItemDto dto;
 
@@ -166,7 +166,6 @@ namespace LeadgerLink.Server.Controllers
                 var payload = Request.Form["payload"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(payload))
                 {
-                    // Some clients append the JSON as a file part (Blob with filename). Try reading from files.
                     var jsonFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "payload", StringComparison.OrdinalIgnoreCase)
                                                                           || string.Equals(f.FileName, "payload.json", StringComparison.OrdinalIgnoreCase)
                                                                           || (f.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) ?? false));
@@ -240,6 +239,15 @@ namespace LeadgerLink.Server.Controllers
                 if (!dto.vatCategoryId.HasValue) return BadRequest("VAT category must be selected when item is set on sale.");
             }
 
+            // --- StoreId resolution logic ---
+            int? resolvedStoreId = null;
+            resolvedStoreId = dto.storeId.HasValue && dto.storeId.Value > 0
+                ? dto.storeId
+                : domainUser.StoreId;
+
+            if (!resolvedStoreId.HasValue)
+                return BadRequest("Unable to resolve store for inventory item.");
+
             try
             {
                 // Begin transaction so supplier creation + item creation (+ product creation) are atomic
@@ -254,7 +262,7 @@ namespace LeadgerLink.Server.Controllers
                     {
                         SupplierName = dto.newSupplier.name!.Trim(),
                         ContactMethod = dto.newSupplier.contactMethod!.Trim(),
-                        StoreId = domainUser.StoreId
+                        StoreId = resolvedStoreId
                     };
 
                     var addedSupplier = await _supplierRepo.AddAsync(supplier);
@@ -271,7 +279,7 @@ namespace LeadgerLink.Server.Controllers
                     Quantity = dto.quantity ?? 0m,
                     CostPerUnit = dto.costPerUnit ?? 0m,
                     MinimumQuantity = dto.minimumQuantity,
-                    StoreId = domainUser.StoreId.Value,
+                    StoreId = resolvedStoreId.Value,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     SupplierId = resolvedSupplierId,
@@ -281,7 +289,6 @@ namespace LeadgerLink.Server.Controllers
                 // handle image if present
                 if (Request.HasFormContentType && Request.Form.Files.Count > 0)
                 {
-                    // Prefer the file named 'image' or with image/* content-type
                     var imageFile = Request.Form.Files
                         .FirstOrDefault(f => string.Equals(f.Name, "image", StringComparison.OrdinalIgnoreCase)
                                              || (f.ContentType != null && f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)));
@@ -299,10 +306,8 @@ namespace LeadgerLink.Server.Controllers
                 // If the frontend requested to put the item on sale, create a Product linked to this inventory item.
                 if (dto.isOnSale)
                 {
-                    // Prefer client-provided costPrice, otherwise use item cost per unit
                     var finalCost = dto.costPrice ?? item.CostPerUnit;
                     decimal finalSelling = dto.sellingPrice ?? finalCost;
-                    // If client didn't provide sellingPrice but VAT provided, try compute using VAT rate
                     if (!dto.sellingPrice.HasValue && dto.vatCategoryId.HasValue)
                     {
                         var vatEntity = await _context.Set<Models.VatCategory>().FindAsync(dto.vatCategoryId.Value);

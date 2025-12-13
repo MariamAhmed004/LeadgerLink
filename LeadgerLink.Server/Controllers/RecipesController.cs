@@ -50,7 +50,8 @@ namespace LeadgerLink.Server.Controllers
                     StoreName = r.Store != null ? r.Store.StoreName : null,
                     CreatedAt = r.CreatedAt,
                     UpdatedAt = r.UpdatedAt,
-                    InSale = r.Products.Any()
+                    InSale = r.Products.Any(),
+                    SellingPrice = r.Products != null && r.Products.Any() ? r.Products.Select(p => p.SellingPrice).FirstOrDefault() : null,
                 })
                 .ToListAsync();
 

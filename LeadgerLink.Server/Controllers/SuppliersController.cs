@@ -27,18 +27,21 @@ namespace LeadgerLink.Server.Controllers
         // If storeId not provided, resolve the current authenticated user's store and return suppliers for it.
         [Authorize]
         [HttpGet]
-        public async Task<ActionResult> GetSuppliersForStore()
+        public async Task<ActionResult> GetSuppliersForStore([FromQuery] int? storeId = null)
         {
             try
             {
-                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? User.Identity?.Name;
-                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+                int? resolvedStoreId = storeId;
+                if (!resolvedStoreId.HasValue)
+                {
+                    var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                                ?? User.Identity?.Name;
+                    if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                if (user == null || !user.StoreId.HasValue) return Ok(new object[0]);
-
-                int resolvedStoreId = user.StoreId.Value;
+                    var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                    if (user == null || !user.StoreId.HasValue) return Ok(new object[0]);
+                    resolvedStoreId = user.StoreId.Value;
+                }
 
                 // Use generic repository to fetch suppliers for the resolved store.
                 var suppliersEntities = await _supplierRepo.GetWhereAsync(
