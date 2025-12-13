@@ -382,6 +382,110 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to update transfer.");
             }
         }
+        // Approve / Reject DTOs and endpoints - add inside the InventoryTransfersController class
 
+        
+
+        [Authorize]
+        [HttpPost("{id:int}/approve")]
+        public async Task<ActionResult> Approve(int id, [FromBody] ApproveTransferDto dto)
+        {
+            if (id <= 0) return BadRequest("Invalid transfer id.");
+            if (dto == null) return BadRequest("Invalid payload.");
+
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == id);
+
+            if (transfer == null) return NotFound();
+
+            // Authorization: same pattern as other write endpoints
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return Unauthorized();
+
+            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+            if (!isOrgAdmin && domainUser.StoreId.HasValue)
+            {
+                var sId = domainUser.StoreId.Value;
+                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+            }
+
+            try
+            {
+                var items = dto.Items ?? Array.Empty<CreateInventoryTransferItemDto>();
+                await _repository.ApproveTransferAsync(id, dto.DriverId, dto.NewDriverName, dto.NewDriverEmail, items, dto.Notes);
+                return NoContent();
+            }
+            catch (KeyNotFoundException knf)
+            {
+                _logger.LogWarning(knf, "Approve failed for transfer {Id}", id);
+                return NotFound(knf.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "DB error approving transfer {Id}", id);
+                return StatusCode(500, "Failed to approve transfer.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to approve transfer {Id}", id);
+                return StatusCode(500, "Failed to approve transfer.");
+            }
+        }
+
+        [Authorize]
+        [HttpPost("{id:int}/reject")]
+        public async Task<ActionResult> Reject(int id, [FromBody] RejectTransferDto? dto)
+        {
+            if (id <= 0) return BadRequest("Invalid transfer id.");
+
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == id);
+
+            if (transfer == null) return NotFound();
+
+            // Authorization: same pattern as other write endpoints
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return Unauthorized();
+
+            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+            if (!isOrgAdmin && domainUser.StoreId.HasValue)
+            {
+                var sId = domainUser.StoreId.Value;
+                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+            }
+
+            try
+            {
+                await _repository.RejectTransferAsync(id, dto?.Notes);
+                return NoContent();
+            }
+            catch (KeyNotFoundException knf)
+            {
+                _logger.LogWarning(knf, "Reject failed for transfer {Id}", id);
+                return NotFound(knf.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "DB error rejecting transfer {Id}", id);
+                return StatusCode(500, "Failed to reject transfer.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to reject transfer {Id}", id);
+                return StatusCode(500, "Failed to reject transfer.");
+            }
+        }
     }
 }

@@ -368,5 +368,145 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 await _context.SaveChangesAsync();
             }
         }
+
+        public async Task ApproveTransferAsync(
+    int transferId,
+    int? driverId,
+    string? newDriverName,
+    string? newDriverEmail,
+    IEnumerable<CreateInventoryTransferItemDto> items,
+    string? notes)
+        {
+            var transfer = await _context.InventoryTransfers
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
+
+            if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                int? assignedDriverId = driverId;
+
+                // Create new driver when no driverId provided but name+email are supplied.
+                if (!assignedDriverId.HasValue && !string.IsNullOrWhiteSpace(newDriverName) && !string.IsNullOrWhiteSpace(newDriverEmail))
+                {
+                    var emailLower = newDriverEmail.Trim().ToLowerInvariant();
+
+                    // Reuse existing driver with same email + store if present, otherwise create.
+                    var existing = await _context.Drivers
+                        .FirstOrDefaultAsync(d => d.DriverEmail != null
+                                                  && d.StoreId == transfer.FromStore
+                                                  && d.DriverEmail.ToLower() == emailLower);
+
+                    if (existing != null)
+                    {
+                        assignedDriverId = existing.DriverId;
+                    }
+                    else
+                    {
+                        var drv = new Driver
+                        {
+                            DriverName = newDriverName.Trim(),
+                            DriverEmail = newDriverEmail.Trim(),
+                            StoreId = transfer.FromStore
+                        };
+                        _context.Drivers.Add(drv);
+                        await _context.SaveChangesAsync();
+                        assignedDriverId = drv.DriverId;
+                    }
+                }
+                else if (assignedDriverId.HasValue)
+                {
+                    // validate presence of supplied driver id
+                    var exists = await _context.Drivers.AnyAsync(d => d.DriverId == assignedDriverId.Value);
+                    if (!exists) throw new KeyNotFoundException($"Driver {assignedDriverId.Value} not found.");
+                }
+
+                // assign driver if available
+                if (assignedDriverId.HasValue)
+                {
+                    transfer.DriverId = assignedDriverId.Value;
+                }
+
+                // override notes if provided
+                if (notes != null)
+                {
+                    transfer.Notes = notes.Trim();
+                }
+
+                // set status to Approved when possible
+                var approved = await _context.InventoryTransferStatuses
+                    .FirstOrDefaultAsync(s => (s.TransferStatus ?? string.Empty).Trim().ToLower() == "approved");
+                if (approved != null)
+                {
+                    transfer.InventoryTransferStatusId = approved.TransferStatusId;
+                }
+
+                _context.InventoryTransfers.Update(transfer);
+                await _context.SaveChangesAsync();
+
+                // append provided items as sent items (IsRequested = false)
+                if (items != null)
+                {
+                    var toAdd = new List<TransferItem>();
+                    foreach (var it in items)
+                    {
+                        if (it == null) continue;
+                        if (it.Quantity <= 0) continue;
+
+                        var ti = new TransferItem
+                        {
+                            InventoryTransferId = transferId,
+                            Quantity = it.Quantity,
+                            IsRequested = false
+                        };
+
+                        if (it.RecipeId.HasValue) ti.RecipeId = it.RecipeId.Value;
+                        if (it.InventoryItemId.HasValue) ti.InventoryItemId = it.InventoryItemId.Value;
+
+                        toAdd.Add(ti);
+                    }
+
+                    if (toAdd.Count > 0)
+                    {
+                        await _context.TransferItems.AddRangeAsync(toAdd);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+                await tx.CommitAsync();
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task RejectTransferAsync(int transferId, string? notes = null)
+        {
+            var transfer = await _context.InventoryTransfers
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
+
+            if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
+
+            // override notes when supplied
+            if (notes != null)
+            {
+                transfer.Notes = notes.Trim();
+            }
+
+            // set status to Rejected when possible
+            var rejected = await _context.InventoryTransferStatuses
+                .FirstOrDefaultAsync(s => (s.TransferStatus ?? string.Empty).Trim().ToLower() == "rejected");
+            if (rejected != null)
+            {
+                transfer.InventoryTransferStatusId = rejected.TransferStatusId;
+            }
+
+            _context.InventoryTransfers.Update(transfer);
+            await _context.SaveChangesAsync();
+        }
+
     }
 }

@@ -63,9 +63,10 @@ export default function InventoryTransferApprove() {
     { label: 'Others', items: requestedOthers, cardComponent: (it) => <RequestedMenuTabCard data={it} /> },
   ];
 
+  // change the sendTabs declaration to include idKey/selectionIdProp
   const sendTabs = [
-    { label: 'Recipes', items: sendRecipes, cardComponent: (it) => <MenuTabCard data={it} /> },
-    { label: 'Others', items: sendOthers, cardComponent: (it) => <MenuTabCard data={it} /> },
+    { label: 'Recipes', items: sendRecipes, cardComponent: (it) => <MenuTabCard data={it} />, idKey: 'recipeId', selectionIdProp: 'recipeId' },
+    { label: 'Others',  items: sendOthers,  cardComponent: (it) => <MenuTabCard data={it} />, idKey: 'inventoryItemId', selectionIdProp: 'inventoryItemId' },
   ];
 
   // Load stores for current organization and populate requester / request-from select options
@@ -260,13 +261,13 @@ export default function InventoryTransferApprove() {
 
         // Map recipes -> Tab card shape using server DTO fields from GetForCurrentStore()
         const mappedRecipes = (Array.isArray(recipes) ? recipes : []).map((r) => {
-          // server returns: recipeName, description, imageUrl, sellingPrice, available, relatedProductId
-          const name = r.recipeName ?? r.recipeName ?? '';
-          const description = r.description ?? r.instructions ?? r.Description ?? '';
+          // server returns: recipeId, recipeName, description, imageUrl, sellingPrice, available, relatedProductId
+          const name = r.recipeName ?? '';
+          const description = r.description ?? r.instructions ?? '';
           const image = r.imageUrl ?? r.imageDataUrl ?? r.image ?? null;
           const qty = Number(r.available ?? r.availableCount ?? r.Available ?? 0);
           const price = r.sellingPrice != null ? `BHD ${Number(r.sellingPrice).toFixed(3)}` : 'NA';
-          return { name, description, imageUrl: image, quantity: qty, price };
+          return { name, description, imageUrl: image, quantity: qty, price, recipeId: r.recipeId ?? null };
         });
 
         // Inventory items for current store (list-for-current-store supports storeId query)
@@ -283,8 +284,8 @@ export default function InventoryTransferApprove() {
 
         // Map inventory items -> Tab card shape. Use ImageUrl and attempt to read selling price if available via relatedProductId
         const mappedItems = await Promise.all((Array.isArray(items) ? items : []).map(async (it) => {
-          const idVal = it.inventoryItemId ?? it.inventoryItem_id ?? it.id ?? null;
-          const name = it.inventoryItemName ?? it.inventoryItem_name ?? it.name ?? '';
+          const idVal = it.inventoryItemId ?? it.inventory_item_id ?? it.id ?? null;
+          const name = it.inventoryItemName ?? it.inventory_item_name ?? it.name ?? '';
           const description = it.description ?? '';
           const image = it.imageUrl ?? it.imageDataUrl ?? null;
           const qty = Number(it.quantity ?? it.Quantity ?? 0);
@@ -299,7 +300,7 @@ export default function InventoryTransferApprove() {
               }
             } catch { /* ignore */ }
           }
-          return { name, description, imageUrl: image, quantity: qty, price };
+          return { name, description, imageUrl: image, quantity: qty, price, inventoryItemId: idVal };
         }));
 
         if (mounted) {
@@ -344,18 +345,71 @@ export default function InventoryTransferApprove() {
     setShowApproveModal(true);
   };
 
-  const confirmApprove = () => {
+  const confirmApprove = async () => {
     setShowApproveModal(false);
-    navigate('/inventory/transfers');
+
+    // build items payload expected by server: { RecipeId?, InventoryItemId?, Quantity }
+    const itemsPayload = (sendSelection || []).map(s => {
+      const tab = String(s.tabLabel || '').toLowerCase();
+      const qty = Number(s.quantity || 0);
+      const item = { RecipeId: null, InventoryItemId: null, Quantity: qty };
+      if (tab === 'recipes') {
+        item.RecipeId = s.recipeId ?? s.productId ?? null;
+      } else {
+        item.InventoryItemId = s.inventoryItemId ?? s.productId ?? null;
+      }
+      return item;
+    }).filter(i => i.Quantity > 0 && (i.RecipeId || i.InventoryItemId));
+
+    const body = {
+      DriverId: driver ? Number(driver) : null,
+      NewDriverName: newDriverName || null,
+      NewDriverEmail: newDriverEmail || null,
+      Items: itemsPayload,
+      Notes: notes ?? null
+    };
+
+    try {
+      const res = await fetch(`/api/inventorytransfers/${encodeURIComponent(id)}/approve`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error('Approve failed', err);
+      // show minimal feedback
+      alert(err?.message || 'Failed to approve transfer');
+    }
   };
 
   const handleReject = (e) => {
     e?.preventDefault?.();
     setShowRejectModal(true);
   };
-  const confirmReject = () => {
+  const confirmReject = async () => {
     setShowRejectModal(false);
-    navigate('/inventory/transfers');
+    try {
+      const res = await fetch(`/api/inventorytransfers/${encodeURIComponent(id)}/reject`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Notes: notes ?? null })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+      navigate('/inventory/transfers');
+    } catch (err) {
+      console.error('Reject failed', err);
+      alert(err?.message || 'Failed to reject transfer');
+    }
   };
 
   return (

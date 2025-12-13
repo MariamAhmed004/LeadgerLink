@@ -10,4 +10,21 @@ namespace LeadgerLink.Server.Dtos
         public string? Status { get; set; }
         public DateTime? RequestedAt { get; set; }
     }
+
+    public class ApproveTransferDto
+    {
+        public int? DriverId { get; set; }
+        public string? NewDriverName { get; set; }
+        public string? NewDriverEmail { get; set; }
+        public CreateInventoryTransferItemDto[]? Items { get; set; } = Array.Empty<CreateInventoryTransferItemDto>();
+        // Notes will override existing transfer notes when provided (per latest requirement)
+        public string? Notes { get; set; }
+    }
+
+    public class RejectTransferDto
+    {
+        // Optional notes to override existing notes
+        public string? Notes { get; set; }
+    }
+
 }

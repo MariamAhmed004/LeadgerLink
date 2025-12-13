@@ -40,5 +40,22 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Update transfer data by transfer id.
         Task UpdateTransferAsync(int transferId, CreateInventoryTransferDto dto);
+
+        // Approve a transfer:
+        // - If a driverId is provided it will be assigned to the transfer.
+        // - If driverId is null and newDriverName/newDriverEmail are provided, repository implementation
+        //   is expected to create the driver (assign to transfer.FromStore) and use the created id.
+        // - Adds the provided items to TransferItems (these represent items being sent) and sets IsRequested=false for them.
+        // - Updates transfer status to "Approved" and updates notes (override).
+        Task ApproveTransferAsync(
+            int transferId,
+            int? driverId,
+            string? newDriverName,
+            string? newDriverEmail,
+            IEnumerable<CreateInventoryTransferItemDto> items,
+            string? notes);
+
+        // Reject a transfer: update its status to "Rejected" and optionally override notes.
+        Task RejectTransferAsync(int transferId, string? notes = null);
     }
 }
