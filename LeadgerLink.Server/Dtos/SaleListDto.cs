@@ -11,5 +11,7 @@ namespace LeadgerLink.Server.Dtos
         public int? PaymentMethodId { get; set; }
         public string? PaymentMethodName { get; set; }
         // Optional: add other properties needed by the frontend later
+        public int? StoreId { get; set; }
+        public string? StoreName { get; set; }
     }
 }

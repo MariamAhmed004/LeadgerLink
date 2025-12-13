@@ -40,5 +40,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Get sales list for a store (used by the frontend listing page)
         Task<IEnumerable<SaleListDto>> GetSalesByStoreAsync(int storeId);
+        // Get sales list for an organization (used by the frontend listing page)
+        Task<IEnumerable<SaleListDto>> GetSalesByOrganizationAsync(int organizationId);
     }
 }

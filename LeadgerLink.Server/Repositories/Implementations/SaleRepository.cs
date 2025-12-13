@@ -209,5 +209,32 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return await query.ToListAsync();
         }
+
+        public async Task<IEnumerable<SaleListDto>> GetSalesByOrganizationAsync(int organizationId)
+        {
+            var query = _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId)
+                .Include(s => s.User)
+                .Include(s => s.PaymentMethod)
+                .OrderByDescending(s => s.Timestamp)
+                .Select(s => new SaleListDto
+                {
+                    Id = s.SaleId,
+                    Timestamp = s.Timestamp,
+                    CreatedById = s.UserId,
+                    CreatedByName = (s.User != null)
+                        ? ((s.User.UserFirstname ?? string.Empty).Trim() + " " + (s.User.UserLastname ?? string.Empty).Trim()).Trim()
+                        : null,
+                    Amount = s.TotalAmount,
+                    PaymentMethodId = s.PaymentMethodId,
+                    PaymentMethodName = s.PaymentMethod != null ? s.PaymentMethod.PaymentMethodName : null,
+                    StoreId = s.StoreId,
+                    StoreName = s.Store != null ? s.Store.StoreName : null
+
+                });
+
+            return await query.ToListAsync();
+        }
+
     }
 }

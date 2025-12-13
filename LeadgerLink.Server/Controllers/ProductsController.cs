@@ -51,20 +51,29 @@ namespace LeadgerLink.Server.Controllers
         // Returns products for the authenticated user's store including availability.
         [Authorize]
         [HttpGet("for-current-store")]
-        public async Task<ActionResult> GetForCurrentStore()
+        public async Task<ActionResult> GetForCurrentStore([FromQuery] int? storeId = null)
         {
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            int resolvedStoreId;
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
-            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+            if (storeId.HasValue)
+            {
+                resolvedStoreId = storeId.Value;
+            }
+            else
+            {
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (user == null || !user.StoreId.HasValue) return Ok(new ProductListDto[0]);
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
-            var storeId = user.StoreId.Value;
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (user == null || !user.StoreId.HasValue) return Ok(new ProductListDto[0]);
 
-            var list = await _productRepository.GetForStoreAsync(storeId);
+                resolvedStoreId = user.StoreId.Value;
+            }
+
+            var list = await _productRepository.GetForStoreAsync(resolvedStoreId);
             return Ok(list);
         }
 

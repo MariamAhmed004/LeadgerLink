@@ -9,6 +9,7 @@ using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -20,13 +21,20 @@ namespace LeadgerLink.Server.Controllers
         private readonly ISaleRepository _saleRepository;
         private readonly IUserRepository _userRepository;
         private readonly IRepository<PaymentMethod> _paymentMethodRepo;
+        private readonly ILogger<SalesController> _logger;
 
-        public SalesController(LedgerLinkDbContext context, ISaleRepository saleRepository, IUserRepository userRepository, IRepository<PaymentMethod> paymentMethodRepo)
+        public SalesController(
+            LedgerLinkDbContext context,
+            ISaleRepository saleRepository,
+            IUserRepository userRepository,
+            IRepository<PaymentMethod> paymentMethodRepo,
+            ILogger<SalesController> logger)
         {
             _context = context;
             _saleRepository = saleRepository;
             _userRepository = userRepository;
             _paymentMethodRepo = paymentMethodRepo;
+            _logger = logger;
         }
 
         // GET api/sales/sum?organizationId=5&from=2025-11-27&to=2025-11-27
@@ -402,5 +410,24 @@ namespace LeadgerLink.Server.Controllers
 
             return domainUser.StoreId.Value;
         }
+
+        [Authorize(Roles = "Organization Admin")]
+        [HttpGet("by-organization")]
+        public async Task<ActionResult<IEnumerable<SaleListDto>>> GetSalesByOrganization([FromQuery] int organizationId)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+
+            try
+            {
+                var list = await _saleRepository.GetSalesByOrganizationAsync(organizationId);
+                return Ok(list);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load sales for organization {OrgId}", organizationId);
+                return StatusCode(500, "Failed to load sales");
+            }
+        }
+
     }
 }

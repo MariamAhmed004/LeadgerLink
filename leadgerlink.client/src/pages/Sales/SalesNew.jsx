@@ -12,10 +12,12 @@ import FormActions from "../../components/Form/FormActions";
 import InputWithButton from "../../components/Form/InputWithButton";
 import InfoModal from "../../components/Ui/InfoModal";
 import TextArea from "../../components/Form/TextArea";
+import { useAuth } from "../../Context/AuthContext";
 
 const SalesNew = () => {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
+  const { loggedInUser } = useAuth();
+
   const [createdById, setCreatedById] = useState("");
   const [timestamp, setTimestamp] = useState(new Date());
   const [paymentMethodId, setPaymentMethodId] = useState("");
@@ -25,6 +27,10 @@ const SalesNew = () => {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // org admin: stores & selected store id (required by effects that reference them)
+  const [stores, setStores] = useState([]);
+  const [selectedStoreId, setSelectedStoreId] = useState("");
 
   // summary modal
   const [showSummary, setShowSummary] = useState(false);
@@ -41,6 +47,9 @@ const SalesNew = () => {
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
 
+  // Add a loading state for products
+  const [productsLoading, setProductsLoading] = useState(false);
+
   // derived amounts
   const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity}]
   const computeTotalFromSelection = () =>
@@ -55,29 +64,81 @@ const SalesNew = () => {
 
   const totalAmount = computeTotalFromSelection();
 
+  // determine org admin
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin") || roles.includes("Application Admin");
+
+  // Ensure createdById defaults to the authenticated user immediately
   useEffect(() => {
-    const load = async () => {
+    if (loggedInUser?.userId != null) {
+      setCreatedById(String(loggedInUser.userId));
+    }
+  }, [loggedInUser]);
+
+  // Load stores for org admins (so selectedStoreId can be chosen)
+  useEffect(() => {
+    if (!isOrgAdmin) return;
+
+    const loadStores = async () => {
       try {
-        const [usersRes, pmRes, prodRes] = await Promise.all([
-          fetch("/api/sales/store-users", { credentials: "include" }),
-          fetch("/api/sales/payment-methods", { credentials: "include" }).catch(() => null),
-          fetch("/api/products/for-current-store", { credentials: "include" }),
+        const orgId =
+          loggedInUser?.orgId ??
+          null;
+
+        const url = orgId ? `/api/stores?organizationId=${encodeURIComponent(orgId)}` : "/api/stores";
+        const res = await fetch(url, { credentials: "include" });
+        if (res.ok) {
+          const list = await res.json();
+          const arr = Array.isArray(list) ? list : (list.items || []);
+          setStores(arr || []);
+          if ((arr || []).length > 0 && !selectedStoreId) {
+            const firstId = arr[0].storeId ?? arr[0].StoreId ?? null;
+            if (firstId != null) setSelectedStoreId(String(firstId));
+          }
+        } else {
+          setStores([]);
+        }
+      } catch (err) {
+        console.error("Failed to load stores", err);
+        setStores([]);
+      }
+    };
+
+    loadStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedInUser, isOrgAdmin]);
+
+  // Load users, payment methods and products.
+  // For org admins, products/users will be loaded for selectedStoreId when provided.
+  useEffect(() => {
+    // For org admins we only run when a store is selected.
+    if (isOrgAdmin && !selectedStoreId) {
+      // clear lists until a store is chosen
+      setRecipes([]);
+      setProducts([]);
+      setProductsLoading(false);
+      return;
+    }
+
+    const load = async () => {
+      setProductsLoading(true);
+      try {
+        const pmUrl = "/api/sales/payment-methods";
+        const productsUrl =
+          isOrgAdmin && selectedStoreId
+            ? `/api/products/for-current-store?storeId=${encodeURIComponent(selectedStoreId)}`
+            : "/api/products/for-current-store";
+        const [pmRes, prodRes] = await Promise.all([
+          fetch(pmUrl, { credentials: "include" }).catch(() => null),
+          fetch(productsUrl, { credentials: "include" }).catch(() => null),
         ]);
 
-        if (usersRes && usersRes.ok) {
-          const udata = await usersRes.json();
-          setUsers(udata || []);
-          if ((udata || []).length > 0) setCreatedById(String(udata[0].userId ?? udata[0].UserId));
-        } else {
-          setUsers([]);
-        }
 
         if (pmRes && pmRes.ok) {
           const pm = await pmRes.json();
           setPaymentMethods(pm || []);
           if ((pm || []).length > 0) setPaymentMethodId(String(pm[0].paymentMethodId ?? pm[0].id ?? ""));
         } else {
-          // basic fallback
           setPaymentMethods([
             { paymentMethodId: 1, name: "Cash" },
             { paymentMethodId: 2, name: "Card" },
@@ -90,14 +151,13 @@ const SalesNew = () => {
           const rec = [];
           const oth = [];
           (arr || []).forEach(p => {
-            // derive description and available quantity if provided by backend
             const description = p.description ?? p.productDescription ?? p.desc ?? "";
             const availableQty = p.availableQuantity ?? p.inventoryItemQuantity ?? p.quantity ?? null;
             const item = {
-              productId: p.productId,
-              name: p.productName,
-              description: description,
-              price: Number(p.sellingPrice).toFixed(3) + " BHD",
+              productId: p.productId ?? p.productId,
+              name: p.productName ?? p.productName,
+              description,
+              price: (p.sellingPrice != null) ? Number(p.sellingPrice).toFixed(3) + " BHD" : "NA",
               quantity: Number(availableQty ?? 0)
             };
             const isRecipe = (p.isRecipe === true) || (String(p.source || "").toLowerCase() === "recipe");
@@ -111,17 +171,19 @@ const SalesNew = () => {
         }
       } catch (err) {
         console.error(err);
-        setUsers([]);
         setPaymentMethods([
           { paymentMethodId: 1, name: "Cash" },
           { paymentMethodId: 2, name: "Card" },
         ]);
         setRecipes([]);
         setProducts([]);
+      } finally {
+        setProductsLoading(false);
       }
     };
+
     load();
-  }, []);
+  }, [selectedStoreId, loggedInUser, isOrgAdmin]);
 
   const parseNum = (v) => {
     const n = Number(v);
@@ -144,6 +206,12 @@ const SalesNew = () => {
       return;
     }
 
+    // org admin must pick a store
+    if (isOrgAdmin && !selectedStoreId) {
+      setError("Select a store for this sale.");
+      return;
+    }
+
     setSaving(true);
 
     // IMPORTANT: if discount is percentage, send the computed amount, not the % value
@@ -151,7 +219,8 @@ const SalesNew = () => {
 
     const payload = {
       timestamp: timestamp.toISOString(),
-      userId: createdById ? Number(createdById) : null,
+      // Always use the authenticated user's id as CreatedBy
+      userId: loggedInUser?.userId != null ? Number(loggedInUser.userId) : (createdById ? Number(createdById) : null),
       totalAmount: Number(totalAmount.toFixed(3)),
       appliedDiscount: appliedDiscountAmount,
       paymentMethodId: paymentMethodId ? Number(paymentMethodId) : null,
@@ -160,7 +229,12 @@ const SalesNew = () => {
     };
 
     try {
-      const res = await fetch("/api/sales", {
+      // if org admin include storeId as query param so backend will use it
+      const postUrl = (isOrgAdmin && selectedStoreId)
+        ? `/api/sales?storeId=${encodeURIComponent(selectedStoreId)}`
+        : "/api/sales";
+
+      const res = await fetch(postUrl, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -225,15 +299,34 @@ const SalesNew = () => {
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4 ">
+          {/* Store selector for org admins */}
+          {isOrgAdmin && (
+            <div className="col-12 col-md-6 text-start">
+              <SelectField
+                label="Store"
+                value={selectedStoreId}
+                onChange={setSelectedStoreId}
+                options={[{ label: "Select store", value: "" }, ...(stores || []).map(s => ({ label: s.storeName ?? s.store_nome ?? String(s), value: String(s.storeId ?? s.StoreId ?? "") }))]}
+              />
+            </div>
+          )}
+
           <div className="col-12 col-md-6 text-start">
             <TimestampField label="Timestamp" value={timestamp} onChange={setTimestamp} required />
           </div>
 
           <div className="col-12">
-            <TabbedMenu
-              tabs={tabs}
-              onSelectionChange={(sel) => setSelection(sel)}
-            />
+            {productsLoading ? (
+              <div className="text-center py-4">
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                Loading products...
+              </div>
+            ) : (
+              <TabbedMenu
+                tabs={tabs}
+                onSelectionChange={(sel) => setSelection(sel)}
+              />
+            )}
           </div>
 
           {/* Total Amount (read-only derived from selection) */}
@@ -287,12 +380,12 @@ const SalesNew = () => {
               onChange={setPaymentMethodId}
               options={[{ label: "Select payment method", value: "" }, ...paymentMethods.map((p) => ({ label: p.name ?? p.paymentMethodName ?? p.PaymentMethodName, value: String(p.paymentMethodId ?? p.id ?? "") }))]}
             />
-                  </div>
+          </div>
 
           {/* Notes */}
           <div className="col-12 text-start">
             <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} placeholder="Add any notes for this sale" />
-                  </div>
+          </div>
 
           <div className="col-12 col-md-6 d-flex justify-content-center align-items-center">
             <FormActions onCancel={() => navigate("/sales")} submitLabel="Save Sale" loading={saving} />
