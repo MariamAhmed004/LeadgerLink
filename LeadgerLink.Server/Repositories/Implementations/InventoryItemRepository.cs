@@ -242,7 +242,88 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return (items, totalCount);
         }
 
-        // Suppliers for store (projection)
+        // Organization-wide paged listing with filtering & total count
+        public async Task<(IEnumerable<InventoryItemListDto> Items, int TotalCount)> GetPagedForOrganizationAsync(
+            int organizationId,
+            string stockLevel,
+            int? supplierId,
+            int? categoryId,
+            int page,
+            int pageSize)
+        {
+            var storeIds = await _context.Stores
+                .Where(s => s.OrgId == organizationId)
+                .Select(s => s.StoreId)
+                .ToListAsync();
+
+            if (storeIds.Count == 0)
+                return (new List<InventoryItemListDto>(), 0);
+
+            var q = _context.InventoryItems
+                .Include(ii => ii.Supplier)
+                .Include(ii => ii.InventoryItemCategory)
+                .Include(ii => ii.Unit)
+                .Where(ii => storeIds.Contains(ii.StoreId))
+                .AsQueryable();
+
+            if (supplierId.HasValue)
+                q = q.Where(ii => ii.SupplierId == supplierId.Value);
+            if (categoryId.HasValue)
+                q = q.Where(ii => ii.InventoryItemCategoryId == categoryId.Value);
+
+            if (!string.IsNullOrWhiteSpace(stockLevel))
+            {
+                var sl = stockLevel.Trim().ToLowerInvariant();
+                if (sl == "instock")
+                    q = q.Where(ii => ii.Quantity > 0 && (!ii.MinimumQuantity.HasValue || ii.Quantity >= ii.MinimumQuantity.Value));
+                else if (sl == "lowstock")
+                    q = q.Where(ii => ii.MinimumQuantity.HasValue && ii.Quantity < ii.MinimumQuantity.Value);
+                else if (sl == "outofstock")
+                    q = q.Where(ii => ii.Quantity <= 0);
+            }
+
+            var totalCount = await q.CountAsync();
+
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 200);
+            var skip = (page - 1) * pageSize;
+
+            var items = await q
+                .OrderByDescending(ii => ii.UpdatedAt)
+                .Skip(skip)
+                .Take(pageSize)
+                .Select(ii => new InventoryItemListDto
+                {
+                    InventoryItemId = ii.InventoryItemId,
+                    InventoryItemName = ii.InventoryItemName,
+                    CategoryId = ii.InventoryItemCategoryId,
+                    CategoryName = ii.InventoryItemCategory != null ? ii.InventoryItemCategory.InventoryItemCategoryName : null,
+                    SupplierId = ii.SupplierId,
+                    SupplierName = ii.Supplier != null ? ii.Supplier.SupplierName : null,
+                    UnitName = ii.Unit != null ? ii.Unit.UnitName : null,
+                    Quantity = ii.Quantity,
+                    MinimumQuantity = ii.MinimumQuantity,
+                    UpdatedAt = ii.UpdatedAt,
+                    Description = ii.Description,
+                    CostPerUnit = ii.CostPerUnit,
+                    StoreName = ii.Store != null ? ii.Store.StoreName : null,
+                    ImageUrl = ii.InventoryItemImage != null && ii.InventoryItemImage.Length > 0
+                                   ? $"data:image;base64,{Convert.ToBase64String(ii.InventoryItemImage)}"
+                                   : null
+                })
+                .ToListAsync();
+
+            // compute derived stock level for each DTO
+            foreach (var it in items)
+            {
+                if (it.Quantity <= 0) it.StockLevel = "Out of Stock";
+                else if (it.MinimumQuantity.HasValue && it.Quantity < it.MinimumQuantity.Value) it.StockLevel = "Low Stock";
+                else it.StockLevel = "In Stock";
+            }
+
+            return (items, totalCount);
+        }
+
         public async Task<IEnumerable<object>> GetSuppliersForStoreAsync(int storeId)
         {
             var suppliers = await _context.Suppliers
@@ -254,7 +335,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return suppliers;
         }
 
-        // Categories for store (projection)
         public async Task<IEnumerable<object>> GetCategoriesForStoreAsync(int storeId)
         {
             var categories = await _context.InventoryItemCategories
@@ -263,6 +343,30 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Distinct()
                 .ToListAsync();
 
+            return categories;
+        }
+
+        public async Task<IEnumerable<object>> GetSuppliersForOrganizationAsync(int organizationId)
+        {
+            var storeIds = await _context.Stores
+                .Where(s => s.OrgId == organizationId)
+                .Select(s => s.StoreId)
+                .ToListAsync();
+            if (storeIds.Count == 0) return new List<object>();
+            var suppliers = await _context.Suppliers
+                .Where(s => s.StoreId != null && storeIds.Contains(s.StoreId.Value))
+                .Select(s => new { id = s.SupplierId, name = s.SupplierName })
+                .Distinct()
+                .ToListAsync();
+            return suppliers;
+        }
+
+        public async Task<IEnumerable<object>> GetCategoriesForOrganizationAsync(int organizationId)
+        {
+            var categories = await _context.InventoryItemCategories
+                .Select(c => new { id = c.InventoryItemCategoryId, name = c.InventoryItemCategoryName })
+                .Distinct()
+                .ToListAsync();
             return categories;
         }
 

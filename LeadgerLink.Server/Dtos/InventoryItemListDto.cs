@@ -17,5 +17,6 @@ namespace LeadgerLink.Server.Dtos
         public string? Description { get; set; }
         public decimal? CostPerUnit { get; set; }
         public string? ImageUrl { get; set; }
+        public string? StoreName { get; set; }
     }
 }

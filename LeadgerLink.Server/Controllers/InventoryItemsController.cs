@@ -82,7 +82,7 @@ namespace LeadgerLink.Server.Controllers
             if (domainUser == null) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
 
             // Determine whether caller may request org-wide data
-            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+            var isOrgAdmin = User.IsInRole("Organization Admin");
 
             // Resolve store id
             int? resolvedStoreId = null;
@@ -271,7 +271,6 @@ namespace LeadgerLink.Server.Controllers
                     Quantity = dto.quantity ?? 0m,
                     CostPerUnit = dto.costPerUnit ?? 0m,
                     MinimumQuantity = dto.minimumQuantity,
-                    // Note: InventoryItem model currently has no IsOnSale/Vat/ProductDescription fields; product creation below handles product entity
                     StoreId = domainUser.StoreId.Value,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
@@ -583,6 +582,62 @@ namespace LeadgerLink.Server.Controllers
         public class RestockDto
         {
             public decimal AddedQuantity { get; set; }
+        }
+
+        // Add this method to support organization-wide inventory fetch for org admins/managers.
+        [Authorize(Roles = "Organization Admin")]
+        [HttpGet("list-for-organization")]
+        public async Task<ActionResult> ListForOrganization(
+            [FromQuery] int? organizationId = null,
+            [FromQuery] string? stockLevel = null,
+            [FromQuery] int? supplierId = null,
+            [FromQuery] int? categoryId = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 100)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+                return Unauthorized();
+
+            // Determine organizationId: if not provided, try to infer from user
+            int? orgId = organizationId;
+            if (!orgId.HasValue)
+            {
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (domainUser == null || !domainUser.OrgId.HasValue)
+                    return BadRequest("Unable to resolve organization.");
+                orgId = domainUser.OrgId.Value;
+            }
+
+            // Normalize stockLevel
+            string? normalizedStockLevel = null;
+            if (!string.IsNullOrWhiteSpace(stockLevel))
+                normalizedStockLevel = stockLevel.Trim().ToLowerInvariant();
+
+            try
+            {
+                var (items, totalCount) = await _inventoryRepo.GetPagedForOrganizationAsync(
+                    orgId.Value,
+                    normalizedStockLevel ?? string.Empty,
+                    supplierId,
+                    categoryId,
+                    Math.Max(1, page),
+                    Math.Clamp(pageSize, 1, 200)
+                );
+
+                var suppliers = await _inventoryRepo.GetSuppliersForOrganizationAsync(orgId.Value);
+                var categories = await _inventoryRepo.GetCategoriesForOrganizationAsync(orgId.Value);
+
+                return Ok(new { items, totalCount, suppliers, categories });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load organization-wide inventory items");
+                return StatusCode(500, "Failed to load organization-wide inventory items");
+            }
         }
     }
 }

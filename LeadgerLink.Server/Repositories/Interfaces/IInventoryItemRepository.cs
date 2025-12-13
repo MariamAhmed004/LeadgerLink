@@ -66,5 +66,19 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return a DTO shaped for API consumption (avoids serializing EF navigation cycles)
         Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId);
+
+        // Organization-wide paged listing with filtering & total count
+        Task<(IEnumerable<InventoryItemListDto> Items, int TotalCount)> GetPagedForOrganizationAsync(
+            int organizationId,
+            string stockLevel,
+            int? supplierId,
+            int? categoryId,
+            int page,
+            int pageSize);
+
+        // Suppliers for organization (projection)
+        Task<IEnumerable<object>> GetSuppliersForOrganizationAsync(int organizationId);
+        // Categories for organization (projection)
+        Task<IEnumerable<object>> GetCategoriesForOrganizationAsync(int organizationId);
     }
 }

@@ -6,6 +6,7 @@ import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 import { MdOutlineInventory } from "react-icons/md";
+import { useAuth } from "../../Context/AuthContext"; // Add this import if not present
 
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
@@ -26,14 +27,9 @@ const InventoryItemsListPage = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const handleNewInventory = () => {
-    // navigate to /inventory/new or open modal (to implement)
-  };
-
-  const handleRestockItems = () => {
-    // open restock workflow (to implement)
-  };
+  const { loggedInUser } = useAuth();
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin");
 
   // Stock level options (values must match server expectations)
   // Server expects stockLevel query param values that can be normalized to:
@@ -54,14 +50,21 @@ const InventoryItemsListPage = () => {
       setError('');
       try {
         const qs = new URLSearchParams();
-        // do not append stockLevel; we will filter by colors client-side
         if (supplier) qs.append('supplierId', supplier);
         if (category) qs.append('categoryId', category);
-        // fetch a larger page to allow client-side paging
         qs.append('page', '1');
         qs.append('pageSize', '1000');
 
-        const res = await fetch(`/api/inventoryitems/list-for-current-store?${qs.toString()}`, {
+        let url;
+        if (isOrgAdmin) {
+          const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+          url = "/api/inventoryitems/list-for-organization";
+          if (orgId) qs.append("organizationId", String(orgId));
+        } else {
+          url = "/api/inventoryitems/list-for-current-store";
+        }
+
+        const res = await fetch(`${url}?${qs.toString()}`, {
           credentials: 'include'
         });
 
@@ -99,7 +102,7 @@ const InventoryItemsListPage = () => {
     load();
     return () => { mounted = false; };
     // supplier/category affect server call; stockLevel does not (client-side)
-  }, [supplier, category]);
+  }, [supplier, category, isOrgAdmin, loggedInUser]);
 
   // Reset page to 1 when filters change to avoid out-of-range paging
   useEffect(() => {
@@ -151,7 +154,7 @@ const InventoryItemsListPage = () => {
   // Table rows from paged
   const tableRows = pagedItems.map((it) => {
     const color = getStockColor(it.quantity, it.minimumQuantity);
-    return [
+    const baseRow = [
       (
         <div className="stock-cell">
           <span
@@ -168,7 +171,16 @@ const InventoryItemsListPage = () => {
       it.unitName ?? '',
       it.quantity != null ? Number(it.quantity).toFixed(3) : ''
     ];
+    if (isOrgAdmin) {
+      baseRow.splice(1, 0, it.storeName ?? ''); // Insert storeName after stock indicator
+    }
+    return baseRow;
   });
+
+  // Table columns
+  const columns = isOrgAdmin
+    ? ['Stock Level', 'Store', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity']
+    : ['Stock Level', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity'];
 
   // Render
   return (
@@ -181,8 +193,8 @@ const InventoryItemsListPage = () => {
           'Click on the item name to view its details',
         ]}
         actions={[
-            { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory/new', onClick: handleNewInventory },
-          { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock', onClick: handleRestockItems }
+            { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory/new' },
+          { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock'}
         ]}
       />
 
@@ -213,11 +225,13 @@ const InventoryItemsListPage = () => {
 
       <EntityTable
         title="Inventory Items"
-        columns={['Stock Level','Item Name','Category','Supplier','Unit','Quantity']}
+        columns={columns}
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No inventory items to display.')}
-        linkColumnName="Item Name"
-        rowLink={(_, rowIndex) => `/inventory-items/${pagedItems[rowIndex].inventoryItemId}`}
+        linkColumnName={isOrgAdmin ? 'Item Name' : 'Item Name'}
+        rowLink={(_, rowIndex) => isOrgAdmin
+          ? `/inventory-items/${pagedItems[rowIndex].inventoryItemId}`
+          : `/inventory-items/${pagedItems[rowIndex].inventoryItemId}`}
       />
 
       <PaginationSection
