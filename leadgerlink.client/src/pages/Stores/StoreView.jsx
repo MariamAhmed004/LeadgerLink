@@ -95,7 +95,20 @@ const StoreView = () => {
     ],
   };
 
-  const actions = headerProps.actions;
+  const actions = [
+    {
+      title: "Edit Store",
+      icon: <FaPencilAlt size={18} />, // Icon for the button
+      onClick: () => navigate(`/stores/edit/${store?.storeId}`), // Navigate to the edit page
+      className: "btn btn-primary",
+    },
+    {
+      title: "Back to List",
+      icon: <FaStore size={18} />, // Icon for the button
+      onClick: () => navigate(`/stores`), // Navigate back to the stores list
+      className: "btn btn-secondary",
+    },
+  ];
 
   if (loading) {
     return <div className="container py-5">Loading store...</div>;

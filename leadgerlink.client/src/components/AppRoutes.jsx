@@ -85,6 +85,7 @@ import InventoryTransferSend from "../pages/InventoryTransfers/InventoryTransfer
 import StoresList from "../pages/Stores/StoresList";
 import StoreNew from "../pages/Stores/StoreNew";
 import StoreView from "../pages/Stores/StoreView";
+import StoreEdit from "../pages/Stores/StoreEdit";
 
 // Products
 import ProductsList from "../pages/Products/ProductsList";
@@ -195,6 +196,7 @@ const AppRoutes = () => {
           {/*Stores*/}
       <Route path="/stores/" element={<StoresList />} />
           <Route path="/stores/new" element={<StoreNew />} />
+          <Route path="/stores/edit/:id" element={<StoreEdit />} />
           <Route path="/stores/:id" element={<StoreView />} />
 
           {/*Products*/}
