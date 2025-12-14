@@ -5,7 +5,6 @@ import { Routes, Route } from "react-router-dom";
 // General / Landing / Info
 // -----------------------------
 import Landing from "../pages/GeneralInformation/LandingPage/Landing";
-import HomePage from "../pages/HomePages/Home";
 import AboutUs from "../pages/GeneralInformation/aboutus";
 import PrivacyPolicy from "../pages/GeneralInformation/PrivacyPolicy";
 import TermsOfService from "../pages/GeneralInformation/TermsOfService";
@@ -22,7 +21,6 @@ import ProfilePage from "../pages/Profile";
 // -----------------------------
 // Dashboards / Role home pages
 // -----------------------------
-import Dashboard from "../pages/Dashboards/Dashboard";
 import AccountantDashboard from "../pages/Dashboards/AccountantDashboard";
 import StoreManagerDashboard from "../pages/Dashboards/StoreManagerDashboard";
 import ApplicationAdminHome from "../pages/HomePages/ApplicationAdmin-Home";
@@ -118,7 +116,6 @@ const AppRoutes = () => {
           Public / Landing / Info
           --------------------------- */}
       <Route path="/" element={<Landing />} />
-      <Route path="/home" element={<HomePage />} />
       <Route path="/aboutus" element={<AboutUs />} />
       <Route path="/privacypolicy" element={<PrivacyPolicy />} />
       <Route path="/termsofservice" element={<TermsOfService />} />
@@ -134,7 +131,7 @@ const AppRoutes = () => {
       {/* ---------------------------
           Dashboards / Role Homepages
           --------------------------- */}
-      <Route path="/dashboard" element={<Dashboard />} />
+
       <Route path="/accountant-dashboard" element={<AccountantDashboard />} />
       <Route path="/store-manager-dashboard" element={<StoreManagerDashboard />} />
       <Route path="/app-admin" element={<ApplicationAdminHome />} />
