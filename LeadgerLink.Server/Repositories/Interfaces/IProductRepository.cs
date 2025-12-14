@@ -11,6 +11,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Returns products for a store mapped to ProductListDto including availability checks.
         Task<List<ProductListDto>> GetForStoreAsync(int storeId);
 
+        // Returns products for an organization mapped to ProductListDto including availability checks.
+        Task<List<ProductListDto>> GetForOrganizationAsync(int organizationId);
+
         // Return detailed product projection for product detail view.
         Task<ProductDetailDto?> GetDetailByIdAsync(int productId);
     }

@@ -166,5 +166,110 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return dto;
         }
+
+        // Returns products for an organization mapped to ProductListDto including availability checks.
+        public async Task<List<ProductListDto>> GetForOrganizationAsync(int organizationId)
+        {
+            var products = await _context.Products
+                .Include(p => p.InventoryItem)
+                .Include(p => p.Recipe)
+                    .ThenInclude(r => r.RecipeInventoryItems)
+                        .ThenInclude(rii => rii.InventoryItem)
+                .Include(p => p.Store)
+                .Where(p => p.Store != null && p.Store.OrgId == organizationId)
+                .OrderBy(p => p.ProductName)
+                .ToListAsync();
+
+            var list = products.Select(p =>
+            {
+                var dto = new ProductListDto
+                {
+                    ProductId = p.ProductId,
+                    ProductName = p.ProductName,
+                    SellingPrice = p.SellingPrice,
+                    Description = p.Description,
+                    InventoryItemId = p.InventoryItemId,
+                    RecipeId = p.RecipeId,
+                    StoreId = p.StoreId,
+                    StoreName = p.Store?.StoreName
+                };
+
+                if (p.InventoryItemId.HasValue)
+                {
+                    dto.Source = "InventoryItem";
+                    var ii = p.InventoryItem;
+                    var qty = ii?.Quantity ?? 0m;
+
+                    dto.InventoryItemQuantity = qty;
+                    dto.IsAvailable = ii != null && qty > 0m;
+                    dto.AvailabilityMessage = dto.IsAvailable ? "Available" : "Out of stock";
+                }
+                else if (p.RecipeId.HasValue)
+                {
+                    dto.Source = "Recipe";
+                    var recipe = p.Recipe;
+
+                    if (recipe == null || recipe.RecipeInventoryItems == null || !recipe.RecipeInventoryItems.Any())
+                    {
+                        dto.IsAvailable = false;
+                        dto.AvailabilityMessage = "Recipe or ingredients not found";
+                    }
+                    else
+                    {
+                        string? missing = null;
+                        foreach (var rii in recipe.RecipeInventoryItems)
+                        {
+                            var ingredient = rii.InventoryItem;
+                            if (ingredient == null)
+                            {
+                                missing = $"Missing ingredient (id:{rii.InventoryItemId})";
+                                break;
+                            }
+
+                            var requiredQty = rii.Quantity;
+                            if (ingredient.Quantity < requiredQty)
+                            {
+                                missing = ingredient.InventoryItemName ?? $"Ingredient {rii.InventoryItemId} low";
+                                break;
+                            }
+                        }
+
+                        dto.IsAvailable = string.IsNullOrEmpty(missing);
+                        dto.AvailabilityMessage = dto.IsAvailable ? "Available" : $"Unavailable: {missing}";
+
+                        try
+                        {
+                            var perIngCounts = recipe.RecipeInventoryItems
+                                .Where(rii => rii.Quantity > 0)
+                                .Select(rii =>
+                                {
+                                    var avail = rii.InventoryItem != null ? rii.InventoryItem.Quantity : 0m;
+                                    var req = rii.Quantity;
+                                    return req > 0 ? (int)Math.Floor(avail / req) : 0;
+                                })
+                                .ToList();
+                            dto.AvailableQuantity = perIngCounts.Count > 0 ? (int?)perIngCounts.Min() : 0;
+                        }
+                        catch
+                        {
+                            dto.AvailableQuantity = null;
+                        }
+
+                        dto.InventoryItemQuantity = null;
+                    }
+                }
+                else
+                {
+                    dto.Source = "Unknown";
+                    dto.IsAvailable = false;
+                    dto.AvailabilityMessage = "No source";
+                    dto.InventoryItemQuantity = null;
+                }
+
+                return dto;
+            }).ToList();
+
+            return list;
+        }
     }
 }

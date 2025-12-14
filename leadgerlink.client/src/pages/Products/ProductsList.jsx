@@ -5,8 +5,14 @@ import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 import { BiSolidPackage } from "react-icons/bi";
+import { useAuth } from '../../Context/AuthContext'; // Import the AuthContext to get the logged-in user
 
 export default function ProductsList() {
+  const { loggedInUser } = useAuth(); // Get the logged-in user
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin");
+  const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+
   const [sourceFilter, setSourceFilter] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -22,14 +28,18 @@ export default function ProductsList() {
     { label: 'Recipe', value: 'Recipe' },
   ];
 
-  // fetch products for current store
+  // Fetch products for the current store or organization
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch('/api/products/for-current-store', { credentials: 'include' });
+        const endpoint = isOrgAdmin && orgId
+          ? `/api/products/for-organization/${orgId}` // Use the organization endpoint if the user is an org admin
+          : '/api/products/for-current-store'; // Default to the current store endpoint
+
+        const res = await fetch(endpoint, { credentials: 'include' });
         if (!res.ok) {
           const txt = await res.text();
           throw new Error(txt || 'Failed to load products');
@@ -47,20 +57,20 @@ export default function ProductsList() {
 
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [isOrgAdmin, orgId]);
 
-  // client-side filtering + paging
+  // Client-side filtering + paging
   const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
   const filtered = products.filter((p) => {
-    // source filter
+    // Source filter
     if (sourceFilter && String(sourceFilter).trim() !== '') {
       if (String(p.source) !== String(sourceFilter)) return false;
     }
-    // text search filter across name and source
+    // Text search filter across name and source
     if (normalizedSearch) {
       const name = String(p.productName ?? '').toLowerCase();
       const source = String(p.source ?? '').toLowerCase();
-      // optionally include price string
+      // Optionally include price string
       const price = p.sellingPrice != null ? `bhd ${Number(p.sellingPrice).toFixed(3)}`.toLowerCase() : '';
       if (!(name.includes(normalizedSearch) || source.includes(normalizedSearch) || price.includes(normalizedSearch))) {
         return false;
@@ -74,11 +84,17 @@ export default function ProductsList() {
   const start = (page - 1) * entriesPerPage;
   const paged = filtered.slice(start, start + entriesPerPage);
 
-  // map to table rows
+  // Dynamically set columns based on user role
+  const columns = ['Available', 'Product Name', 'Source', 'Selling Price'];
+  if (isOrgAdmin) {
+    columns.push('Store Name'); // Add "Store Name" column for organization admins
+  }
+
+  // Map to table rows
   const tableRows = paged.map((p) => {
     const available = !!p.isAvailable;
     const colorClass = available ? 'stock-green' : 'stock-red';
-    return [
+    const row = [
       (
         <div className="stock-cell">
           <span
@@ -93,6 +109,13 @@ export default function ProductsList() {
       p.source ?? '',
       p.sellingPrice != null ? `BHD ${Number(p.sellingPrice).toFixed(3)}` : ''
     ];
+
+    // Add store name to the row if the user is an organization admin
+    if (isOrgAdmin) {
+      row.push(p.storeName ?? ''); // Add "Store Name" column value
+    }
+
+    return row;
   });
 
   return (
@@ -120,7 +143,7 @@ export default function ProductsList() {
 
       <EntityTable
         title="Products"
-        columns={['Available', 'Product Name', 'Source', 'Selling Price']}
+        columns={columns} // Use dynamic columns
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No products to display.')}
         linkColumnName="Product Name"

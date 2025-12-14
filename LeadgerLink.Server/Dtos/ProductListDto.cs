@@ -26,5 +26,7 @@ namespace LeadgerLink.Server.Dtos
 
         // For recipe-backed products: how many full recipes can be made from current ingredient stocks
         public int? AvailableQuantity { get; set; }
+        public int? StoreId { get; set; }
+        public string? StoreName { get; set; }
     }
 }

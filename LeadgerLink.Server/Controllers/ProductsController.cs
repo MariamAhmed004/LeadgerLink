@@ -102,6 +102,17 @@ namespace LeadgerLink.Server.Controllers
             await _productRepository.UpdateAsync(product);
             return NoContent();
         }
+
+        // GET api/products/for-organization/{organizationId}
+        [Authorize]
+        [HttpGet("for-organization/{organizationId}")]
+        public async Task<ActionResult> GetForOrganization(int organizationId)
+        {
+            if (organizationId <= 0) return BadRequest("Invalid organization ID.");
+
+            var list = await _productRepository.GetForOrganizationAsync(organizationId);
+            return Ok(list);
+        }
     }
 
     public class UpdateProductDto
