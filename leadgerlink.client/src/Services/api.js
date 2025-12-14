@@ -23,3 +23,20 @@ export const api = {
     addUser: (username, email, password, role) =>
         request("users", "POST", { username, email, password, role }),
 };
+
+export const geminiApi = {
+    sendMessage: async (message) => {
+        const res = await fetch("/api/gemini/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message }),
+        });
+
+        if (!res.ok) {
+            const error = await res.text();
+            throw new Error(error || "Failed to send message to Gemini.");
+        }
+
+        return res.json();
+    },
+};

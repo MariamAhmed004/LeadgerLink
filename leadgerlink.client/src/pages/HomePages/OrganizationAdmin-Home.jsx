@@ -3,6 +3,7 @@ import { useAuth } from "../../Context/AuthContext";
 import WelcomeMessage from "../../components/homepages/WelcomeMessage";
 import CardSection from "../../components/homepages/HomePageCardSection";
 import HomePageTable from "../../components/homepages/HomePageTable";
+import { geminiApi } from "../../Services/api"; // Import Gemini API service
 
 const OrgAdminHomePage = () => {
     const { loggedInUser } = useAuth();
@@ -11,6 +12,9 @@ const OrgAdminHomePage = () => {
     const [activityLogs, setActivityLogs] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [orgId, setOrgId] = useState(null);
+
+    const [geminiMessage, setGeminiMessage] = useState(""); // State for Gemini message
+    const [geminiResponse, setGeminiResponse] = useState(""); // State for Gemini response
 
     const getTodayString = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -154,6 +158,15 @@ const OrgAdminHomePage = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loggedInUser]);
 
+    const handleGeminiTest = async () => {
+        try {
+            const response = await geminiApi.sendMessage(geminiMessage);
+            setGeminiResponse(response.response);
+        } catch (err) {
+            setGeminiResponse(`Error: ${err.message}`);
+        }
+    };
+
     return (
         <div className="container py-5">
             {/* Welcome Message */}
@@ -177,6 +190,26 @@ const OrgAdminHomePage = () => {
                 rows={notifications}
                 emptyMessage="No notifications yet."
             />
+
+            {/* Gemini API Test Section */}
+            <div className="mt-5">
+                <h3>Gemini API Test</h3>
+                <textarea
+                    value={geminiMessage}
+                    onChange={(e) => setGeminiMessage(e.target.value)}
+                    placeholder="Type your message here..."
+                    rows={4}
+                    className="form-control mb-3"
+                />
+                <button onClick={handleGeminiTest} className="btn btn-primary mb-3">
+                    Send to Gemini
+                </button>
+                {geminiResponse && (
+                    <div className="alert alert-info">
+                        <strong>Response:</strong> {geminiResponse}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
