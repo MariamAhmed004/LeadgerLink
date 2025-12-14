@@ -14,6 +14,7 @@ import { useAuth } from "../../Context/AuthContext";
 // or all recipes when the logged-in user has the Organization Admin role.
 const RecipesManagement = () => {
   const { loggedInUser } = useAuth();
+  const isOrgAdmin = Array.isArray(loggedInUser?.roles) && loggedInUser.roles.includes("Organization Admin");
 
   // filters / search
   const [onSaleFilter, setOnSaleFilter] = useState("");
@@ -41,8 +42,12 @@ const RecipesManagement = () => {
       setLoading(true);
       setError("");
       try {
-        const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
-        const endpoint = isOrgAdmin ? "/api/recipes" : "/api/recipes/for-current-store";
+        const isOrgAdmin = Array.isArray(loggedInUser?.roles) && loggedInUser.roles.includes("Organization Admin");
+        let endpoint = "/api/recipes/for-current-store";
+        if (isOrgAdmin) {
+          const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId;
+          endpoint = orgId ? `/api/recipes?orgId=${orgId}` : "/api/recipes";
+        }
 
         const res = await fetch(endpoint, { credentials: "include" });
         if (!res.ok) {
@@ -53,7 +58,6 @@ const RecipesManagement = () => {
         const data = await res.json();
         if (!mounted) return;
 
-        // normalize to array
         setRecipes(Array.isArray(data) ? data : (data.items || []));
         setCurrentPage(1);
       } catch (err) {
@@ -93,17 +97,26 @@ const RecipesManagement = () => {
   // NOTE: do not inject <Link/> here — use EntityTable's rowLink prop and set linkColumnName to "Recipe Name"
   const tableRows = paginated.map((r) => {
     const inSale = !!(r.inSale ?? r.InSale);
-    const price = r.sellingPrice ?? r.SellingPrice ?? null; // DTO may not provide price yet
+    const price = r.sellingPrice ?? r.SellingPrice ?? null;
     const addedBy = r.createdByName ?? r.CreatedByName ?? "-";
     const recipeName = r.recipeName ?? r.RecipeName ?? "-";
+    const storeName = r.storeName ?? r.StoreName ?? "-";
 
-    return [
+    const baseRow = [
       inSale ? <span className="badge bg-success">Yes</span> : <span className="badge bg-secondary">No</span>,
       recipeName,
       price != null ? `BHD ${Number(price).toFixed(3)}` : "-",
       addedBy
     ];
+    if (isOrgAdmin) {
+      baseRow.splice(1, 0, storeName); // Insert after "On Sale"
+    }
+    return baseRow;
   });
+
+  const columns = isOrgAdmin
+    ? ["On Sale", "Store Name", "Recipe Name", "Selling Price", "Added By"]
+    : ["On Sale", "Recipe Name", "Selling Price", "Added By"];
 
   return (
     <div className="container py-5">
@@ -142,7 +155,7 @@ const RecipesManagement = () => {
 
       <EntityTable
         title="Recipe List"
-        columns={["On Sale", "Recipe Name", "Selling Price", "Added By"]}
+        columns={columns}
         rows={tableRows}
         emptyMessage={loading ? 'Loading...' : (error ? `Error: ${error}` : 'No recipes to display.')}
         linkColumnName="Recipe Name"

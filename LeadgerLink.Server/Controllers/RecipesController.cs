@@ -34,11 +34,19 @@ namespace LeadgerLink.Server.Controllers
         // GET api/recipes
         // Returns all recipes. Client-side should call this when the user is Organization Admin.
         [HttpGet]
-        public async Task<ActionResult> GetAll()
+        public async Task<ActionResult> GetAll([FromQuery] int? orgId = null)
         {
-            var list = await _context.Recipes
+            var query = _context.Recipes
                 .Include(r => r.CreatedByNavigation)
                 .Include(r => r.Store)
+                .AsQueryable();
+
+            if (orgId.HasValue)
+            {
+                query = query.Where(r => r.Store != null && r.Store.OrgId == orgId.Value);
+            }
+
+            var list = await query
                 .OrderByDescending(r => r.UpdatedAt)
                 .Select(r => new RecipeListDto
                 {
@@ -189,11 +197,7 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost]
         public async Task<ActionResult> Create()
         {
-            var email = User?.Identity?.Name;
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email!.ToLower());
-            if (user == null || !user.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
-
-            // Request shape: { recipeName, instructions, isOnSale, vatCategoryId, productDescription, ingredients: RecipeIngredientDto[] }
+            // Parse the payload first
             string? payloadStr = null;
             if (Request.HasFormContentType)
             {
@@ -220,6 +224,19 @@ namespace LeadgerLink.Server.Controllers
             using var doc = JsonDocument.Parse(payloadStr);
             var root = doc.RootElement;
 
+            // Extract storeId from the payload
+            var storeId = root.TryGetProperty("storeId", out var sid) && sid.ValueKind != JsonValueKind.Null ? sid.GetInt32() : (int?)null;
+
+            // Resolve the logged-in user
+            var email = User?.Identity?.Name;
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email!.ToLower());
+            if (user == null) return BadRequest("Unable to resolve the logged-in user.");
+
+            // Fallback to the user's storeId if not provided in the payload
+            var resolvedStoreId = storeId ?? user.StoreId;
+            if (!resolvedStoreId.HasValue) return BadRequest("Unable to resolve store for the recipe.");
+
+            // Parse other fields from the payload
             var recipeName = root.TryGetProperty("recipeName", out var rn) ? rn.GetString() : null;
             var instructions = root.TryGetProperty("instructions", out var instr) ? instr.GetString() : null;
             var isOnSale = root.TryGetProperty("isOnSale", out var ios) && ios.GetBoolean();
@@ -238,12 +255,12 @@ namespace LeadgerLink.Server.Controllers
                 try { clientSellingPrice = psp.GetDecimal(); } catch { /* ignore parse error */ }
             }
 
-             // Deserialize ingredients as existing DTO type
-             var ingredients = Array.Empty<RecipeIngredientDto>();
-             if (root.TryGetProperty("ingredients", out var ingArr) && ingArr.ValueKind == JsonValueKind.Array)
-             {
-                 ingredients = JsonSerializer.Deserialize<RecipeIngredientDto[]>(ingArr.GetRawText(), opts) ?? Array.Empty<RecipeIngredientDto>();
-             }
+            // Deserialize ingredients as existing DTO type
+            var ingredients = Array.Empty<RecipeIngredientDto>();
+            if (root.TryGetProperty("ingredients", out var ingArr) && ingArr.ValueKind == JsonValueKind.Array)
+            {
+                ingredients = JsonSerializer.Deserialize<RecipeIngredientDto[]>(ingArr.GetRawText(), opts) ?? Array.Empty<RecipeIngredientDto>();
+            }
 
             if (string.IsNullOrWhiteSpace(recipeName)) return BadRequest("Recipe name is required.");
             if (ingredients.Length == 0) return BadRequest("Add at least one ingredient.");
@@ -256,7 +273,7 @@ namespace LeadgerLink.Server.Controllers
                     RecipeName = recipeName.Trim(),
                     Instructions = string.IsNullOrWhiteSpace(instructions) ? null : instructions.Trim(),
                     CreatedBy = user.UserId,
-                    StoreId = user.StoreId,
+                    StoreId = resolvedStoreId.Value,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -332,7 +349,7 @@ namespace LeadgerLink.Server.Controllers
                     var product = new Product
                     {
                         ProductName = recipe.RecipeName,
-                        StoreId = user.StoreId!.Value,
+                        StoreId = resolvedStoreId.Value,
                         IsRecipe = true,
                         RecipeId = recipe.RecipeId,
                         InventoryItemId = null,

@@ -12,6 +12,7 @@ import TabbedMenu from "../../components/Form/TabbedMenu";
 import MenuTabCard from "../../components/Form/MenuTabCard";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
+import { useAuth } from "../../Context/AuthContext";
 
 /*
   RecipeNew.jsx
@@ -25,6 +26,14 @@ const PLACEHOLDER_IMG = "/images/placeholder.png"; // fallback if ingredient ima
 
 const RecipeNew = () => {
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin");
+  const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+
+  // Store selection (for org admin)
+  const [storeId, setStoreId] = useState("");
+  const [stores, setStores] = useState([]);
 
   const [recipeName, setRecipeName] = useState("");
   const [imageFile, setImageFile] = useState(null);
@@ -60,7 +69,10 @@ const RecipeNew = () => {
       try {
         const [vatRes, itemsRes] = await Promise.all([
           fetch("/api/products/vatcategories", { credentials: "include" }).catch(() => null),
-          fetch("/api/inventoryitems/list-for-current-store?page=1&pageSize=1000", { credentials: "include" }).catch(() => null),
+          fetch(
+            `/api/inventoryitems/list-for-current-store?page=1&pageSize=1000${isOrgAdmin && storeId ? `&storeId=${storeId}` : ""}`,
+            { credentials: "include" }
+          ).catch(() => null),
         ]);
 
         // VAT options
@@ -116,7 +128,7 @@ const RecipeNew = () => {
 
     load();
     return () => { mounted = false; };
-  }, [retry]);
+  }, [retry, storeId, isOrgAdmin]);
 
   // Compute cost price whenever selectedItems or ingredients change
   useEffect(() => {
@@ -231,6 +243,10 @@ const RecipeNew = () => {
       ingredients: ingredientsPayload,
     };
 
+    if (isOrgAdmin) {
+      base.storeId = storeId ? Number(storeId) : null; // Include storeId if org admin
+    }
+
     if (isForSale) {
       return {
         ...base,
@@ -238,7 +254,7 @@ const RecipeNew = () => {
         vatCategoryId: vatId ? Number(vatId) : null,
         productDescription: saleDescription ? String(saleDescription).trim() : null,
         costPrice: Number(costPrice.toFixed(3)),
-        sellingPrice: Number(sellingPrice || 0)
+        sellingPrice: Number(sellingPrice || 0),
       };
     }
 
@@ -286,7 +302,7 @@ const RecipeNew = () => {
 
   // handle selling price edit by user
   const onSellingPriceChange = (v) => {
-    const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0;
+    const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0;
     setSellingPrice(num);
     setSellingPriceTouched(true);
   };
@@ -305,6 +321,31 @@ const RecipeNew = () => {
     return () => { mounted = false; clearTimeout(t); };
   }, [sellingPrice, costPrice]);
 
+  // Load stores for org admin
+  useEffect(() => {
+    if (!isOrgAdmin || !orgId) return;
+    const loadStores = async () => {
+      try {
+        const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setStores(data || []);
+        } else {
+          setStores([]);
+        }
+      } catch {
+        setStores([]);
+      }
+    };
+    loadStores();
+  }, [isOrgAdmin, orgId]);
+
+  // Helper for store options
+  const storeOptions = (stores || []).map(s => ({
+    label: s.storeName ?? s.name ?? `Store ${s.id}`,
+    value: String(s.storeId ?? s.id)
+  }));
+
   return (
     <div className="container py-5">
       <PageHeader
@@ -319,6 +360,18 @@ const RecipeNew = () => {
 
       <FormBody onSubmit={handleSubmit} plain={true}>
         <div className="row gx-4 gy-4">
+          {isOrgAdmin && (
+            <div className="col-12 text-start">
+              <SelectField
+                label="Store"
+                value={storeId}
+                onChange={setStoreId}
+                options={[{ label: "Select store", value: "" }, ...storeOptions]}
+                required
+              />
+            </div>
+          )}
+
           <div className="col-12 text-start">
             <InputField label="Recipe Name" required value={recipeName} onChange={setRecipeName} placeholder="Recipe name" />
           </div>
