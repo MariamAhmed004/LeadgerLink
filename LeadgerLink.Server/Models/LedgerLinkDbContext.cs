@@ -1,11 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using LeadgerLink.Server.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Models;
 
 public partial class LedgerLinkDbContext : DbContext
 {
+    private readonly IAuditContext _auditContext;
+
+    public LedgerLinkDbContext(DbContextOptions<LedgerLinkDbContext> options, IAuditContext auditContext)
+        : base(options)
+    {
+        _auditContext = auditContext;
+    }
+
     public LedgerLinkDbContext()
     {
     }
@@ -278,6 +292,86 @@ public partial class LedgerLinkDbContext : DbContext
         });
 
         OnModelCreatingPartial(modelBuilder);
+    }
+
+    public async Task TrackChangesAsync(int? auditLogLevelId = null)
+    {
+        if (!_auditContext.IsAuditEnabled)
+            return;
+
+        var entries = ChangeTracker.Entries()
+            .Where(e => (e.State == EntityState.Modified || e.State == EntityState.Added || e.State == EntityState.Deleted) 
+                        && e.Entity.GetType() != typeof(AuditLog))
+            .ToList();
+
+        foreach (var entry in entries)
+        {
+            var previousValues = new Dictionary<string, object?>();
+            var currentValues = new Dictionary<string, object?>();
+
+            if (entry.State == EntityState.Modified)
+            {
+                foreach (var property in entry.OriginalValues.Properties)
+                {
+                    var original = entry.OriginalValues[property];
+                    var current = entry.CurrentValues[property];
+                    if (!Equals(original, current))
+                    {
+                        previousValues[property.Name] = original;
+                        currentValues[property.Name] = current;
+                    }
+                }
+            }
+            else if (entry.State == EntityState.Added)
+            {
+                foreach (var property in entry.CurrentValues.Properties)
+                {
+                    currentValues[property.Name] = entry.CurrentValues[property];
+                }
+            }
+            else if (entry.State == EntityState.Deleted)
+            {
+                foreach (var property in entry.OriginalValues.Properties)
+                {
+                    previousValues[property.Name] = entry.OriginalValues[property];
+                }
+            }
+
+            var log = new AuditLog
+            {
+                Timestamp = DateTime.UtcNow,
+                OldValue = previousValues.Count > 0 ? JsonSerializer.Serialize(previousValues) : null,
+                NewValue = currentValues.Count > 0 ? JsonSerializer.Serialize(currentValues) : null,
+                Details = entry.State.ToString(),
+                ActionTypeId = MapActionType(entry.State),
+                AuditLogLevelId = auditLogLevelId,
+                UserId = _auditContext.UserId // Assuming UserId is set in AuditContext
+            };
+
+            AuditLogs.Add(log);
+        }
+    }
+
+    private int? MapActionType(EntityState state)
+    {
+        return state switch
+        {
+            EntityState.Added => 3, // Create
+            EntityState.Modified => 4, // Edit
+            EntityState.Deleted => 5, // Delete
+            _ => null
+        };
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        // Check if auditing is enabled
+        if (_auditContext.IsAuditEnabled)
+        {
+            await TrackChangesAsync(_auditContext.AuditLevel);
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

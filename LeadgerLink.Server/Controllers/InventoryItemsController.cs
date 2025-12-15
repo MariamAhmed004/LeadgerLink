@@ -12,6 +12,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
+using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -25,6 +26,7 @@ namespace LeadgerLink.Server.Controllers
         private readonly IProductRepository _productRepo;
         private readonly ILogger<InventoryItemsController> _logger;
         private readonly IAuditLogger _auditLogger;
+        private readonly IAuditContext _auditContext;
 
 
         public InventoryItemsController(
@@ -33,7 +35,8 @@ namespace LeadgerLink.Server.Controllers
             IRepository<Supplier> supplierRepo,
             IProductRepository productRepo,
             ILogger<InventoryItemsController> logger,
-            IAuditLogger auditLogger)
+            IAuditLogger auditLogger,
+            IAuditContext auditContext)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _inventoryRepo = inventoryRepo ?? throw new ArgumentNullException(nameof(inventoryRepo));
@@ -41,7 +44,11 @@ namespace LeadgerLink.Server.Controllers
             _productRepo = productRepo ?? throw new ArgumentNullException(nameof(productRepo));
             _logger = logger;
             _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
+            _auditContext = auditContext ?? throw new ArgumentNullException(nameof(auditContext));
 
+            // Set audit level to organization level for all actions
+            _auditContext.AuditLevel = 2;
+            _auditContext.IsAuditEnabled = true;
         }
 
         // GET api/inventoryitems/lookups
@@ -159,11 +166,9 @@ namespace LeadgerLink.Server.Controllers
         {
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
-            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+            SetAuditContextUserId(); // Set the UserId in the AuditContext
 
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == User.Identity.Name.ToLower());
             if (domainUser == null) return BadRequest("Unable to resolve user.");
 
             CreateInventoryItemDto dto;
@@ -310,6 +315,7 @@ namespace LeadgerLink.Server.Controllers
                 }
 
                 var addedItem = await _inventoryRepo.AddAsync(item);
+               
 
                 // If the frontend requested to put the item on sale, create a Product linked to this inventory item.
                 if (dto.isOnSale)
@@ -509,7 +515,6 @@ namespace LeadgerLink.Server.Controllers
                 }
 
                 _context.InventoryItems.Update(existing);
-                await _auditLogger.TrackChangesAsync(auditLogLevelId: 2); // Set to organization-level audit
                 await _context.SaveChangesAsync();
 
                 // Handle product on sale: create or update linked product
@@ -592,7 +597,6 @@ namespace LeadgerLink.Server.Controllers
             item.UpdatedAt = DateTime.UtcNow;
 
             _context.InventoryItems.Update(item);
-            await _auditLogger.TrackChangesAsync(auditLogLevelId: 2); // Set to organization-level audit
             await _context.SaveChangesAsync();
             
 
@@ -659,6 +663,21 @@ namespace LeadgerLink.Server.Controllers
                 await _auditLogger.LogExceptionAsync("Failed to load organization-wide inventory items", ex.StackTrace);
                 return StatusCode(500, "Failed to load organization-wide inventory items");
             }
+        }
+
+        private int? ResolveUserId()
+        {
+            var email = User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User?.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return null;
+
+            var user = _context.Users.FirstOrDefault(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            return user?.UserId;
+        }
+
+        private void SetAuditContextUserId()
+        {
+            _auditContext.UserId = ResolveUserId();
         }
     }
 }

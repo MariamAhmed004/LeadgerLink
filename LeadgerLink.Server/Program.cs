@@ -1,3 +1,4 @@
+using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
@@ -10,7 +11,7 @@ using System.Text.Json.Serialization;
 
 namespace LeadgerLink.Server
 {
-    public class Program
+    public static class Program
     {
         public static async Task Main(string[] args)
         {
@@ -88,6 +89,8 @@ namespace LeadgerLink.Server
 
             // Register Audit logger
             builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+            // Register AuditContext
+            builder.Services.AddScoped<IAuditContext, AuditContext>();
 
             // Register Email service (MailKit SMTP)
             builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
@@ -115,7 +118,6 @@ namespace LeadgerLink.Server
             app.UseCors("AllowReactApp");   // enable CORS 
             app.UseAuthentication();
             app.UseAuthorization();
-
 
             app.MapControllers();
 

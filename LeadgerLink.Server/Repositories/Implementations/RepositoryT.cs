@@ -85,5 +85,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
             _dbSet.Update(entity);
             await _context.SaveChangesAsync();
         }
+
+
+        public async Task SaveChangesAsync() // Ensure this calls the overridden method
+        {
+            await _context.SaveChangesAsync();
+        }
     }
 }
