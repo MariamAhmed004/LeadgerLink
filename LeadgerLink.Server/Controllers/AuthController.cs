@@ -2,6 +2,7 @@
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -12,17 +13,17 @@ namespace LeadgerLink.Server.Controllers
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {
-
         private readonly LedgerLinkDbContext _db;
-
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditLogger _auditLogger;
 
-        public AuthController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, LedgerLinkDbContext db)
+        public AuthController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, LedgerLinkDbContext db, IAuditLogger auditLogger)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _db = db;
+            _auditLogger = auditLogger;
         }
 
         [HttpPost("login")]
@@ -33,6 +34,9 @@ namespace LeadgerLink.Server.Controllers
 
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, true, false);
             if (!result.Succeeded) return Unauthorized("Invalid username or password");
+
+            // Add audit log for login
+            await _auditLogger.LogLoginAsync($"User {user.UserName} logged in.");
 
             return Ok("Logged in");
         }
@@ -76,10 +80,11 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("Logout")]
         public async Task<IActionResult> Logout()
         {
+            // Add audit log for logout
+            await _auditLogger.LogLogoutAsync($"User {User.Identity?.Name} logged out.");
+
             await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
             return Ok();
         }
-
     }
-
 }

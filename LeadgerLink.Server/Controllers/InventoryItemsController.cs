@@ -1,16 +1,17 @@
+using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using LeadgerLink.Server.Dtos;
-using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -23,19 +24,24 @@ namespace LeadgerLink.Server.Controllers
         private readonly IRepository<Supplier> _supplierRepo;
         private readonly IProductRepository _productRepo;
         private readonly ILogger<InventoryItemsController> _logger;
+        private readonly IAuditLogger _auditLogger;
+
 
         public InventoryItemsController(
             LedgerLinkDbContext context,
             IInventoryItemRepository inventoryRepo,
             IRepository<Supplier> supplierRepo,
             IProductRepository productRepo,
-            ILogger<InventoryItemsController> logger)
+            ILogger<InventoryItemsController> logger,
+            IAuditLogger auditLogger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _inventoryRepo = inventoryRepo ?? throw new ArgumentNullException(nameof(inventoryRepo));
             _supplierRepo = supplierRepo ?? throw new ArgumentNullException(nameof(supplierRepo));
             _productRepo = productRepo ?? throw new ArgumentNullException(nameof(productRepo));
             _logger = logger;
+            _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
+
         }
 
         // GET api/inventoryitems/lookups
@@ -50,6 +56,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load lookups");
+                await _auditLogger.LogExceptionAsync("Failed to load lookups", ex.StackTrace);
                 return StatusCode(500, "Failed to load lookups");
             }
         }
@@ -140,6 +147,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load inventory items for store");
+                await _auditLogger.LogExceptionAsync("Failed to load inventory items for store", ex.StackTrace);
                 return StatusCode(500, "Failed to load inventory items");
             }
         }
@@ -341,11 +349,13 @@ namespace LeadgerLink.Server.Controllers
             catch (DbUpdateException dbEx)
             {
                 _logger.LogError(dbEx, "Database error saving inventory item");
+                await _auditLogger.LogExceptionAsync("Database error saving inventory item", dbEx.StackTrace);
                 return StatusCode(500, "Failed to save inventory item.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to create inventory item");
+                await _auditLogger.LogExceptionAsync("Failed to create inventory item", ex.StackTrace);
                 return StatusCode(500, "Failed to create inventory item.");
             }
         }
@@ -499,6 +509,7 @@ namespace LeadgerLink.Server.Controllers
                 }
 
                 _context.InventoryItems.Update(existing);
+                await _auditLogger.TrackChangesAsync(auditLogLevelId: 2); // Set to organization-level audit
                 await _context.SaveChangesAsync();
 
                 // Handle product on sale: create or update linked product
@@ -551,12 +562,14 @@ namespace LeadgerLink.Server.Controllers
             {
                 await tx.RollbackAsync();
                 _logger.LogError(dbEx, "Database error updating inventory item");
+                await _auditLogger.LogExceptionAsync("Database error updating inventory item", dbEx.StackTrace);
                 return StatusCode(500, "Failed to update inventory item.");
             }
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to update inventory item");
+                await _auditLogger.LogExceptionAsync("Failed to update inventory item", ex.StackTrace);
                 return StatusCode(500, "Failed to update inventory item.");
             }
         }
@@ -579,7 +592,9 @@ namespace LeadgerLink.Server.Controllers
             item.UpdatedAt = DateTime.UtcNow;
 
             _context.InventoryItems.Update(item);
+            await _auditLogger.TrackChangesAsync(auditLogLevelId: 2); // Set to organization-level audit
             await _context.SaveChangesAsync();
+            
 
             return Ok(new { inventoryItemId = id, quantity = item.Quantity });
         }
@@ -641,6 +656,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load organization-wide inventory items");
+                await _auditLogger.LogExceptionAsync("Failed to load organization-wide inventory items", ex.StackTrace);
                 return StatusCode(500, "Failed to load organization-wide inventory items");
             }
         }
