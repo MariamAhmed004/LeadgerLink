@@ -507,6 +507,46 @@ namespace LeadgerLink.Server.Repositories.Implementations
             _context.InventoryTransfers.Update(transfer);
             await _context.SaveChangesAsync();
         }
+        // Fetch transfer status by name.
+        public async Task<InventoryTransferStatus?> GetTransferStatusByNameAsync(string statusName)
+        {
+            if (string.IsNullOrWhiteSpace(statusName)) throw new ArgumentException("Status name cannot be null or empty.", nameof(statusName));
+
+            // Fetch the transfer status by its name (case-insensitive).
+            return await _context.InventoryTransferStatuses
+                .FirstOrDefaultAsync(s => s.TransferStatus != null && s.TransferStatus.ToLower() == statusName.ToLower());
+        }
+
+        // Add a new inventory transfer.
+        public async Task<InventoryTransfer> AddTransferAsync(InventoryTransfer transfer)
+        {
+            if (transfer == null) throw new ArgumentNullException(nameof(transfer));
+
+            // Add the transfer to the database and save changes.
+            _context.InventoryTransfers.Add(transfer);
+            await _context.SaveChangesAsync();
+            return transfer;
+        }
+
+        // Add a new transfer item.
+        public async Task AddTransferItemAsync(TransferItem transferItem)
+        {
+            if (transferItem == null) throw new ArgumentNullException(nameof(transferItem));
+
+            // Add the transfer item to the database and save changes.
+            _context.TransferItems.Add(transferItem);
+            await _context.SaveChangesAsync();
+        }
+
+        // Fetch a transfer along with its associated stores.
+        public async Task<InventoryTransfer?> GetTransferWithStoresAsync(int transferId)
+        {
+            // Query the database for the transfer with its associated FromStore and ToStore.
+            return await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
+        }
 
     }
 }
