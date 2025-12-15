@@ -1,8 +1,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -10,11 +10,13 @@ namespace LeadgerLink.Server.Controllers
     [Route("api/categories")]
     public class CategoriesController : ControllerBase
     {
-        private readonly LedgerLinkDbContext _context;
+        // General repository for accessing inventory item categories
+        private readonly IRepository<InventoryItemCategory> _categoryRepository;
 
-        public CategoriesController(LedgerLinkDbContext context)
+        // Constructor to initialize dependencies
+        public CategoriesController(IRepository<InventoryItemCategory> categoryRepository)
         {
-            _context = context;
+            _categoryRepository = categoryRepository;
         }
 
         // GET api/categories
@@ -22,11 +24,14 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet]
         public async Task<ActionResult> GetAll()
         {
-            var categories = await _context.InventoryItemCategories
-                .Select(c => new { id = c.InventoryItemCategoryId, name = c.InventoryItemCategoryName })
-                .ToListAsync();
+            // ------------------------- Fetch categories -------------------------
+            var categories = await _categoryRepository.GetAllAsync();
 
-            return Ok(categories);
+            // ------------------------- Transform data -------------------------
+            var result = categories.Select(c => new { id = c.InventoryItemCategoryId, name = c.InventoryItemCategoryName });
+
+            // ------------------------- Return result -------------------------
+            return Ok(result);
         }
     }
 }

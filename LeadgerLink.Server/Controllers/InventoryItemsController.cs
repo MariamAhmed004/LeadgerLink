@@ -1,3 +1,5 @@
+using DocumentFormat.OpenXml.Spreadsheet;
+using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
@@ -12,7 +14,6 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
-using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -20,15 +21,34 @@ namespace LeadgerLink.Server.Controllers
     [Route("api/inventoryitems")]
     public class InventoryItemsController : ControllerBase
     {
+        // Database context for direct database operations
         private readonly LedgerLinkDbContext _context;
+
+        // Repository for inventory item operations
         private readonly IInventoryItemRepository _inventoryRepo;
+
+        // Repository for supplier operations
         private readonly IRepository<Supplier> _supplierRepo;
+
+        // Repository for product operations
         private readonly IProductRepository _productRepo;
+
+        // Logger for logging messages and errors
         private readonly ILogger<InventoryItemsController> _logger;
+
+        // Logger for audit-related operations
         private readonly IAuditLogger _auditLogger;
+
+        // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Repository for user-specific queries
+        private readonly IUserRepository _userRepository;
 
+        // Repository for VAT category operations
+        private readonly IRepository<VatCategory> _vatCategoryRepo;
+
+        // Constructor to initialize dependencies
         public InventoryItemsController(
             LedgerLinkDbContext context,
             IInventoryItemRepository inventoryRepo,
@@ -36,15 +56,19 @@ namespace LeadgerLink.Server.Controllers
             IProductRepository productRepo,
             ILogger<InventoryItemsController> logger,
             IAuditLogger auditLogger,
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IUserRepository userRepository,
+            IRepository<VatCategory> vatCategoryRepo)
         {
-            _context = context ?? throw new ArgumentNullException(nameof(context));
-            _inventoryRepo = inventoryRepo ?? throw new ArgumentNullException(nameof(inventoryRepo));
-            _supplierRepo = supplierRepo ?? throw new ArgumentNullException(nameof(supplierRepo));
-            _productRepo = productRepo ?? throw new ArgumentNullException(nameof(productRepo));
+            _context = context;
+            _inventoryRepo = inventoryRepo;
+            _supplierRepo = supplierRepo;
+            _productRepo = productRepo;
             _logger = logger;
-            _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
-            _auditContext = auditContext ?? throw new ArgumentNullException(nameof(auditContext));
+            _auditLogger = auditLogger;
+            _auditContext = auditContext;
+            _userRepository = userRepository;
+            _vatCategoryRepo = vatCategoryRepo;
 
             // Set audit level to organization level for all actions
             _auditContext.AuditLevel = 2;
@@ -52,16 +76,21 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // GET api/inventoryitems/lookups
+        // Fetches lookup data for inventory items, including units and VAT categories.
         [HttpGet("lookups")]
         public async Task<ActionResult> GetLookups()
         {
             try
             {
+                // Fetch lookup data
                 var (units, vatCategories) = await _inventoryRepo.GetLookupsAsync();
+
+                // Return lookup data
                 return Ok(new { units, vatCategories });
             }
             catch (Exception ex)
             {
+                // Log error and return 500 status
                 _logger.LogError(ex, "Failed to load lookups");
                 await _auditLogger.LogExceptionAsync("Failed to load lookups", ex.StackTrace);
                 return StatusCode(500, "Failed to load lookups");
@@ -69,13 +98,7 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // GET api/inventoryitems/list-for-current-store
-        // Returns paged inventory items for the authenticated user's store.
-        // Optional query parameters:
-        // - stockLevel: string ("inStock", "lowStock", "outOfStock" or any case variant)
-        // - supplierId: int
-        // - categoryId: int
-        // - page (1-based), pageSize
-        // - for org admins: optional storeId to view a particular store in the org
+        // Retrieves a paginated list of inventory items for the current user's store.
         [Authorize]
         [HttpGet("list-for-current-store")]
         public async Task<ActionResult> ListForCurrentStore(
@@ -86,19 +109,19 @@ namespace LeadgerLink.Server.Controllers
             [FromQuery] int pageSize = 25,
             [FromQuery] int? storeId = null)
         {
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
-            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
 
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            // Fetch domain user
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
             if (domainUser == null) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
 
-            // Determine whether caller may request org-wide data
+            // Determine store ID
             var isOrgAdmin = User.IsInRole("Organization Admin");
-
-            // Resolve store id
             int? resolvedStoreId = null;
             if (!isOrgAdmin)
             {
@@ -107,35 +130,18 @@ namespace LeadgerLink.Server.Controllers
             }
             else
             {
-                // org admin may optionally pass a storeId to focus the listing on a single store
-                if (storeId.HasValue)
-                {
-                    resolvedStoreId = storeId.Value;
-                }
-                else if (domainUser.StoreId.HasValue)
-                {
-                    // fallback to user's store if no storeId provided
-                    resolvedStoreId = domainUser.StoreId.Value;
-                }
-                else
-                {
-                    // if org admin and no specific store requested, we cannot infer a single store - return empty.
-                    return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
-                }
+                resolvedStoreId = storeId ?? domainUser.StoreId;
+                if (!resolvedStoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
             }
-
-            if (!resolvedStoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
 
             try
             {
-                // Normalize client stockLevel values (e.g. "inStock" -> "instock")
-                string? normalizedStockLevel = null;
-                if (!string.IsNullOrWhiteSpace(stockLevel))
-                {
-                    normalizedStockLevel = stockLevel.Trim().ToLowerInvariant();
-                }
+                // Normalize stock level
+                string? normalizedStockLevel = !string.IsNullOrWhiteSpace(stockLevel)
+                    ? stockLevel.Trim().ToLowerInvariant()
+                    : null;
 
-                // repository expects values like "instock", "lowstock", "outofstock"
+                // Fetch inventory items
                 var (items, totalCount) = await _inventoryRepo.GetPagedForStoreAsync(
                     resolvedStoreId.Value,
                     normalizedStockLevel ?? string.Empty,
@@ -145,14 +151,16 @@ namespace LeadgerLink.Server.Controllers
                     Math.Clamp(pageSize, 1, 200)
                 );
 
-                // attempt to include suppliers/categories for the store to help client UI (best-effort)
+                // Fetch suppliers and categories for the store
                 var suppliers = await _inventoryRepo.GetSuppliersForStoreAsync(resolvedStoreId.Value);
                 var categories = await _inventoryRepo.GetCategoriesForStoreAsync(resolvedStoreId.Value);
 
+                // Return inventory items, suppliers, and categories
                 return Ok(new { items, totalCount, suppliers, categories });
             }
             catch (Exception ex)
             {
+                // Log error and return 500 status
                 _logger.LogError(ex, "Failed to load inventory items for store");
                 await _auditLogger.LogExceptionAsync("Failed to load inventory items for store", ex.StackTrace);
                 return StatusCode(500, "Failed to load inventory items");
@@ -160,20 +168,28 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // POST api/inventoryitems
+        // Creates a new inventory item.
         [Authorize]
         [HttpPost]
         public async Task<ActionResult> CreateInventoryItem()
         {
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            SetAuditContextUserId(); // Set the UserId in the AuditContext
+            // Set audit context user ID
+            await SetAuditContextUserId();
 
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == User.Identity.Name.ToLower());
-            if (domainUser == null) return BadRequest("Unable to resolve user.");
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            // Fetch domain user
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
 
             CreateInventoryItemDto dto;
 
-            // Support multipart/form-data (image) with 'payload' JSON field OR JSON body
+            // Deserialize payload
             if (Request.HasFormContentType)
             {
                 var payload = Request.Form["payload"].FirstOrDefault();
@@ -216,35 +232,18 @@ namespace LeadgerLink.Server.Controllers
                 }
             }
 
-            // Server-side validation per rules
+            // Validate input
             if (string.IsNullOrWhiteSpace(dto?.inventoryItemName) || dto.inventoryItemName.Trim().Length < 3)
                 return BadRequest("Item name must be at least 3 characters.");
-
             if (dto.shortDescription != null && dto.shortDescription.Trim().Length > 0 && dto.shortDescription.Trim().Length < 3)
                 return BadRequest("Short description must be at least 3 characters when provided.");
-
             if (dto.productDescription != null && dto.productDescription.Trim().Length > 0 && dto.productDescription.Trim().Length < 3)
                 return BadRequest("Product description must be at least 3 characters when provided.");
-
-            // Supplier logic: either supplierId provided OR both newSupplier.name + contactMethod provided
-            if (!dto.supplierId.HasValue)
-            {
-                if (dto.newSupplier == null
-                    || string.IsNullOrWhiteSpace(dto.newSupplier.name)
-                    || string.IsNullOrWhiteSpace(dto.newSupplier.contactMethod)
-                    || dto.newSupplier.name.Trim().Length < 3
-                    || dto.newSupplier.contactMethod.Trim().Length < 3)
-                {
-                    return BadRequest("Provide existing supplierId or a valid newSupplier (name and contactMethod, each >= 3 chars).");
-                }
-            }
-
-            // Numeric validations: must be non-negative
+            if (!dto.supplierId.HasValue && (dto.newSupplier == null || string.IsNullOrWhiteSpace(dto.newSupplier.name) || string.IsNullOrWhiteSpace(dto.newSupplier.contactMethod) || dto.newSupplier.name.Trim().Length < 3 || dto.newSupplier.contactMethod.Trim().Length < 3))
+                return BadRequest("Provide existing supplierId or a valid newSupplier (name and contactMethod, each >= 3 chars).");
             if (dto.quantity.HasValue && dto.quantity.Value < 0) return BadRequest("Quantity cannot be negative.");
             if (dto.costPerUnit.HasValue && dto.costPerUnit.Value < 0) return BadRequest("Cost per unit cannot be negative.");
             if (dto.minimumQuantity.HasValue && dto.minimumQuantity.Value < 0) return BadRequest("Minimum quantity cannot be negative.");
-
-            // If set on sale: require selling price and VAT category (Product.VatCategoryId is non-nullable)
             if (dto.isOnSale)
             {
                 if (!dto.sellingPrice.HasValue) return BadRequest("Selling price must be provided when item is set on sale.");
@@ -252,9 +251,8 @@ namespace LeadgerLink.Server.Controllers
                 if (!dto.vatCategoryId.HasValue) return BadRequest("VAT category must be selected when item is set on sale.");
             }
 
-            // --- StoreId resolution logic ---
-            int? resolvedStoreId = null;
-            resolvedStoreId = dto.storeId.HasValue && dto.storeId.Value > 0
+            // Resolve store ID
+            int? resolvedStoreId = dto.storeId.HasValue && dto.storeId.Value > 0
                 ? dto.storeId
                 : domainUser.StoreId;
 
@@ -263,7 +261,7 @@ namespace LeadgerLink.Server.Controllers
 
             try
             {
-                // Begin transaction so supplier creation + item creation (+ product creation) are atomic
+                // Begin transaction
                 await using var tx = await _context.Database.BeginTransactionAsync();
 
                 int? resolvedSupplierId = dto.supplierId;
@@ -299,7 +297,7 @@ namespace LeadgerLink.Server.Controllers
                     UserId = domainUser.UserId
                 };
 
-                // handle image if present
+                // Handle image if present
                 if (Request.HasFormContentType && Request.Form.Files.Count > 0)
                 {
                     var imageFile = Request.Form.Files
@@ -315,7 +313,6 @@ namespace LeadgerLink.Server.Controllers
                 }
 
                 var addedItem = await _inventoryRepo.AddAsync(item);
-               
 
                 // If the frontend requested to put the item on sale, create a Product linked to this inventory item.
                 if (dto.isOnSale)
@@ -324,7 +321,7 @@ namespace LeadgerLink.Server.Controllers
                     decimal finalSelling = dto.sellingPrice ?? finalCost;
                     if (!dto.sellingPrice.HasValue && dto.vatCategoryId.HasValue)
                     {
-                        var vatEntity = await _context.Set<Models.VatCategory>().FindAsync(dto.vatCategoryId.Value);
+                        var vatEntity = await _vatCategoryRepo.GetByIdAsync(dto.vatCategoryId.Value);
                         if (vatEntity != null)
                         {
                             var rate = vatEntity.VatRate; // percent
@@ -350,82 +347,91 @@ namespace LeadgerLink.Server.Controllers
 
                 await tx.CommitAsync();
 
+                // Return created inventory item
                 return CreatedAtAction(nameof(GetById), new { id = addedItem.InventoryItemId }, addedItem);
             }
             catch (DbUpdateException dbEx)
             {
+                // Rollback transaction and log error
                 _logger.LogError(dbEx, "Database error saving inventory item");
                 await _auditLogger.LogExceptionAsync("Database error saving inventory item", dbEx.StackTrace);
                 return StatusCode(500, "Failed to save inventory item.");
             }
             catch (Exception ex)
             {
+                // Rollback transaction and log error
                 _logger.LogError(ex, "Failed to create inventory item");
                 await _auditLogger.LogExceptionAsync("Failed to create inventory item", ex.StackTrace);
                 return StatusCode(500, "Failed to create inventory item.");
             }
         }
 
-        // Optional: GET api/inventoryitems/{id}
+        // GET api/inventoryitems/{id}
+        // Retrieves an inventory item by its ID.
         [HttpGet("{id:int}")]
         public async Task<ActionResult> GetById(int id)
         {
+            // Fetch inventory item details
             var dto = await _inventoryRepo.GetDetailByIdAsync(id);
             if (dto == null) return NotFound();
+
+            // Return inventory item details
             return Ok(dto);
         }
 
         // GET api/inventoryitems/{id}/image
+        // Retrieves the image for an inventory item by its ID.
         [HttpGet("{id:int}/image")]
         public async Task<IActionResult> GetImage(int id)
         {
-            var item = await _inventoryRepo.GetByIdAsync(id);
-            if (item == null) return NotFound();
-
-            byte[]? bytes = null;
             try
             {
-                if (item is InventoryItem ii && ii.InventoryItemImage != null)
+                // Fetch inventory item with image
+                var item = await _inventoryRepo.GetWithRelationsAsync(id);
+                if (item == null || item.InventoryItemImage == null || item.InventoryItemImage.Length == 0)
                 {
-                    bytes = ii.InventoryItemImage;
+                    return NotFound();
                 }
-                else
-                {
-                    var dbItem = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
-                    bytes = dbItem?.InventoryItemImage;
-                }
+
+                // Return image as JPEG
+                return File(item.InventoryItemImage, "image/jpeg");
             }
-            catch
+            catch (Exception ex)
             {
-                var dbItem = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
-                bytes = dbItem?.InventoryItemImage;
+                // Log error and return 500 status
+                _logger.LogError(ex, "Failed to retrieve image for inventory item with ID {Id}", id);
+                return StatusCode(500, "Failed to retrieve image.");
             }
-
-            if (bytes == null || bytes.Length == 0) return NotFound();
-
-            // Always return JPEG for now; adjust if you store content-type alongside bytes.
-            return File(bytes, "image/jpeg");
         }
 
         // PUT api/inventoryitems/{id}
+        // Updates an existing inventory item by its ID.
         [Authorize]
         [HttpPut("{id:int}")]
         public async Task<ActionResult> UpdateInventoryItem(int id)
         {
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
-            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+            // Set the audit context user ID
+            await SetAuditContextUserId();
 
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
 
-            // Load existing item
-            var existing = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
+            // Fetch domain user
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Validate user's store association
+            if (!domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+
+            // Fetch the existing inventory item
+            var existing = await _inventoryRepo.GetByIdAsync(id);
             if (existing == null) return NotFound();
 
-            // DTO aligned with edit payload
+            // Deserialize the payload
             var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             string? payloadStr = null;
             if (Request.HasFormContentType)
@@ -434,8 +440,8 @@ namespace LeadgerLink.Server.Controllers
                 if (string.IsNullOrWhiteSpace(payloadStr))
                 {
                     var jsonFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "payload", StringComparison.OrdinalIgnoreCase)
-                                                                          || string.Equals(f.FileName, "payload.json", StringComparison.OrdinalIgnoreCase)
-                                                                          || (f.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) ?? false));
+                                                                  || string.Equals(f.FileName, "payload.json", StringComparison.OrdinalIgnoreCase)
+                                                                  || (f.ContentType?.Contains("application/json", StringComparison.OrdinalIgnoreCase) ?? false));
                     if (jsonFile != null)
                     {
                         using var sr = new StreamReader(jsonFile.OpenReadStream());
@@ -449,13 +455,14 @@ namespace LeadgerLink.Server.Controllers
                 payloadStr = await sr.ReadToEndAsync();
             }
 
+            // Validate payload
             if (string.IsNullOrWhiteSpace(payloadStr)) return BadRequest("Missing payload.");
 
-            // Local inline DTO matching frontend keys
+            // Deserialize the payload into DTO
             var dto = JsonSerializer.Deserialize<EditInventoryItemDto>(payloadStr!, opts);
             if (dto == null) return BadRequest("Invalid payload JSON.");
 
-            // Basic validations (reuse create rules)
+            // Validate input fields
             if (string.IsNullOrWhiteSpace(dto.inventoryItemName) || dto.inventoryItemName.Trim().Length < 3)
                 return BadRequest("Item name must be at least 3 characters.");
             if (dto.shortDescription != null && dto.shortDescription.Trim().Length > 0 && dto.shortDescription.Trim().Length < 3)
@@ -470,10 +477,11 @@ namespace LeadgerLink.Server.Controllers
                 if (!dto.vatCategoryId.HasValue) return BadRequest("VAT category must be selected when item is set on sale.");
             }
 
+            // Begin transaction for updating the inventory item
             await using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Update scalar fields
+                // Update scalar fields of the inventory item
                 existing.InventoryItemName = dto.inventoryItemName!.Trim();
                 existing.Description = string.IsNullOrWhiteSpace(dto.shortDescription) ? null : dto.shortDescription!.Trim();
                 existing.InventoryItemCategoryId = dto.inventoryItemCategoryId;
@@ -489,23 +497,23 @@ namespace LeadgerLink.Server.Controllers
                     existing.SupplierId = dto.supplierId.Value;
                 }
 
-                // Edit current supplier details if provided
+                // Update supplier details if provided
                 if (existing.SupplierId.HasValue && dto.editSupplier != null)
                 {
-                    var sup = await _context.Suppliers.FirstOrDefaultAsync(s => s.SupplierId == existing.SupplierId.Value);
-                    if (sup != null)
+                    var supplier = await _supplierRepo.GetByIdAsync(existing.SupplierId.Value);
+                    if (supplier != null)
                     {
-                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.name)) sup.SupplierName = dto.editSupplier.name!.Trim();
-                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.contactMethod)) sup.ContactMethod = dto.editSupplier.contactMethod!.Trim();
-                        _context.Suppliers.Update(sup);
+                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.name)) supplier.SupplierName = dto.editSupplier.name!.Trim();
+                        if (!string.IsNullOrWhiteSpace(dto.editSupplier.contactMethod)) supplier.ContactMethod = dto.editSupplier.contactMethod!.Trim();
+                        await _supplierRepo.UpdateAsync(supplier);
                     }
                 }
 
-                // Replace image if multipart contains image file
+                // Replace image if a new image file is provided
                 if (Request.HasFormContentType && Request.Form.Files.Count > 0)
                 {
                     var imageFile = Request.Form.Files.FirstOrDefault(f => string.Equals(f.Name, "image", StringComparison.OrdinalIgnoreCase)
-                                                                           || (f.ContentType != null && f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)));
+                                                                   || (f.ContentType != null && f.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)));
                     if (imageFile != null && imageFile.Length > 0)
                     {
                         using var ms = new MemoryStream();
@@ -514,11 +522,11 @@ namespace LeadgerLink.Server.Controllers
                     }
                 }
 
-                _context.InventoryItems.Update(existing);
-                await _context.SaveChangesAsync();
+                // Update the inventory item in the repository
+                await _inventoryRepo.UpdateAsync(existing);
 
                 // Handle product on sale: create or update linked product
-                var existingProduct = await _context.Products.FirstOrDefaultAsync(p => p.InventoryItemId == existing.InventoryItemId);
+                var existingProduct = await _productRepo.GetByIdAsync(existing.InventoryItemId);
                 if (dto.isOnSale)
                 {
                     if (existingProduct == null)
@@ -527,7 +535,7 @@ namespace LeadgerLink.Server.Controllers
                         decimal finalSelling = dto.sellingPrice ?? finalCost;
                         if (!dto.sellingPrice.HasValue && dto.vatCategoryId.HasValue)
                         {
-                            var vatEntity = await _context.Set<Models.VatCategory>().FindAsync(dto.vatCategoryId.Value);
+                            var vatEntity = await _vatCategoryRepo.GetByIdAsync(dto.vatCategoryId.Value);
                             if (vatEntity != null)
                             {
                                 var rate = vatEntity.VatRate;
@@ -560,11 +568,13 @@ namespace LeadgerLink.Server.Controllers
                     }
                 }
 
+                // Commit the transaction
                 await tx.CommitAsync();
                 return NoContent();
             }
             catch (DbUpdateException dbEx)
             {
+                // Rollback transaction and log error
                 await tx.RollbackAsync();
                 _logger.LogError(dbEx, "Database error updating inventory item");
                 await _auditLogger.LogExceptionAsync("Database error updating inventory item", dbEx.StackTrace);
@@ -572,6 +582,7 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
+                // Rollback transaction and log error
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to update inventory item");
                 await _auditLogger.LogExceptionAsync("Failed to update inventory item", ex.StackTrace);
@@ -584,31 +595,44 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("{id:int}/restock")]
         public async Task<ActionResult> RestockQuantity(int id, [FromBody] RestockDto dto)
         {
+            // Set the audit context user ID at the beginning of the method
+            await SetAuditContextUserId();
+
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
             if (dto == null) return BadRequest("Missing payload.");
             if (dto.AddedQuantity <= 0) return BadRequest("Added quantity must be greater than zero.");
 
-            var item = await _context.InventoryItems.FirstOrDefaultAsync(x => x.InventoryItemId == id);
-            if (item == null) return NotFound();
+            try
+            {
+                // Fetch the inventory item using the repository
+                var item = await _inventoryRepo.GetByIdAsync(id);
+                if (item == null) return NotFound();
 
-            // Only update quantity
-            var newQty = (item.Quantity) + dto.AddedQuantity;
-            item.Quantity = newQty;
-            item.UpdatedAt = DateTime.UtcNow;
+                // Update the quantity
+                item.Quantity += dto.AddedQuantity;
+                item.UpdatedAt = DateTime.UtcNow;
 
-            _context.InventoryItems.Update(item);
-            await _context.SaveChangesAsync();
-            
+                // Use the repository to update the inventory item
+                await _inventoryRepo.UpdateAsync(item);
 
-            return Ok(new { inventoryItemId = id, quantity = item.Quantity });
+                return Ok(new { inventoryItemId = id, quantity = item.Quantity });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to restock inventory item with ID {Id}", id);
+                return StatusCode(500, "Failed to restock inventory item.");
+            }
         }
 
+        // DTO for restocking inventory items
         public class RestockDto
         {
+            // Quantity to be added to the inventory item
             public decimal AddedQuantity { get; set; }
         }
 
-        // Add this method to support organization-wide inventory fetch for org admins/managers.
+        // GET api/inventoryitems/list-for-organization
+        // Retrieves a paginated list of inventory items for an organization.
         [Authorize(Roles = "Organization Admin")]
         [HttpGet("list-for-organization")]
         public async Task<ActionResult> ListForOrganization(
@@ -619,6 +643,7 @@ namespace LeadgerLink.Server.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 100)
         {
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true)
                 return Unauthorized();
 
@@ -626,12 +651,16 @@ namespace LeadgerLink.Server.Controllers
             int? orgId = organizationId;
             if (!orgId.HasValue)
             {
-                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? User.Identity?.Name;
-                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
 
-                var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                if (domainUser == null || !domainUser.OrgId.HasValue)
+                // Fetch domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate user's organization association
+                if (!domainUser.OrgId.HasValue)
                     return BadRequest("Unable to resolve organization.");
                 orgId = domainUser.OrgId.Value;
             }
@@ -643,6 +672,7 @@ namespace LeadgerLink.Server.Controllers
 
             try
             {
+                // Fetch inventory items for the organization
                 var (items, totalCount) = await _inventoryRepo.GetPagedForOrganizationAsync(
                     orgId.Value,
                     normalizedStockLevel ?? string.Empty,
@@ -652,32 +682,44 @@ namespace LeadgerLink.Server.Controllers
                     Math.Clamp(pageSize, 1, 200)
                 );
 
+                // Fetch suppliers and categories for the organization
                 var suppliers = await _inventoryRepo.GetSuppliersForOrganizationAsync(orgId.Value);
                 var categories = await _inventoryRepo.GetCategoriesForOrganizationAsync(orgId.Value);
 
+                // Return inventory items, suppliers, and categories
                 return Ok(new { items, totalCount, suppliers, categories });
             }
             catch (Exception ex)
             {
+                // Log error and return 500 status
                 _logger.LogError(ex, "Failed to load organization-wide inventory items");
                 await _auditLogger.LogExceptionAsync("Failed to load organization-wide inventory items", ex.StackTrace);
                 return StatusCode(500, "Failed to load organization-wide inventory items");
             }
         }
 
-        private int? ResolveUserId()
+        // Resolves the user ID from the current user's claims.
+        private async Task<int?> ResolveUserIdAsync()
         {
+            // Extract the email from the user's claims or identity
             var email = User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
                         ?? User?.Identity?.Name;
+
+            // Return null if the email is missing or invalid
             if (string.IsNullOrWhiteSpace(email)) return null;
 
-            var user = _context.Users.FirstOrDefault(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            // Fetch the user from the repository using the email
+            var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+            // Return the user ID if the user exists, otherwise return null
             return user?.UserId;
         }
 
-        private void SetAuditContextUserId()
+        // Sets the audit context user ID based on the current user's claims.
+        private async Task SetAuditContextUserId()
         {
-            _auditContext.UserId = ResolveUserId();
+            // Resolve the user ID and set it in the audit context
+            _auditContext.UserId = await ResolveUserIdAsync();
         }
     }
 }
