@@ -45,7 +45,8 @@ namespace LeadgerLink.Server.Controllers
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user == null) return Unauthorized("Invalid username or password");
 
-            var result = await _signInManager.PasswordSignInAsync(user, model.Password, true, false);
+            // Use isPersistent to control whether the cookie is persistent
+            var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent: true, lockoutOnFailure: false);
             if (!result.Succeeded) return Unauthorized("Invalid username or password");
 
             // ------------------------- Log login action -------------------------
