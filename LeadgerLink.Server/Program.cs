@@ -70,6 +70,12 @@ namespace LeadgerLink.Server
                 options.Cookie.SameSite = SameSiteMode.None;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.LoginPath = "/api/auth/unauthorized";
+
+                // Set session timeout for inactive sessions
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(30); // Cookie expires after 30 minutes of inactivity
+
+                // Enable sliding expiration to extend session for active users
+                options.SlidingExpiration = true; // Reset expiration time on user activity
             });
 
             // 8) Controllers and JSON options
