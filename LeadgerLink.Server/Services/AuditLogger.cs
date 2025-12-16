@@ -32,6 +32,7 @@ namespace LeadgerLink.Server.Services
         Task LogLoginAsync(string? details = null);
         Task LogLogoutAsync(string? details = null);
         Task LogAsync(string actionName, int? userId, string? affectedData, string? previousValue, string? currentValue, string? details, int? auditLogLevelId = null);
+        Task LogPasswordResetAsync(string action, string email, string? details = null);
     }
 
     // Optional change-tracking + convenience logger
@@ -186,6 +187,22 @@ namespace LeadgerLink.Server.Services
                 ActionTypeId = MapActionType(actionName),
                 AuditLogLevelId = auditLogLevelId,
                 UserId = userId ?? ResolveUserId()
+            };
+            await _repo.AddAsync(log);
+        }
+
+        // Logs password reset actions (e.g., request or completion).
+        public async Task LogPasswordResetAsync(string action, string email, string? details = null)
+        {
+            var log = new AuditLog
+            {
+                Timestamp = DateTime.UtcNow,
+                OldValue = null,
+                NewValue = details,
+                Details = $"{action} for {email}",
+                ActionTypeId = MapActionType("edit"), 
+                AuditLogLevelId = null, // Generic level for password reset actions
+                UserId = ResolveUserId()
             };
             await _repo.AddAsync(log);
         }

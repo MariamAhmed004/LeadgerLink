@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./Login.css";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { TiArrowBack } from "react-icons/ti";
 
 export default function ForgotPassword() {
@@ -8,24 +8,59 @@ export default function ForgotPassword() {
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
+    const [step, setStep] = useState(1); // Step 1: Request token, Step 2: Reset password
     const navigate = useNavigate();
+    const location = useLocation();
 
-    const handleSubmit = async (e) => {
+    // Parse URL query parameters on page load
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const emailFromUrl = queryParams.get("email");
+        const tokenFromUrl = queryParams.get("token");
+
+        if (emailFromUrl && tokenFromUrl) {
+            setEmail(emailFromUrl);
+            setStep(2); // Automatically switch to Step 2
+        }
+    }, [location]);
+
+    const handleRequestToken = async (e) => {
         e.preventDefault();
         setError("");
+        setSuccessMessage("");
 
-        // Basic validation placeholders
         if (!email) {
             setError("Please enter your email.");
             return;
         }
 
-        // Optional: simple email format check (replace with more robust validation if needed)
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            setError("Please enter a valid email address.");
-            return;
+        try {
+            const response = await fetch("/api/auth/request-password-reset", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            if (response.ok) {
+                setSuccessMessage(
+                    "If the email exists, a password reset link will be sent to your inbox shortly. Please check your email in a few minutes."
+                );
+            } else {
+                const errorData = await response.json();
+                setError(errorData.message || "Failed to request password reset.");
+            }
+        } catch (err) {
+            setError("An error occurred while requesting the password reset.");
         }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        setError("");
+        setSuccessMessage("");
 
         if (!newPassword || !confirmPassword) {
             setError("Please fill both password fields.");
@@ -37,21 +72,37 @@ export default function ForgotPassword() {
             return;
         }
 
-        // TODO: Implement actual reset logic
-        // - Possibly request a reset token using the email, or submit the token + new password.
-        // - Call backend API here, e.g. await api.resetPassword({ email, newPassword, token });
-        // - Handle API errors and success states accordingly.
+        try {
+            const response = await fetch("/api/auth/reset-password", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    email,
+                    token: new URLSearchParams(location.search).get("token"), // Extract token from URL
+                    newPassword,
+                }),
+            });
 
-        // Placeholder behavior: navigate back to login after "success"
-        navigate("/login");
+            if (response.ok) {
+                setSuccessMessage("Password reset successfully. Redirecting to login...");
+                setTimeout(() => navigate("/login"), 3000); // Redirect to login after 3 seconds
+            } else {
+                const errorData = await response.json();
+                setError(errorData.errors ? errorData.errors.join(", ") : "Failed to reset password.");
+            }
+        } catch (err) {
+            setError("An error occurred while resetting the password.");
+        }
     };
 
     return (
-        <div className="login-page d-flex flex-wrap text-start">
-            {/* Left: Form Section (keeps same structure as Login page) */}
-            <div className="colored-section p-5 flex-grow-1">
-                <div className="login-form-section p-5 flex-grow-1" style={{ position: "relative" }}>
-                    {/* Back icon (top-right) */}
+        <div className="login-page d-flex flex-wrap text-start" style={{ minHeight: "100vh" }}>
+            {/* Left: Form Section */}
+            <div className="colored-section p-5 d-flex align-items-center justify-content-center flex-grow-1">
+                <div className="login-form-section p-4" style={{ width: "100%", maxWidth: 520 }}>
+                    {/* Back icon */}
                     <button
                         type="button"
                         aria-label="Back to login"
@@ -70,61 +121,85 @@ export default function ForgotPassword() {
                         <TiArrowBack size={34} className="mt-2 me-2 text-primary" />
                     </button>
 
-                    {/* Header with horizontal line under it */}
+                    {/* Header */}
                     <div className="mb-4 text-center text-primary">
-                        <h2 className="mb-1">Reset Password</h2>
+                        <h2 className="mb-1">{step === 1 ? "Request Password Reset" : "Reset Password"}</h2>
                         <hr className="bold" />
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={handleSubmit} className="login-form">
-                        <div className="mb-3">
-                            <label htmlFor="email" className="form-label">
-                                Email:
-                            </label>
-                            <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                className="form-control rounded-3"
-                                placeholder="you@example.com"
-                            />
-                        </div>
+                    <form onSubmit={step === 1 ? handleRequestToken : handleResetPassword} className="login-form">
+                        {/* Step 1: Request Token */}
+                        {step === 1 && (
+                            <div className="mb-3">
+                                <label htmlFor="email" className="form-label">
+                                    Email:
+                                </label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    className="form-control rounded-3"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                        )}
 
-                        <div className="mb-3">
-                            <label htmlFor="newPassword" className="form-label">
-                                New password:
-                            </label>
-                            <input
-                                id="newPassword"
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                required
-                                className="form-control rounded-3"
-                            />
-                        </div>
+                        {/* Step 2: Reset Password */}
+                        {step === 2 && (
+                            <>
+                                <div className="mb-3">
+                                    <label htmlFor="email" className="form-label">
+                                        Email:
+                                    </label>
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        value={email}
+                                        disabled
+                                        className="form-control rounded-3"
+                                    />
+                                </div>
 
-                        <div className="mb-5">
-                            <label htmlFor="confirmPassword" className="form-label">
-                                Confirm password:
-                            </label>
-                            <input
-                                id="confirmPassword"
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required
-                                className="form-control rounded-3"
-                            />
-                        </div>
+                                <div className="mb-3">
+                                    <label htmlFor="newPassword" className="form-label">
+                                        New Password:
+                                    </label>
+                                    <input
+                                        id="newPassword"
+                                        type="password"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        required
+                                        className="form-control rounded-3"
+                                    />
+                                </div>
+
+                                <div className="mb-3">
+                                    <label htmlFor="confirmPassword" className="form-label">
+                                        Confirm Password:
+                                    </label>
+                                    <input
+                                        id="confirmPassword"
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        className="form-control rounded-3"
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         {/* Error */}
                         {error && <div className="error text-danger mb-3">{error}</div>}
 
-                        {/* Submit button in the same placement as Login page */}
+                        {/* Success Message */}
+                        {successMessage && <div className="text-success mb-3">{successMessage}</div>}
+
+                        {/* Submit Button */}
                         <div className="mt-4 d-flex align-items-center justify-content-between mb-3">
                             <div /> {/* left side intentionally empty to match layout */}
                             <button
@@ -132,14 +207,14 @@ export default function ForgotPassword() {
                                 className="btn btn-primary rounded-3 px-4"
                                 style={{ minWidth: "35%" }}
                             >
-                                Submit
+                                {step === 1 ? "Email Me a Reset Link" : "Reset Password"}
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            {/* Right: Illustration Section - reuse same image area as Login */}
+            {/* Right: Illustration Section */}
             <div className="login-graphic-section d-none d-md-flex flex-grow-1 align-items-center justify-content-center">
                 <img
                     src="/images/login-illustration.png"
