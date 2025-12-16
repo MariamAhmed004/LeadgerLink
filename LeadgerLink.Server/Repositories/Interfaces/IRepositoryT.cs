@@ -36,5 +36,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
 		Task UpdateAsync(T entity);
         Task SaveChangesAsync();
+
+        Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
     }
 }

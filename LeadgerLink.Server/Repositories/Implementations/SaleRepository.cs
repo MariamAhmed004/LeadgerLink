@@ -235,6 +235,185 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return await query.ToListAsync();
         }
+        // Sum sales for an organization within an optional date range.
+        public async Task<decimal> SumSalesForOrganizationAsync(int organizationId, DateTime? from, DateTime? to)
+        {
+            var query = _context.Sales
+                .Include(s => s.Store)
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId);
+
+            // Apply date filters if provided
+            if (from.HasValue)
+            {
+                var fromDate = from.Value.Date;
+                query = query.Where(s => s.Timestamp >= fromDate);
+            }
+
+            if (to.HasValue)
+            {
+                var toDate = to.Value.Date.AddDays(1).AddTicks(-1);
+                query = query.Where(s => s.Timestamp <= toDate);
+            }
+
+            // Calculate the sum of TotalAmount
+            var sum = await query.SumAsync(s => (decimal?)s.TotalAmount);
+
+            return sum ?? 0m;
+        }
+        // Sum sales for the current month for a specific store.
+        public async Task<decimal> SumSalesForCurrentMonthAsync(int storeId)
+        {
+            var now = DateTime.UtcNow;
+            var year = now.Year;
+            var month = now.Month;
+
+            // Query sales for the current month
+            var sum = await _context.Sales
+                .Where(s => s.StoreId == storeId && s.Timestamp.Year == year && s.Timestamp.Month == month)
+                .SumAsync(s => (decimal?)s.TotalAmount);
+
+            return sum ?? 0m;
+        }
+
+        // Get the best-selling recipe (by quantity) for a specific store.
+        public async Task<BestSellingRecipeDto?> GetBestSellingRecipeForStoreAsync(int storeId)
+        {
+            // Fetch the top-selling recipe by quantity
+            var top = await _context.SaleItems
+                .Include(si => si.Sale)
+                .Include(si => si.Product)
+                .Where(si => si.Sale != null
+                             && si.Sale.StoreId == storeId
+                             && si.Product != null
+                             && si.Product.RecipeId != null)
+                .GroupBy(si => si.Product!.RecipeId)
+                .Select(g => new { RecipeId = g.Key, TotalQty = g.Sum(si => si.Quantity) })
+                .OrderByDescending(x => x.TotalQty)
+                .FirstOrDefaultAsync();
+
+            if (top == null || top.RecipeId == null)
+                return null;
+
+            // Fetch the recipe details
+            var recipe = await _context.Recipes
+                .Where(r => r.RecipeId == top.RecipeId)
+                .Select(r => new BestSellingRecipeDto
+                {
+                    RecipeId = r.RecipeId,
+                    RecipeName = r.RecipeName,
+                    TotalQuantity = top.TotalQty
+                })
+                .FirstOrDefaultAsync();
+
+            return recipe;
+        }
+
+        // Create a new sale with items.
+        public async Task<int> CreateSaleAsync(CreateSaleDto dto, int storeId, int userId)
+        {
+            var sale = new Sale
+            {
+                Timestamp = dto.Timestamp == default ? DateTime.UtcNow : dto.Timestamp,
+                UserId = userId, // always the current logged-in user
+                StoreId = storeId,
+                TotalAmount = dto.TotalAmount,
+                AppliedDiscount = dto.AppliedDiscount,
+                PaymentMethodId = dto.PaymentMethodId,
+                Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                UpdatedAt = DateTime.UtcNow.ToString("o")
+            };
+
+            _context.Sales.Add(sale);
+            await _context.SaveChangesAsync();
+
+            // Insert sale items
+            foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
+            {
+                var item = new SaleItem
+                {
+                    SaleId = sale.SaleId,
+                    ProductId = it.ProductId,
+                    Quantity = it.Quantity
+                };
+                _context.SaleItems.Add(item);
+            }
+
+            await _context.SaveChangesAsync();
+            return sale.SaleId;
+        }
+
+        // Get sale details by ID, including items and associated data.
+        public async Task<SaleDetailDto?> GetSaleByIdAsync(int saleId)
+        {
+            // Fetch the sale with related data
+            var sale = await _context.Sales
+                .Include(s => s.PaymentMethod)
+                .Include(s => s.SaleItems)
+                    .ThenInclude(si => si.Product)
+                .FirstOrDefaultAsync(s => s.SaleId == saleId);
+
+            if (sale == null) return null;
+
+            // Map the sale to the SaleDetailDto
+            var dto = new SaleDetailDto
+            {
+                SaleId = sale.SaleId,
+                Timestamp = sale.Timestamp,
+                TotalAmount = sale.TotalAmount,
+                AppliedDiscount = sale.AppliedDiscount,
+                PaymentMethodId = sale.PaymentMethodId,
+                PaymentMethodName = sale.PaymentMethod?.PaymentMethodName,
+                Notes = sale.Notes,
+                CreatedById = sale.UserId,
+                CreatedByName = await _context.Users
+                    .Where(u => u.UserId == sale.UserId)
+                    .Select(u => ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim())
+                    .FirstOrDefaultAsync(),
+                CreatedAt = sale.CreatedAt,
+                UpdatedAt = sale.UpdatedAt,
+                SaleItems = sale.SaleItems.Select(si => new SaleItemDetailDto
+                {
+                    ProductId = si.ProductId,
+                    Quantity = si.Quantity,
+                    ProductName = si.Product?.ProductName
+                }).ToList()
+            };
+
+            return dto;
+        }
+
+        // Update an existing sale with new details and items.
+        public async Task<bool> UpdateSaleAsync(int saleId, CreateSaleDto dto)
+        {
+            // Fetch the sale by ID
+            var sale = await _context.Sales.Include(s => s.SaleItems).FirstOrDefaultAsync(s => s.SaleId == saleId);
+            if (sale == null) return false;
+
+            // Update sale details
+            sale.Timestamp = dto.Timestamp == default ? sale.Timestamp : dto.Timestamp;
+            sale.TotalAmount = dto.TotalAmount;
+            sale.AppliedDiscount = dto.AppliedDiscount;
+            sale.PaymentMethodId = dto.PaymentMethodId;
+            sale.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim();
+            sale.UpdatedAt = DateTime.UtcNow.ToString("o");
+
+            // Replace existing sale items with those provided by the client
+            _context.SaleItems.RemoveRange(sale.SaleItems);
+            foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
+            {
+                _context.SaleItems.Add(new SaleItem
+                {
+                    SaleId = sale.SaleId,
+                    ProductId = it.ProductId,
+                    Quantity = it.Quantity
+                });
+            }
+
+            // Save changes
+            await _context.SaveChangesAsync();
+            return true;
+        }
 
     }
 }

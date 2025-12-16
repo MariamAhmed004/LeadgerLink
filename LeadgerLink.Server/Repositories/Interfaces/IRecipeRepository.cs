@@ -25,5 +25,31 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return detailed recipe projection including ingredients, creator, image, and related product info
         Task<RecipeDetailDto?> GetDetailByIdAsync(int recipeId);
+        // Return all recipes, optionally filtered by organization ID.
+        Task<IEnumerable<RecipeListDto>> GetAllRecipesAsync(int? orgId);
+        // Return recipes for the authenticated user's store.
+        Task<IEnumerable<RecipeListDto>> GetRecipesForCurrentStoreAsync(string email);
+        // Create a new recipe with ingredients and optional product linkage.
+        Task<int> CreateRecipeAsync(
+            string recipeName,
+            string? instructions,
+            int createdBy,
+            int storeId,
+            IEnumerable<RecipeIngredientDto> ingredients,
+            bool isOnSale,
+            int? vatCategoryId,
+            string? productDescription,
+            decimal? clientCostPrice,
+            decimal? clientSellingPrice,
+            HttpRequest request
+        );
+
+        // Update an existing recipe with ingredients and optionally product linkage.
+        Task UpdateRecipeAsync(
+            int recipeId,
+            UpdateRecipeDto dto,
+            HttpRequest request
+        );
+
     }
-}//end IRecipeRepository
+}
