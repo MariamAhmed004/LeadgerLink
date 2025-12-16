@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Application Admin,Organization Admin")]
     [Route("api/auditlogs")]
     public class AuditLogsController : ControllerBase
     {

@@ -2,6 +2,7 @@ using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
@@ -14,6 +15,7 @@ namespace LeadgerLink.Server.Controllers
 {
     // Route sits under /api/inventorytransfers to keep related endpoints together.
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager,Store Employee")]
     [Route("api/inventorytransfers")]
     public class InventoryTransferDriversController : ControllerBase
     {

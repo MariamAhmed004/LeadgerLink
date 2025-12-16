@@ -3,6 +3,7 @@ using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ using System.Threading.Tasks;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/users")]
     public class UsersController : ControllerBase
     {

@@ -11,6 +11,7 @@ using LeadgerLink.Server.Dtos;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager")]
     [Route("api/dashboard")]
     public class DashboardController : ControllerBase
     {
@@ -37,7 +38,6 @@ namespace LeadgerLink.Server.Controllers
 
         // GET api/dashboard/summary
         // Retrieves a summary of dashboard data for a store or organization.
-        [Authorize]
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
         {
@@ -164,7 +164,6 @@ namespace LeadgerLink.Server.Controllers
 
         // GET api/dashboard/store/summary
         // Retrieves a summary for a specific store.
-        [Authorize]
         [HttpGet("store/summary")]
         public async Task<IActionResult> GetStoreSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
         {

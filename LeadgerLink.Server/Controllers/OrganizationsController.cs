@@ -7,10 +7,12 @@ using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Dtos;
+using Microsoft.AspNetCore.Authorization;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/organizations")]
     public class OrganizationsController : ControllerBase
     {
@@ -105,6 +107,7 @@ namespace LeadgerLink.Server.Controllers
 
         // POST: api/organizations
         // Creates a new organization.
+        [Authorize(Roles = "Application Admin")]
         [HttpPost]
         public async Task<ActionResult<OrganizationDetailDto>> Create(
             [FromBody][Bind("OrgName,Email,Phone,IndustryTypeId,RegestirationNumber,EstablishmentDate,WebsiteUrl,IsActive")] OrganizationDetailDto dto)
@@ -150,6 +153,7 @@ namespace LeadgerLink.Server.Controllers
 
         // PUT: api/organizations/{id}
         // Updates an existing organization.
+        [Authorize(Roles = "Application Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] Organization model)
         {
@@ -177,6 +181,7 @@ namespace LeadgerLink.Server.Controllers
 
         // GET: api/organizations/count
         // Counts the total number of organizations.
+        [Authorize(Roles = "Application Admin")]
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count()
         {

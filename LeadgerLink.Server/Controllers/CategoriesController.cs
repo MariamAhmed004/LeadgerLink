@@ -1,12 +1,14 @@
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager,Store Employee")]
     [Route("api/categories")]
     public class CategoriesController : ControllerBase
     {

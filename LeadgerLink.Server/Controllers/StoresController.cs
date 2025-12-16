@@ -14,6 +14,7 @@ using LeadgerLink.Server.Contexts;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/stores")]
     public class StoresController : ControllerBase
     {
@@ -153,7 +154,7 @@ namespace LeadgerLink.Server.Controllers
 
         // POST: api/stores
         // Creates a new store for the authenticated user's organization.
-        [Authorize]
+        [Authorize(Roles = "Organization Admin")]
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] StoreCreateDto dto)
         {
@@ -270,6 +271,7 @@ namespace LeadgerLink.Server.Controllers
 
         // PUT: api/stores/{id}
         // Updates an existing store.
+        [Authorize(Roles = "Organization Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] Store model)
         {

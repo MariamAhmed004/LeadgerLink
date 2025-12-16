@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager,Store Employee")]
     [Route("api/inventoryitems")]
     public class InventoryItemsController : ControllerBase
     {

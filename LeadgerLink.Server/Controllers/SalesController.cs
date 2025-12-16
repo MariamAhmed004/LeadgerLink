@@ -15,6 +15,7 @@ using LeadgerLink.Server.Contexts;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager,Store Employee")]
     [Route("api/sales")]
     public class SalesController : ControllerBase
     {

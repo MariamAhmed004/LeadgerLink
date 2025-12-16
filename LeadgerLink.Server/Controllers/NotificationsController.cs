@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/notifications")]
     public class NotificationsController : ControllerBase
     {
