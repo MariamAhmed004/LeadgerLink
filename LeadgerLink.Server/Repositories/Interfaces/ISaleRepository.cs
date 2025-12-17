@@ -42,5 +42,21 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<IEnumerable<SaleListDto>> GetSalesByStoreAsync(int storeId);
         // Get sales list for an organization (used by the frontend listing page)
         Task<IEnumerable<SaleListDto>> GetSalesByOrganizationAsync(int organizationId);
+        // Sum sales for an organization within an optional date range.
+        Task<decimal> SumSalesForOrganizationAsync(int organizationId, DateTime? from, DateTime? to);
+        // Sum sales for the current month for a specific store.
+        Task<decimal> SumSalesForCurrentMonthAsync(int storeId);
+        // Get the best-selling recipe (by quantity) for a specific store.
+        Task<BestSellingRecipeDto?> GetBestSellingRecipeForStoreAsync(int storeId);
+        // Create a new sale with items.
+        Task<int> CreateSaleAsync(CreateSaleDto dto, int storeId, int userId);
+
+        // Get sale details by ID, including items and associated data.
+        Task<SaleDetailDto?> GetSaleByIdAsync(int saleId);
+
+        // Update an existing sale with new details and items.
+        Task<bool> UpdateSaleAsync(int saleId, CreateSaleDto dto);
+
+
     }
 }

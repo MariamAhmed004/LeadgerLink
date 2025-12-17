@@ -1,3 +1,4 @@
+using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
@@ -11,7 +12,7 @@ using DotNetEnv;
 
 namespace LeadgerLink.Server
 {
-    public class Program
+    public static class Program
     {
         public static async Task Main(string[] args)
         {
@@ -33,18 +34,23 @@ namespace LeadgerLink.Server
             }
 
             // Add services to the container.
-            // 1) Your scaffolded DB context
+
+            // 1) Database contexts
+            // Register the main application database context and the Identity database context for dependency injection.
             builder.Services.AddDbContext<LedgerLinkDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-            // 2) Add Identity DB context (separate)
             builder.Services.AddDbContext<IdentityContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            // Register generic repository so IRepository<T> can be resolved (required by controllers that inject IRepository<SomeModel>)
-            builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            // 2) Identity configuration
+            // Configure Identity for user authentication and authorization, including role management.
+            builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+                .AddEntityFrameworkStores<IdentityContext>()
+                .AddDefaultTokenProviders();
 
-            // register repositories
+            // 3) Repositories
+            // Register the generic repository and all specific repositories for dependency injection.
+            builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             builder.Services.AddScoped<IOrganizationRepository, OrganizationRepository>();
             builder.Services.AddScoped<IStoreRepository, StoreRepository>();
             builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -57,39 +63,48 @@ namespace LeadgerLink.Server
             builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
             builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
+            // 4) Audit logging
+            // Register the audit logger and audit context for tracking changes and user actions.
+            builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+            builder.Services.AddScoped<IAuditContext, AuditContext>();
 
-            // 3) Add Identity
-            builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
-                .AddEntityFrameworkStores<IdentityContext>()
-                .AddDefaultTokenProviders();
+            // 5) Email service
+            // Configure and register the email service for sending emails using MailKit SMTP.
+            builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+            builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpOptions>>().Value);
+            builder.Services.AddSingleton<IEmailService, EmailService>();
 
-            // 4) Cookies for React
+            // 6) HTTP context accessor
+            // Register IHttpContextAccessor to allow services to access the current HTTP context.
+            builder.Services.AddHttpContextAccessor();
+
+            // 7) Cookies for React
+            // Configure cookie settings for authentication and session management in the React frontend.
             builder.Services.ConfigureApplicationCookie(options =>
             {
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.None;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.LoginPath = "/api/auth/unauthorized";
+
+                // Set session timeout for inactive sessions
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(30); // Cookie expires after 30 minutes of inactivity
+
+                // Enable sliding expiration to extend session for active users
+                options.SlidingExpiration = true; // Reset expiration time on user activity
             });
 
-
-            // Configure controllers + global JSON options to avoid object cycles during serialization.
-            // Using ReferenceHandler.IgnoreCycles prevents the JsonSerializer from throwing on navigation cycles.
+            // 8) Controllers and JSON options
+            // Add controllers and configure JSON serialization options to handle object cycles and depth limits.
             builder.Services.AddControllers()
                 .AddJsonOptions(opts =>
                 {
                     opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-                    // optional: increase depth if you expect deeper graphs
                     opts.JsonSerializerOptions.MaxDepth = 64;
-                    // optional: do not emit nulls if you prefer
-                    // opts.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 });
 
-            // Learn more about configuring Swagger/OpenAPI
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
-
-            // Allow React frontend (register the policy)
+            // 9) CORS policy for React frontend
+            // Allow cross-origin requests from the React frontend with specific headers and methods.
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowReactApp", policy =>
@@ -99,30 +114,26 @@ namespace LeadgerLink.Server
                           .AllowCredentials());
             });
 
-            // Register IHttpContextAccessor for services needing HttpContext (e.g., AuditLogger)
-            builder.Services.AddHttpContextAccessor();
-
-            // Register Audit logger
-            builder.Services.AddScoped<IAuditLogger, AuditLogger>();
-
-            // Register Email service (MailKit SMTP)
-            builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-            builder.Services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SmtpOptions>>().Value);
-            builder.Services.AddSingleton<IEmailService, EmailService>();
+            // 10) Swagger/OpenAPI
+            // Add Swagger for API documentation and testing in development mode.
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen();
 
             // Add HttpClient for GeminiChatService
             builder.Services.AddHttpClient<GeminiChatService>();
 
             var app = builder.Build();
 
-            // Seed admin user
+            // Seed data
+            // Seed the admin user and test users into the database.
             await SeedAdminUser(app);
             await SeedTestUsers(app);
 
+            // Middleware configuration
+            // Configure middleware for serving static files, enabling Swagger, and handling requests.
             app.UseDefaultFiles();
             app.UseStaticFiles();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -130,14 +141,13 @@ namespace LeadgerLink.Server
             }
 
             app.UseHttpsRedirection();
-
             app.UseCors("AllowReactApp");   // enable CORS 
             app.UseAuthentication();
             app.UseAuthorization();
 
-
+            // Map controllers and fallback
+            // Map API controllers and fallback to the React frontend for unmatched routes.
             app.MapControllers();
-
             app.MapFallbackToFile("/index.html");
 
             app.Run();

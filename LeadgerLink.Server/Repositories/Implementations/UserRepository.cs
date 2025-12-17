@@ -106,5 +106,65 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .AsNoTracking()
                 .FirstOrDefaultAsync();
         }
+
+        // Deactivates a user by setting IsActive to false and clearing their StoreId.
+        public async Task DeactivateStoreManagerAsync(int userId)
+        {
+            // Fetch the user with tracking enabled
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            if (user != null)
+            {
+                // Update user properties
+                user.IsActive = false;
+                user.StoreId = null;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                _context.Users.Attach(user);
+                _context.Entry(user).Property(u => u.IsActive).IsModified = true;
+                _context.Entry(user).Property(u => u.StoreId).IsModified = true;
+                _context.Entry(user).Property(u => u.UpdatedAt).IsModified = true;
+
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Activates a user by setting IsActive to true and assigning them to a store.
+        public async Task ActivateStoreManagerAsync(int userId, int storeId)
+        {
+            // Fetch the user with tracking enabled
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            if (user != null)
+            {
+                // Update user properties
+                user.IsActive = true;
+                user.StoreId = storeId;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                _context.Users.Attach(user);
+                _context.Entry(user).Property(u => u.IsActive).IsModified = true;
+                _context.Entry(user).Property(u => u.StoreId).IsModified = true;
+                _context.Entry(user).Property(u => u.UpdatedAt).IsModified = true;
+
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task<User> GetByIdRelationAsync(int id)
+        {
+            return await _context.Users
+                .Include(u => u.Role) // Include the Role navigation property
+                .FirstOrDefaultAsync(u => u.UserId == id);
+        }
+
     }
 }

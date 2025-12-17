@@ -20,11 +20,9 @@ public partial class AuditLog
     public DateTime Timestamp { get; set; }
 
     [Column("old_value")]
-    [StringLength(700)]
     public string? OldValue { get; set; }
 
     [Column("new_value")]
-    [StringLength(700)]
     public string? NewValue { get; set; }
 
     [Column("details")]

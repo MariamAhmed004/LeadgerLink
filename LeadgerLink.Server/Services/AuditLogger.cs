@@ -7,6 +7,7 @@ using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 // AuditLogger setup summary (for future reference):
 // - ActionTypeId mapping (fixed ids):
@@ -31,20 +32,26 @@ namespace LeadgerLink.Server.Services
         Task LogLoginAsync(string? details = null);
         Task LogLogoutAsync(string? details = null);
         Task LogAsync(string actionName, int? userId, string? affectedData, string? previousValue, string? currentValue, string? details, int? auditLogLevelId = null);
+        Task LogPasswordResetAsync(string action, string email, string? details = null);
     }
 
     // Optional change-tracking + convenience logger
     public class AuditLogger : IAuditLogger
     {
-        private readonly LedgerLinkDbContext _db;
+        private readonly IServiceProvider _serviceProvider;
         private readonly IAuditLogRepository _repo;
         private readonly IHttpContextAccessor _http;
 
-        public AuditLogger(LedgerLinkDbContext db, IAuditLogRepository repo, IHttpContextAccessor http)
+        public AuditLogger(IServiceProvider serviceProvider, IAuditLogRepository repo, IHttpContextAccessor http)
         {
-            _db = db;
+            _serviceProvider = serviceProvider;
             _repo = repo;
             _http = http;
+        }
+
+        private LedgerLinkDbContext ResolveDbContext()
+        {
+            return _serviceProvider.GetRequiredService<LedgerLinkDbContext>();
         }
 
         private int? ResolveUserId()
@@ -54,7 +61,9 @@ namespace LeadgerLink.Server.Services
                 var email = _http.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Email)?.Value
                             ?? _http.HttpContext?.User?.Identity?.Name;
                 if (string.IsNullOrWhiteSpace(email)) return null;
-                var user = _db.Users.FirstOrDefault(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+                var db = ResolveDbContext();
+                var user = db.Users.FirstOrDefault(u => u.Email != null && u.Email.ToLower() == email.ToLower());
                 return user?.UserId;
             }
             catch { return null; }
@@ -62,9 +71,10 @@ namespace LeadgerLink.Server.Services
 
         public async Task TrackChangesAsync(int? auditLogLevelId = null)
         {
+            var db = ResolveDbContext();
             var userId = ResolveUserId();
 
-            var entries = _db.ChangeTracker.Entries()
+            var entries = db.ChangeTracker.Entries()
                 .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added || e.State == EntityState.Deleted)
                 .ToList();
 
@@ -177,6 +187,22 @@ namespace LeadgerLink.Server.Services
                 ActionTypeId = MapActionType(actionName),
                 AuditLogLevelId = auditLogLevelId,
                 UserId = userId ?? ResolveUserId()
+            };
+            await _repo.AddAsync(log);
+        }
+
+        // Logs password reset actions (e.g., request or completion).
+        public async Task LogPasswordResetAsync(string action, string email, string? details = null)
+        {
+            var log = new AuditLog
+            {
+                Timestamp = DateTime.UtcNow,
+                OldValue = null,
+                NewValue = details,
+                Details = $"{action} for {email}",
+                ActionTypeId = MapActionType("edit"), 
+                AuditLogLevelId = null, // Generic level for password reset actions
+                UserId = ResolveUserId()
             };
             await _repo.AddAsync(log);
         }

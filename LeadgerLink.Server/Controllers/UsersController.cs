@@ -1,97 +1,125 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
+﻿using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/users")]
     public class UsersController : ControllerBase
     {
+        // Manager for handling identity user operations
         private readonly UserManager<ApplicationUser> _userManager;
+
+        // Repository for managing user-related data
         private readonly IUserRepository _userRepository;
+
+        // Repository for managing role-related data
         private readonly IRepository<Role> _roleRepository;
-        private readonly IRepository<Store> _storeRepository;
+
+        // Repository for managing store-related data
+        private readonly IStoreRepository _storeRepository;
+
+        // Logger for logging errors and information
         private readonly ILogger<UsersController> _logger;
 
+        // Context for managing audit-related data
+        private readonly IAuditContext _auditContext;
+
+        // Constructor to initialize dependencies
         public UsersController(
             UserManager<ApplicationUser> userManager,
             IUserRepository userRepository,
             IRepository<Role> roleRepository,
-            IRepository<Store> storeRepository,
-            ILogger<UsersController> logger)
+            IStoreRepository storeRepository,
+            ILogger<UsersController> logger,
+            IAuditContext auditContext)
         {
             _userManager = userManager;
             _userRepository = userRepository;
             _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
             _storeRepository = storeRepository ?? throw new ArgumentNullException(nameof(storeRepository));
             _logger = logger;
+            _auditContext = auditContext;
         }
 
         // GET: api/users
-        // Return a lightweight projection (reuses UserDetailDto) for the list endpoint.
-        // Optional query: orgId, storeId
+        // Retrieves a list of users with optional filters for organization and store.
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDetailDto>>> GetAll([FromQuery] int? orgId = null, [FromQuery] int? storeId = null)
         {
+            // Fetch the list of users
             var list = await _userRepository.GetListAsync();
 
+            // Apply organization filter if provided
             if (orgId.HasValue)
                 list = list.Where(u => (u.OrgId ?? 0) == orgId.Value).ToList();
 
+            // Apply store filter if provided
             if (storeId.HasValue)
                 list = list.Where(u => (u.StoreId ?? 0) == storeId.Value).ToList();
 
+            // Return the result
             return Ok(list);
         }
 
         // GET: api/users/{id}
-        // Return DTO projection to ensure view has only required scalars (avoids cycles)
+        // Retrieves detailed information about a specific user.
         [HttpGet("{id:int}")]
         public async Task<ActionResult<UserDetailDto>> GetById(int id)
         {
+            // Fetch the user details
             var dto = await _userRepository.GetDetailByIdAsync(id);
             if (dto == null) return NotFound();
+
+            // Return the result
             return Ok(dto);
         }
 
         // GET: api/users/count
-        // Optional query parameter: orgId
+        // Counts the total number of users with an optional organization filter.
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count([FromQuery] int? orgId)
         {
+            // Count users based on the organization filter
             if (orgId.HasValue)
             {
                 var c = await _userRepository.CountAsync(u => u.OrgId == orgId.Value);
                 return Ok(c);
             }
 
+            // Count all users if no filter is provided
             var total = await _userRepository.CountAsync(u => true);
             return Ok(total);
         }
 
         // PUT: api/users/{id}
-        // Updates basic profile fields: firstName, lastName, phone, isActive, and optionally StoreId
-        // If reassignStoreManager is true, unassign and deactivate previous manager of the store
+        // Updates basic profile fields for a specific user.
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
         {
+            // Validate the input DTO
             if (dto == null) return BadRequest("Invalid payload.");
 
-            var existing = await _userRepository.GetByIdAsync(id);
+            // Fetch the existing user
+            var existing = await _userRepository.GetByIdRelationAsync(id);
             if (existing == null) return NotFound();
 
-            // Server-side validations (minimal)
+            // Validate input fields
             if (!string.IsNullOrWhiteSpace(dto.FirstName) && dto.FirstName.Trim().Length < 2)
                 return BadRequest("First name must be at least 2 characters.");
             if (!string.IsNullOrWhiteSpace(dto.LastName) && dto.LastName.Trim().Length < 2)
@@ -99,50 +127,44 @@ namespace LeadgerLink.Server.Controllers
             if (!string.IsNullOrWhiteSpace(dto.Phone) && dto.Phone.Trim().Length < 3)
                 return BadRequest("Phone must be at least 3 characters.");
 
+            // Update user fields
             existing.UserFirstname = string.IsNullOrWhiteSpace(dto.FirstName) ? existing.UserFirstname : dto.FirstName!.Trim();
             existing.UserLastname = string.IsNullOrWhiteSpace(dto.LastName) ? existing.UserLastname : dto.LastName!.Trim();
             existing.Phone = dto.Phone == null ? existing.Phone : dto.Phone!.Trim();
             existing.IsActive = dto.IsActive;
 
-            // Store Manager reassignment logic
+            // Set the audit context user ID
+            await SetAuditContextUserId();
+
+            // Handle store manager reassignment logic
             if (dto.StoreId.HasValue)
             {
-                // Only run logic if indicator is set and role is Store Manager
                 if (dto.ReassignStoreManager == true && existing.Role != null && existing.Role.RoleTitle == "Store Manager")
                 {
-                    // Find previous manager for the store
-                    var store = await _storeRepository.GetByIdAsync(dto.StoreId.Value);
-                    if (store != null && store.UserId.HasValue && store.UserId.Value != id)
-                    {
-                        var prevManager = await _userRepository.GetByIdAsync(store.UserId.Value);
-                        if (prevManager != null)
-                        {
-                            prevManager.StoreId = null;
-                            prevManager.IsActive = false;
-                            prevManager.UpdatedAt = DateTime.UtcNow;
-                            await _userRepository.UpdateAsync(prevManager);
-                        }
-                    }
-                    // Assign this user as manager
-                    store.UserId = id;
-                    await _storeRepository.UpdateAsync(store);
+                   
+                    // Reassign the store manager
+                    await _storeRepository.ReassignStoreManagerAsync(id, existing.StoreId, dto.StoreId);
                 }
+
+                // Update the store ID
                 existing.StoreId = dto.StoreId.Value;
             }
 
+            // Update the user
             existing.UpdatedAt = DateTime.UtcNow;
             await _userRepository.UpdateAsync(existing);
             return NoContent();
         }
 
         // POST: api/users
-        // Creates both an Identity user and a domain User record.
+        // Creates both an Identity user and a domain user record.
         [HttpPost]
         public async Task<IActionResult> AddUser([FromBody] AddUserDto model)
         {
+            // Validate the input model
             if (model == null) return BadRequest("Request body is required.");
 
-            // Basic required fields
+            // Validate required fields
             if (string.IsNullOrWhiteSpace(model.Username) ||
                 string.IsNullOrWhiteSpace(model.Email) ||
                 string.IsNullOrWhiteSpace(model.Password))
@@ -150,7 +172,7 @@ namespace LeadgerLink.Server.Controllers
                 return BadRequest("Username, Email and Password are required.");
             }
 
-            // Email format
+            // Validate email format
             if (!Regex.IsMatch(model.Email.Trim(), @"^\S+@\S+\.\S+$", RegexOptions.Compiled))
             {
                 return BadRequest("Invalid email address.");
@@ -162,7 +184,7 @@ namespace LeadgerLink.Server.Controllers
                 return BadRequest("Cannot create Application Admin users through this endpoint.");
             }
 
-            // Password basic policy (server-side). Adjust to match identity password policy if needed.
+            // Validate password policy
             if (model.Password.Length < 8 ||
                 !Regex.IsMatch(model.Password, @"[A-Z]") ||
                 !Regex.IsMatch(model.Password, @"[a-z]") ||
@@ -171,7 +193,7 @@ namespace LeadgerLink.Server.Controllers
                 return BadRequest("Password must be at least 8 characters and include upper, lower and number.");
             }
 
-            // Role -> store dependency: if role is store-level require StoreId
+            // Validate role and store dependency
             var roleName = model.Role?.Trim();
             var roleRequiresStore = roleName == "Store Manager" || roleName == "Store Employee";
             if (roleRequiresStore && !model.StoreId.HasValue)
@@ -179,7 +201,7 @@ namespace LeadgerLink.Server.Controllers
                 return BadRequest("Store selection is required for the selected role.");
             }
 
-            // Require organization (client-side already does this; enforce here)
+            // Validate organization
             if (!model.OrgId.HasValue)
             {
                 return BadRequest("Organization is required.");
@@ -191,6 +213,9 @@ namespace LeadgerLink.Server.Controllers
             {
                 return Conflict("A user with the same email already exists.");
             }
+
+            // Set the audit context user ID
+            await SetAuditContextUserId();
 
             // Create identity user
             var appUser = new ApplicationUser
@@ -211,11 +236,9 @@ namespace LeadgerLink.Server.Controllers
             {
                 if (!string.IsNullOrWhiteSpace(roleName))
                 {
-                    // Add role to Identity user (assume roles seeded in AspNetRoles)
                     await _userManager.AddToRoleAsync(appUser, roleName);
                 }
 
-                // Resolve domain Role FK: find role entity by title
                 var roles = await _roleRepository.GetAllAsync();
                 Role roleEntity = null;
                 if (!string.IsNullOrWhiteSpace(roleName))
@@ -228,7 +251,6 @@ namespace LeadgerLink.Server.Controllers
                 }
                 else
                 {
-                    // if no role supplied, pick a sensible default (Store Employee) if exists
                     roleEntity = roles.FirstOrDefault(r => r.RoleTitle == "Store Employee");
                     if (roleEntity == null)
                     {
@@ -236,7 +258,6 @@ namespace LeadgerLink.Server.Controllers
                     }
                 }
 
-                // create domain user record with RoleId set to avoid FK conflict
                 var domainUser = new User
                 {
                     UserFirstname = model.FirstName,
@@ -252,15 +273,12 @@ namespace LeadgerLink.Server.Controllers
                 };
 
                 var created = await _userRepository.AddAsync(domainUser);
-
-                // return DTO for created resource (consistent with GetById)
                 var createdDto = await _userRepository.GetDetailByIdAsync(created.UserId);
                 return CreatedAtAction(nameof(GetById), new { id = created.UserId }, createdDto);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to create domain user after identity creation. Rolling back identity user.");
-                // Attempt to clean up the created identity user to avoid orphaned identity record
                 var createdIdentity = await _userManager.FindByEmailAsync(model.Email.Trim());
                 if (createdIdentity != null)
                 {
@@ -269,15 +287,29 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to create user.");
             }
         }
-    }
 
-    public class UpdateUserDto
-    {
-        public string? FirstName { get; set; }
-        public string? LastName { get; set; }
-        public string? Phone { get; set; }
-        public bool IsActive { get; set; }
-        public int? StoreId { get; set; }
-        public bool? ReassignStoreManager { get; set; } // indicator for store manager reassignment
+        // Resolves the user ID from the current user's claims.
+        private async Task<int?> ResolveUserIdAsync()
+        {
+            // Extract the email from the user's claims or identity
+            var email = User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User?.Identity?.Name;
+
+            // Return null if the email is missing or invalid
+            if (string.IsNullOrWhiteSpace(email)) return null;
+
+            // Fetch the user from the repository using the email
+            var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+            // Return the user ID if the user exists, otherwise return null
+            return user?.UserId;
+        }
+
+        // Sets the audit context user ID based on the current user's claims.
+        private async Task SetAuditContextUserId()
+        {
+            // Resolve the user ID and set it in the audit context
+            _auditContext.UserId = await ResolveUserIdAsync();
+        }
     }
 }

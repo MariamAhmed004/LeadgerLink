@@ -18,5 +18,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return list projection for users (reuses UserDetailDto fields as needed)
         Task<IEnumerable<UserDetailDto>> GetListAsync();
+        Task ActivateStoreManagerAsync(int userId, int storeId);
+            Task DeactivateStoreManagerAsync(int userId);
+        Task<User> GetByIdRelationAsync(int id);
     }
 }

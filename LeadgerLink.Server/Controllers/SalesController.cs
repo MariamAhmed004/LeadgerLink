@@ -10,62 +10,77 @@ using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
+using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize(Roles = "Organization Admin,Organization Accountant,Store Manager,Store Employee")]
     [Route("api/sales")]
     public class SalesController : ControllerBase
     {
+        // Database context for managing database operations
         private readonly LedgerLinkDbContext _context;
+
+        // Repository for managing sale-related data
         private readonly ISaleRepository _saleRepository;
+
+        // Repository for managing user-related data
         private readonly IUserRepository _userRepository;
+
+        // Repository for managing payment method-related data
         private readonly IRepository<PaymentMethod> _paymentMethodRepo;
+
+        // Logger for logging errors and information
         private readonly ILogger<SalesController> _logger;
 
+        // Repository for managing user-related data (duplicate reference)
+        private readonly IUserRepository _usersRepsitory;
+
+        // Context for managing audit-related data
+        private readonly IAuditContext _auditContext;
+
+        // Constructor to initialize dependencies
         public SalesController(
             LedgerLinkDbContext context,
             ISaleRepository saleRepository,
             IUserRepository userRepository,
             IRepository<PaymentMethod> paymentMethodRepo,
-            ILogger<SalesController> logger)
+            ILogger<SalesController> logger,
+            IUserRepository usersRepsitory, 
+            IAuditContext auditContext)
         {
             _context = context;
             _saleRepository = saleRepository;
             _userRepository = userRepository;
             _paymentMethodRepo = paymentMethodRepo;
             _logger = logger;
+            _usersRepsitory = usersRepsitory;
+            _auditContext = auditContext;
         }
 
-        // GET api/sales/sum?organizationId=5&from=2025-11-27&to=2025-11-27
+        // GET api/sales/sum
         // Returns the sum of TotalAmount for sales belonging to stores of the specified organization.
-        // Optional from/to filter by date (YYYY-MM-DD). If omitted, all matching rows are summed.
         [HttpGet("sum")]
         public async Task<ActionResult<decimal>> Sum(
             [FromQuery] int organizationId,
             [FromQuery] DateTime? from = null,
             [FromQuery] DateTime? to = null)
         {
-            var q = _context.Sales
-                .Include(s => s.Store)
-                .AsQueryable();
-
-            q = q.Where(s => s.Store != null && s.Store.OrgId == organizationId);
-
-            if (from.HasValue)
+            try
             {
-                var fromDate = from.Value.Date;
-                q = q.Where(s => s.Timestamp >= fromDate);
-            }
+                // Delegate the query logic to the repository
+                var total = await _saleRepository.SumSalesForOrganizationAsync(organizationId, from, to);
 
-            if (to.HasValue)
+                // Return the result
+                return Ok(total);
+            }
+            catch (Exception ex)
             {
-                var toDate = to.Value.Date.AddDays(1).AddTicks(-1);
-                q = q.Where(s => s.Timestamp <= toDate);
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to calculate sales sum for organization {OrgId}", organizationId);
+                return StatusCode(500, "Failed to calculate sales sum.");
             }
-
-            var sum = await q.SumAsync(s => (decimal?)s.TotalAmount);
-            return Ok(sum ?? 0m);
         }
 
         // GET api/sales/payment-methods
@@ -73,10 +88,15 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("payment-methods")]
         public async Task<ActionResult<IEnumerable<object>>> GetPaymentMethods()
         {
+            // Fetch all payment methods
             var all = await _paymentMethodRepo.GetAllAsync();
+
+            // Map payment methods to a lightweight DTO
             var items = (all ?? Enumerable.Empty<PaymentMethod>())
                 .Select(pm => new { paymentMethodId = pm.PaymentMethodId, name = pm.PaymentMethodName })
                 .ToList();
+
+            // Return the result
             return Ok(items);
         }
 
@@ -86,29 +106,38 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("current-store-month")]
         public async Task<ActionResult<decimal>> SumForCurrentStoreMonth()
         {
-            if (User?.Identity?.IsAuthenticated != true)
-                return Unauthorized();
+            try
+            {
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true)
+                    return Unauthorized();
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
+                // Resolve the user's email
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
 
-            if (string.IsNullOrWhiteSpace(email))
-                return Unauthorized();
+                if (string.IsNullOrWhiteSpace(email))
+                    return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (user == null || !user.StoreId.HasValue)
-                return Ok(0m);
+                // Fetch the user's store ID
+                var user = await _usersRepsitory.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (user == null || !user.StoreId.HasValue)
+                    return Ok(0m);
 
-            var storeId = user.StoreId.Value;
-            var now = DateTime.UtcNow;
-            var year = now.Year;
-            var month = now.Month;
+                var storeId = user.StoreId.Value;
 
-            var sum = await _context.Sales
-                .Where(s => s.StoreId == storeId && s.Timestamp.Year == year && s.Timestamp.Month == month)
-                .SumAsync(s => (decimal?)s.TotalAmount);
+                // Delegate the query logic to the repository
+                var total = await _saleRepository.SumSalesForCurrentMonthAsync(storeId);
 
-            return Ok(sum ?? 0m);
+                // Return the result
+                return Ok(total);
+            }
+            catch (Exception ex)
+            {
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to calculate sales sum for the current store month");
+                return StatusCode(500, "Failed to calculate sales sum.");
+            }
         }
 
         // GET api/sales/best-for-current-store
@@ -117,57 +146,49 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("best-for-current-store")]
         public async Task<ActionResult<BestSellingRecipeDto?>> GetBestSellingRecipeForCurrentStore()
         {
-            if (User?.Identity?.IsAuthenticated != true)
-                return Unauthorized();
+            try
+            {
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true)
+                    return Unauthorized();
 
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
+                // Resolve the user's email
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
 
-            if (string.IsNullOrWhiteSpace(email))
-                return Unauthorized();
+                if (string.IsNullOrWhiteSpace(email))
+                    return Unauthorized();
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-            if (user == null || !user.StoreId.HasValue)
-                return Ok(null);
+                // Fetch the user's store ID
+                var user = await _usersRepsitory.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+                if (user == null || !user.StoreId.HasValue)
+                    return Ok(null);
 
-            var storeId = user.StoreId.Value;
+                var storeId = user.StoreId.Value;
 
-            var top = await _context.SaleItems
-                .Include(si => si.Sale)
-                .Include(si => si.Product)
-                .Where(si => si.Sale != null
-                             && si.Sale.StoreId == storeId
-                             && si.Product != null
-                             && si.Product.RecipeId != null)
-                .GroupBy(si => si.Product!.RecipeId)
-                .Select(g => new { RecipeId = g.Key, TotalQty = g.Sum(si => si.Quantity) })
-                .OrderByDescending(x => x.TotalQty)
-                .FirstOrDefaultAsync();
+                // Delegate the query logic to the repository
+                var bestSellingRecipe = await _saleRepository.GetBestSellingRecipeForStoreAsync(storeId);
 
-            if (top == null || top.RecipeId == null)
-                return Ok(null);
-
-            var recipe = await _context.Recipes
-                .Where(r => r.RecipeId == top.RecipeId)
-                .Select(r => new BestSellingRecipeDto
-                {
-                    RecipeId = r.RecipeId,
-                    RecipeName = r.RecipeName,
-                    TotalQuantity = top.TotalQty
-                })
-                .FirstOrDefaultAsync();
-
-            return Ok(recipe);
+                // Return the result
+                return Ok(bestSellingRecipe);
+            }
+            catch (Exception ex)
+            {
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to retrieve best-selling recipe for the current store");
+                return StatusCode(500, "Failed to retrieve best-selling recipe.");
+            }
         }
 
         // GET api/sales?storeId=5
-        // If storeId is provided it returns sales for that store, otherwise it resolves the current authenticated user's store and returns sales for it.
+        // If storeId is provided, it returns sales for that store; otherwise, it resolves the current authenticated user's store and returns sales for it.
         [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<SaleListDto>>> GetSalesByStore([FromQuery] int? storeId)
         {
             int resolvedStoreId;
 
+            // Resolve the store ID
             if (storeId.HasValue)
             {
                 resolvedStoreId = storeId.Value;
@@ -179,95 +200,89 @@ namespace LeadgerLink.Server.Controllers
                 resolvedStoreId = resolved.Value;
             }
 
+            // Fetch sales for the resolved store
             var sales = await _saleRepository.GetSalesByStoreAsync(resolvedStoreId);
+
+            // Return the result
             return Ok(sales);
         }
 
         // POST api/sales
+        // Creates a new sale with items for the specified or resolved store.
         [Authorize]
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateSaleDto dto, [FromQuery] int? storeId)
         {
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-            if (dto == null) return BadRequest("Body is required.");
-
-            // Resolve store id:
-            int? resolvedStoreId = null;
-            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
-
-            if (isOrgAdmin && storeId.HasValue)
-            {
-                resolvedStoreId = storeId.Value;
-            }
-            else
-            {
-                resolvedStoreId = await ResolveStoreIdForCurrentUserAsync();
-            }
-
-            if (!resolvedStoreId.HasValue) return Unauthorized();
-
-            var hasItems = dto.Items != null && dto.Items.Any(i => i != null && i.ProductId > 0 && i.Quantity > 0);
-            if (!hasItems) return BadRequest("At least one item (product/recipe) must be selected.");
-
-            // Resolve current logged-in user id (always use this; ignore dto.UserId)
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? User.Identity?.Name;
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email!.ToLower());
-            if (domainUser == null) return Unauthorized();
-            var currentUserId = domainUser.UserId;
-
-            // optional: validate payment method exists
-            if (dto.PaymentMethodId.HasValue)
-            {
-                var pmExists = await _context.PaymentMethods.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
-                if (!pmExists) return BadRequest("Invalid payment method.");
-            }
-
-            await using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                var sale = new Sale
-                {
-                    Timestamp = dto.Timestamp == default ? DateTime.UtcNow : dto.Timestamp,
-                    UserId = currentUserId, // always the current logged-in user
-                    StoreId = resolvedStoreId.Value,
-                    TotalAmount = dto.TotalAmount,
-                    AppliedDiscount = dto.AppliedDiscount,
-                    PaymentMethodId = dto.PaymentMethodId,
-                    Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
-                    CreatedAt = DateTime.UtcNow.ToString("o"),
-                    UpdatedAt = DateTime.UtcNow.ToString("o")
-                };
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-                _context.Sales.Add(sale);
-                await _context.SaveChangesAsync();
+                // Validate the request body
+                if (dto == null) return BadRequest("Body is required.");
 
-                // insert items
-                foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
+                // Resolve the store ID
+                int? resolvedStoreId = null;
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+
+                if (isOrgAdmin && storeId.HasValue)
                 {
-                    var item = new SaleItem
-                    {
-                        SaleId = sale.SaleId,
-                        ProductId = it.ProductId,
-                        Quantity = it.Quantity
-                    };
-                    _context.SaleItems.Add(item);
+                    resolvedStoreId = storeId.Value;
+                }
+                else
+                {
+                    resolvedStoreId = await ResolveStoreIdForCurrentUserAsync();
                 }
 
-                await _context.SaveChangesAsync();
-                await tx.CommitAsync();
+                if (!resolvedStoreId.HasValue) return Unauthorized();
 
-                return CreatedAtAction(nameof(GetSalesByStore), new { storeId = resolvedStoreId.Value }, new { saleId = sale.SaleId });
-            }
-            catch (DbUpdateException ex)
-            {
-                await tx.RollbackAsync();
-                return StatusCode(500, ex.Message);
+                // Validate sale items
+                var hasItems = dto.Items != null && dto.Items.Any(i => i != null && i.ProductId > 0 && i.Quantity > 0);
+                if (!hasItems) return BadRequest("At least one item (product/recipe) must be selected.");
+
+                // Resolve the current logged-in user ID
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                            ?? User.Identity?.Name;
+                var domainUser = await _usersRepsitory.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email!.ToLower());
+                if (domainUser == null) return Unauthorized();
+                var currentUserId = domainUser.UserId;
+
+                // Validate the payment method if provided
+                if (dto.PaymentMethodId.HasValue)
+                {
+                    var pmExists = await _paymentMethodRepo.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
+                    if (!pmExists) return BadRequest("Invalid payment method.");
+                }
+
+                // Set the audit context user ID
+                await SetAuditContextUserId();
+
+                // Begin a database transaction
+                await using var tx = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Delegate the sale creation logic to the repository
+                    var saleId = await _saleRepository.CreateSaleAsync(dto, resolvedStoreId.Value, currentUserId);
+
+                    // Commit the transaction
+                    await tx.CommitAsync();
+
+                    // Return the result
+                    return CreatedAtAction(nameof(GetSalesByStore), new { storeId = resolvedStoreId.Value }, new { saleId });
+                }
+                catch (Exception ex)
+                {
+                    // Rollback the transaction on error
+                    await tx.RollbackAsync();
+                    _logger.LogError(ex, "Failed to create sale");
+                    return StatusCode(500, "Failed to create sale.");
+                }
             }
             catch (Exception ex)
             {
-                await tx.RollbackAsync();
-                return StatusCode(500, ex.Message);
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "An error occurred while creating the sale");
+                return StatusCode(500, "An error occurred while creating the sale.");
             }
         }
 
@@ -279,18 +294,23 @@ namespace LeadgerLink.Server.Controllers
         {
             int resolvedStoreId;
 
+            // Resolve the store ID
             if (storeId.HasValue)
             {
                 resolvedStoreId = storeId.Value;
             }
             else
             {
+                // Resolve the store ID for the current authenticated user
                 var resolved = await ResolveStoreIdForCurrentUserAsync();
                 if (!resolved.HasValue) return Unauthorized();
                 resolvedStoreId = resolved.Value;
             }
 
+            // Fetch users for the resolved store
             var users = await _userRepository.GetUsersByStoreAsync(resolvedStoreId);
+
+            // Return the result
             return Ok(users);
         }
 
@@ -299,94 +319,74 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("{id:int}")]
         public async Task<ActionResult<SaleDetailDto>> GetById(int id)
         {
-            var sale = await _context.Sales
-                .Include(s => s.PaymentMethod)
-                .Include(s => s.SaleItems)
-                    .ThenInclude(si => si.Product)
-                .FirstOrDefaultAsync(s => s.SaleId == id);
-
-            if (sale == null) return NotFound();
-
-            var dto = new SaleDetailDto
+            try
             {
-                SaleId = sale.SaleId,
-                Timestamp = sale.Timestamp,
-                TotalAmount = sale.TotalAmount,
-                AppliedDiscount = sale.AppliedDiscount,
-                PaymentMethodId = sale.PaymentMethodId,
-                PaymentMethodName = sale.PaymentMethod?.PaymentMethodName,
-                Notes = sale.Notes,
-                CreatedById = sale.UserId,
-                CreatedByName = await _context.Users
-                    .Where(u => u.UserId == sale.UserId)
-                    .Select(u => ((u.UserFirstname ?? "") + " " + (u.UserLastname ?? "")).Trim())
-                    .FirstOrDefaultAsync(),
-                CreatedAt = sale.CreatedAt,
-                UpdatedAt = sale.UpdatedAt,
-                SaleItems = sale.SaleItems.Select(si => new SaleItemDetailDto
-                {
-                    ProductId = si.ProductId,
-                    Quantity = si.Quantity,
-                    ProductName = si.Product?.ProductName
-                }).ToList()
-            };
+                // Delegate the query logic to the repository
+                var saleDetail = await _saleRepository.GetSaleByIdAsync(id);
 
-            return Ok(dto);
+                // Return 404 if no sale is found
+                if (saleDetail == null) return NotFound();
+
+                // Return the result
+                return Ok(saleDetail);
+            }
+            catch (Exception ex)
+            {
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to retrieve sale details for sale ID {SaleId}", id);
+                return StatusCode(500, "Failed to retrieve sale details.");
+            }
         }
 
         // PUT api/sales/{id}
+        // Updates an existing sale with new details and items.
         [Authorize]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateSaleDto dto)
         {
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Validate the request body
             if (dto == null) return BadRequest("Invalid payload.");
 
-            var sale = await _context.Sales.Include(s => s.SaleItems).FirstOrDefaultAsync(s => s.SaleId == id);
-            if (sale == null) return NotFound();
-
+            // Validate sale items
             var hasItems = dto.Items != null && dto.Items.Any(i => i != null && i.ProductId > 0 && i.Quantity > 0);
             if (!hasItems) return BadRequest("At least one item (product/recipe) must be selected.");
 
+            // Validate the payment method if provided
             if (dto.PaymentMethodId.HasValue)
             {
-                var pmExists = await _context.PaymentMethods.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
+                var pmExists = await _paymentMethodRepo.AnyAsync(p => p.PaymentMethodId == dto.PaymentMethodId.Value);
                 if (!pmExists) return BadRequest("Invalid payment method.");
             }
 
+            // Set the audit context user ID
+            await SetAuditContextUserId();
+
+            // Begin a database transaction
             await using var tx = await _context.Database.BeginTransactionAsync();
             try
             {
-                sale.Timestamp = dto.Timestamp == default ? sale.Timestamp : dto.Timestamp;
-                sale.TotalAmount = dto.TotalAmount;
-                sale.AppliedDiscount = dto.AppliedDiscount;
-                sale.PaymentMethodId = dto.PaymentMethodId;
-                sale.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim();
-                sale.UpdatedAt = DateTime.UtcNow.ToString("o");
+                // Delegate the update logic to the repository
+                var success = await _saleRepository.UpdateSaleAsync(id, dto);
 
-                // Replace existing sale items with those provided by client
-                _context.SaleItems.RemoveRange(sale.SaleItems);
-                foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
-                {
-                    _context.SaleItems.Add(new SaleItem
-                    {
-                        SaleId = sale.SaleId,
-                        ProductId = it.ProductId,
-                        Quantity = it.Quantity
-                    });
-                }
+                // If the update fails (e.g., sale not found), return NotFound
+                if (!success) return NotFound();
 
-                await _context.SaveChangesAsync();
+                // Commit the transaction
                 await tx.CommitAsync();
                 return NoContent();
             }
             catch (DbUpdateException ex)
             {
+                // Rollback the transaction on database update error
                 await tx.RollbackAsync();
                 return StatusCode(500, ex.Message);
             }
             catch (Exception ex)
             {
+                // Rollback the transaction on general error
                 await tx.RollbackAsync();
                 return StatusCode(500, ex.Message);
             }
@@ -404,7 +404,8 @@ namespace LeadgerLink.Server.Controllers
             if (string.IsNullOrWhiteSpace(email))
                 return null;
 
-            var domainUser = await _context.Users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            // Fetch the user from the repository
+            var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
             if (domainUser == null || !domainUser.StoreId.HasValue)
                 return null;
 
@@ -427,6 +428,30 @@ namespace LeadgerLink.Server.Controllers
                 _logger.LogError(ex, "Failed to load sales for organization {OrgId}", organizationId);
                 return StatusCode(500, "Failed to load sales");
             }
+        }
+
+        // Resolves the user ID from the current user's claims.
+        private async Task<int?> ResolveUserIdAsync()
+        {
+            // Extract the email from the user's claims or identity
+            var email = User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User?.Identity?.Name;
+
+            // Return null if the email is missing or invalid
+            if (string.IsNullOrWhiteSpace(email)) return null;
+
+            // Fetch the user from the repository using the email
+            var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+            // Return the user ID if the user exists, otherwise return null
+            return user?.UserId;
+        }
+
+        // Sets the audit context user ID based on the current user's claims.
+        private async Task SetAuditContextUserId()
+        {
+            // Resolve the user ID and set it in the audit context
+            _auditContext.UserId = await ResolveUserIdAsync();
         }
 
     }

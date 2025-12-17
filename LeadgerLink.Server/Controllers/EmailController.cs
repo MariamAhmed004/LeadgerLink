@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/email")] 
     public class EmailController : ControllerBase
     {

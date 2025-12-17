@@ -9,40 +9,60 @@ using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Contexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace LeadgerLink.Server.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/stores")]
     public class StoresController : ControllerBase
     {
+        // Repository for managing store-related data
         private readonly IStoreRepository _repository;
+
+        // Repository for managing operational status-related data
         private readonly IRepository<OperationalStatus> _lookupRepository;
+
+        // Repository for managing user-related data
         private readonly IUserRepository _userRepository;
+
+        // Repository for managing organization-related data
         private readonly IOrganizationRepository _organizationRepository;
+
+        // Logger for logging errors and information
         private readonly ILogger<StoresController> _logger;
 
+        // Context for managing audit-related data
+        private readonly IAuditContext _auditContext;
+
+        // Constructor to initialize dependencies
         public StoresController(
             IStoreRepository repository,
             IRepository<OperationalStatus> lookupRepository,
             IUserRepository userRepository,
             IOrganizationRepository organizationRepository,
-            ILogger<StoresController> logger)
+            ILogger<StoresController> logger,
+            IAuditContext auditContext)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _lookupRepository = lookupRepository ?? throw new ArgumentNullException(nameof(lookupRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _organizationRepository = organizationRepository ?? throw new ArgumentNullException(nameof(organizationRepository));
             _logger = logger;
+            _auditContext = auditContext;
         }
 
         // GET: api/stores
-        // Return all stores (projection). Consumers may rely on manager name and operational status in client logic.
+        // Retrieves all stores with manager name and operational status.
         [HttpGet]
         public async Task<ActionResult<IEnumerable<object>>> GetAll()
         {
+            // Fetch all stores with related data
             var stores = await _repository.GetAllWithRelationsAsync();
 
+            // Map stores to lightweight DTOs
             var dto = stores.Select(s => new
             {
                 storeId = s.StoreId,
@@ -55,17 +75,21 @@ namespace LeadgerLink.Server.Controllers
                 userId = s.UserId
             });
 
+            // Return the result
             return Ok(dto);
         }
 
         // GET api/stores/operationalstatuses
-        // Uses the generic repository to fetch operational statuses.
+        // Retrieves all operational statuses.
         [HttpGet("operationalstatuses")]
         public async Task<ActionResult<IEnumerable<object>>> GetOperationalStatuses()
         {
             try
             {
+                // Fetch all operational statuses
                 var statuses = await _lookupRepository.GetAllAsync();
+
+                // Map statuses to lightweight DTOs
                 var list = statuses
                     .Select(s => new
                     {
@@ -74,22 +98,26 @@ namespace LeadgerLink.Server.Controllers
                     })
                     .ToList();
 
+                // Return the result
                 return Ok(list);
             }
             catch (Exception ex)
             {
+                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load operational statuses");
                 return StatusCode(500, "Failed to load operational statuses");
             }
         }
 
         // GET: api/stores/by-organization/{organizationId}
-        // Return stores for a specific organization including manager name and operational status name.
+        // Retrieves stores for a specific organization with manager name and operational status.
         [HttpGet("by-organization/{organizationId:int}")]
         public async Task<ActionResult<IEnumerable<object>>> GetByOrganization(int organizationId)
         {
+            // Fetch stores for the specified organization
             var stores = await _repository.GetAllWithRelationsAsync(organizationId);
 
+            // Map stores to lightweight DTOs
             var filtered = stores
                 .Select(s => new
                 {
@@ -104,42 +132,49 @@ namespace LeadgerLink.Server.Controllers
                 })
                 .ToList();
 
+            // Return the result
             return Ok(filtered);
         }
 
         // GET: api/stores/count
-        // Optional query parameter: organizationId
+        // Counts the total number of stores with an optional organization filter.
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count([FromQuery] int? organizationId)
         {
+            // Count stores based on the organization filter
             if (organizationId.HasValue)
             {
                 var c = await _repository.CountAsync(s => s.OrgId == organizationId.Value);
                 return Ok(c);
             }
 
+            // Count all stores if no filter is provided
             var total = await _repository.CountAsync(s => true);
             return Ok(total);
         }
 
         // POST: api/stores
-        // Create a store. No server-side validation of DTO fields per request.
-        // OrgId is resolved from the currently authenticated user server-side.
-        [Authorize]
+        // Creates a new store for the authenticated user's organization.
+        [Authorize(Roles = "Organization Admin")]
         [HttpPost]
         public async Task<ActionResult> Create([FromBody] StoreCreateDto dto)
         {
+            // Validate the input DTO
             if (dto == null) return BadRequest("Request body is required.");
 
+            // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
+            // Resolve user email
             var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
                         ?? User.Identity?.Name;
             if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
+            await SetAuditContextUserId();
+
             try
             {
-                // Resolve domain user and organization for the caller
+                // Resolve the organization for the authenticated user
                 var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
                 int? resolvedOrgId = null;
 
@@ -158,7 +193,7 @@ namespace LeadgerLink.Server.Controllers
                     return BadRequest("Unable to determine organization for the current user.");
                 }
 
-                // Map DTO -> entity. Do not perform server-side validation of DTO fields.
+                // Map DTO to entity
                 var model = new Store
                 {
                     StoreName = dto.StoreName?.Trim(),
@@ -174,8 +209,10 @@ namespace LeadgerLink.Server.Controllers
                     UpdatedAt = DateTime.UtcNow
                 };
 
+                // Add the store to the repository
                 var created = await _repository.AddAsync(model);
 
+                // Map the created store to a DTO
                 var resultDto = new
                 {
                     storeId = created.StoreId,
@@ -191,36 +228,27 @@ namespace LeadgerLink.Server.Controllers
                     updatedAt = created.UpdatedAt
                 };
 
+                // Return the created store
                 return CreatedAtAction(nameof(GetById), new { id = created.StoreId }, resultDto);
             }
             catch (Exception ex)
             {
+                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to create store for user {Email}", email);
                 return StatusCode(500, "Failed to create store");
             }
         }
 
-        // helper to get organization by user id with safe error handling
-        private async Task<Organization?> _organization_repository_get(int userId)
-        {
-            try
-            {
-                return await _organizationRepository.GetOrganizationByUserIdAsync(userId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to get organization for user {UserId}", userId);
-                return null;
-            }
-        }
-
         // GET: api/stores/{id}
+        // Retrieves detailed information about a specific store.
         [HttpGet("{id:int}")]
         public async Task<ActionResult> GetById(int id)
         {
+            // Fetch the store details
             var store = await _repository.GetByIdWithRelationsAsync(id);
             if (store == null) return NotFound();
 
+            // Map the store to a DTO
             var dto = new
             {
                 storeId = store.StoreId,
@@ -233,36 +261,109 @@ namespace LeadgerLink.Server.Controllers
                 phoneNumber = store.PhoneNumber,
                 openingDate = store.OpeningDate,
                 operationalStatusName = store.OperationalStatus != null ? store.OperationalStatus.OperationalStatusName : null,
+                operationalStatusId = store.OperationalStatusId,
                 workingHours = store.WorkingHours,
                 createdAt = store.CreatedAt,
                 updatedAt = store.UpdatedAt
             };
 
+            // Return the result
             return Ok(dto);
         }
 
-        // PUT: api/stores/{id}
+        [Authorize(Roles = "Organization Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] Store model)
         {
             if (model == null || id != model.StoreId) return BadRequest();
 
-            var existing = await _repository.GetByIdAsync(id);
-            if (existing == null) return NotFound();
+            // Enable tracking for this operation
+            _auditContext.DisableTracking = false;
 
-            existing.StoreName = model.StoreName;
-            existing.Location = model.Location;
-            existing.Email = model.Email;
-            existing.PhoneNumber = model.PhoneNumber;
-            existing.OpeningDate = model.OpeningDate;
-            existing.OperationalStatusId = model.OperationalStatusId;
-            existing.WorkingHours = model.WorkingHours;
-            existing.UpdatedAt = DateTime.UtcNow;
+            try
+            {
+                // 1. Fetch the store (Tracked)
+                var existing = await _repository.GetByIdWithRelationsAsync(id);
+                if (existing == null) return NotFound();
 
-            await _repository.UpdateAsync(existing);
-            return NoContent();
+                // Authorization and Audit logic
+                var userId = await ResolveUserIdAsync();
+                var user = await _userRepository.GetByIdAsync(userId.Value);
+                if (user == null || existing.OrgId != user.OrgId) return Forbid();
+                await SetAuditContextUserId();
+
+                // 2. Prepare Manager Changes
+                if (existing.UserId != model.UserId)
+                {
+                    
+                    
+                    await _repository.ReassignManagerAsync(existing.StoreId, existing.UserId, model.UserId);
+                    
+                }
+// Update the UserId in the store only if ReassignManagerAsync succeeds
+                    existing.UserId = model.UserId;
+                existing.User = null; // Or fetch and assign the new user entity if needed
+                // 3. Update Store Fields
+                existing.StoreName = model.StoreName;
+                existing.Location = model.Location;
+                existing.Email = model.Email;
+                existing.PhoneNumber = model.PhoneNumber;
+                existing.OpeningDate = model.OpeningDate;
+                existing.OperationalStatusId = model.OperationalStatusId;
+                existing.WorkingHours = model.WorkingHours;
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                // 4. Save Everything
+                await _repository.UpdateAsync(existing);
+
+                return NoContent();
+            }
+            finally
+            {
+                // Reset tracking behavior
+                _auditContext.DisableTracking = true;
+            }
         }
 
 
+        // Helper to get organization by user ID with safe error handling.
+        private async Task<Organization?> _organization_repository_get(int userId)
+        {
+            try
+            {
+                // Fetch the organization for the specified user ID
+                return await _organizationRepository.GetOrganizationByUserIdAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                // Log the error and return null
+                _logger.LogError(ex, "Failed to get organization for user {UserId}", userId);
+                return null;
+            }
+        }
+
+        // Resolves the user ID from the current user's claims.
+        private async Task<int?> ResolveUserIdAsync()
+        {
+            // Extract the email from the user's claims or identity
+            var email = User?.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User?.Identity?.Name;
+
+            // Return null if the email is missing or invalid
+            if (string.IsNullOrWhiteSpace(email)) return null;
+
+            // Fetch the user from the repository using the email
+            var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+            // Return the user ID if the user exists, otherwise return null
+            return user?.UserId;
+        }
+
+        // Sets the audit context user ID based on the current user's claims.
+        private async Task SetAuditContextUserId()
+        {
+            // Resolve the user ID and set it in the audit context
+            _auditContext.UserId = await ResolveUserIdAsync();
+        }
     }
 }

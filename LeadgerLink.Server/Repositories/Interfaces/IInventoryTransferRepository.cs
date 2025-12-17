@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
@@ -57,5 +58,16 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Reject a transfer: update its status to "Rejected" and optionally override notes.
         Task RejectTransferAsync(int transferId, string? notes = null);
+
+        // Fetch transfer status by name.
+        Task<InventoryTransferStatus?> GetTransferStatusByNameAsync(string statusName);
+
+        // Add a new inventory transfer.
+        Task<InventoryTransfer> AddTransferAsync(InventoryTransfer transfer);
+
+        // Add a new transfer item.
+        Task AddTransferItemAsync(TransferItem transferItem);
+
+        Task<InventoryTransfer?> GetTransferWithStoresAsync(int transferId);
     }
 }
