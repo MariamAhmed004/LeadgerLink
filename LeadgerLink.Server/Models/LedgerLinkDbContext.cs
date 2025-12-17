@@ -7,6 +7,7 @@ using LeadgerLink.Server.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using LeadgerLink.Server.Contexts;
+using System.Data.Common;
 
 namespace LeadgerLink.Server.Models;
 
@@ -27,6 +28,14 @@ public partial class LedgerLinkDbContext : DbContext
     public LedgerLinkDbContext(DbContextOptions<LedgerLinkDbContext> options)
         : base(options)
     {
+    }
+
+    public LedgerLinkDbContext(DbConnection connection, IAuditContext auditContext)
+        : base(new DbContextOptionsBuilder<LedgerLinkDbContext>()
+            .UseSqlServer(connection)
+            .Options)
+    {
+        _auditContext = auditContext;
     }
 
     public virtual DbSet<ActionType> ActionTypes { get; set; }

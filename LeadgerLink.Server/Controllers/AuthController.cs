@@ -41,7 +41,7 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // POST api/auth/login
-        // Authenticates a user and logs them in.
+        // Authenticates a user and logs them in, ensuring the user is active.
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
@@ -49,7 +49,14 @@ namespace LeadgerLink.Server.Controllers
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user == null) return Unauthorized("Invalid username or password");
 
-            // Use isPersistent to control whether the cookie is persistent
+            // ------------------------- Check if the user is active -------------------------
+            var userRecord = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == user.Email.ToLower());
+            if (userRecord == null || !userRecord.IsActive)
+            {
+                return Unauthorized("Your account is deactivated. Please contact support.");
+            }
+
+            // ------------------------- Authenticate user -------------------------
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent: true, lockoutOnFailure: false);
             if (!result.Succeeded) return Unauthorized("Invalid username or password");
 

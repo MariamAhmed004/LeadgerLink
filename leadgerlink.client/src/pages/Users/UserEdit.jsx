@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { HiUsers } from "react-icons/hi";
 import PageHeader from "../../components/Listing/PageHeader";
@@ -8,10 +8,12 @@ import SelectField from "../../components/Form/SelectField";
 import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import InfoModal from "../../components/Ui/InfoModal";
+import { AuthContext } from "../../Context/AuthContext";
 
 export default function UserEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { currentUser } = useContext(AuthContext); // Access the current user from AuthContext
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -43,6 +45,7 @@ export default function UserEdit() {
     let mounted = true;
     let loadedOrgId = "";
     let loadedStoreId = "";
+
     const loadUser = async () => {
       setLoading(true);
       setError("");
@@ -74,14 +77,15 @@ export default function UserEdit() {
 
     const loadLookups = async () => {
       try {
+        const currentOrgId = currentUser?.orgId ? String(currentUser.orgId) : ""; // Get orgId from AuthContext
         const orgRes = await fetch("/api/organizations", { credentials: "include" });
         if (orgRes.ok) {
           const arr = await orgRes.json();
           const list = Array.isArray(arr) ? arr : (arr.items || []);
-          setOrganizationOptions([{ label: "Select organization", value: "" }, ...list.map(o => ({ label: o.orgName, value: String(oorgId) }))]);
+          setOrganizationOptions([{ label: "Select organization", value: "" }, ...list.map(o => ({ label: o.orgName, value: String(o.orgId) }))]);
         }
-        if (loadedOrgId) {
-          const storesRes = await fetch(`/api/stores/by-organization/${encodeURIComponent(loadedOrgId)}`, { credentials: "include" });
+        if (loadedOrgId || currentOrgId) {
+          const storesRes = await fetch(`/api/stores/by-organization/${encodeURIComponent(loadedOrgId || currentOrgId)}`, { credentials: "include" });
           if (storesRes.ok) {
             const arr = await storesRes.json();
             const list = Array.isArray(arr) ? arr : (arr.items || []);
@@ -103,7 +107,7 @@ export default function UserEdit() {
 
     loadUser().then(loadLookups);
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, currentUser]);
 
   // Intercept deactivation and show modal
   const handleActiveChange = (val) => {

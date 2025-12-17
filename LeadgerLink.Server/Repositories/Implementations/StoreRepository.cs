@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -14,12 +15,16 @@ namespace LeadgerLink.Server.Repositories.Implementations
     {
         private readonly LedgerLinkDbContext _context;
         private readonly IHttpContextAccessor _httpContext;
+        private readonly IUserRepository _userRepository;
+        private readonly IAuditContext _auditContext;
 
         // Require DbContext via DI.
-        public StoreRepository(LedgerLinkDbContext context, IHttpContextAccessor httpContextAccessor) : base(context)
+        public StoreRepository(LedgerLinkDbContext context, IHttpContextAccessor httpContextAccessor, IUserRepository userRepository, IAuditContext auditContext) : base(context)
         {
             _context = context;
             _httpContext = httpContextAccessor;
+            _userRepository = userRepository;
+            _auditContext = auditContext;
         }
 
         // Return all stores for the specified organization.
@@ -78,5 +83,72 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .AsNoTracking()
                 .ToListAsync();
         }
+
+        // Reassigns the manager for a store, deactivating the old manager and activating the new one.
+        public async Task ReassignManagerAsync(int storeId, int? oldManagerId, int? newManagerId)
+        {
+            // Use a separate DbContext instance for each operation
+            using (var deactivateContext = new LedgerLinkDbContext(_context.Database.GetDbConnection(), _auditContext))
+            using (var activateContext = new LedgerLinkDbContext(_context.Database.GetDbConnection(), _auditContext))
+            {
+                // 1. Deactivate old manager (if exists)
+                if (oldManagerId.HasValue)
+                {
+                    var userRepository = new UserRepository(deactivateContext);
+                    await userRepository.DeactivateStoreManagerAsync(oldManagerId.Value);
+                }
+
+                // 2. Activate new manager (if exists)
+                if (newManagerId.HasValue)
+                {
+                    var userRepository = new UserRepository(activateContext);
+                    await userRepository.ActivateStoreManagerAsync(newManagerId.Value, storeId);
+                }
+            }
+        }
+
+        public async Task ReassignStoreManagerAsync(int newManagerId, int? previousStoreId, int? newStoreId)
+        {
+            // Handle the previous store
+            if (previousStoreId.HasValue)
+            {
+                using (var previousStoreContext = new LedgerLinkDbContext(_context.Database.GetDbConnection(), _auditContext))
+                {
+                    var previousStore = await previousStoreContext.Stores.FirstOrDefaultAsync(s => s.StoreId == previousStoreId.Value);
+                    if (previousStore != null)
+                    {
+                        previousStore.UserId = null; // Set the previous store's UserId to null
+                        previousStoreContext.Stores.Update(previousStore);
+                        await previousStoreContext.SaveChangesAsync();
+                    }
+                }
+            }
+
+            // Handle the new store
+            using (var newStoreContext = new LedgerLinkDbContext(_context.Database.GetDbConnection(), _auditContext))
+            {
+                var newStore = await newStoreContext.Stores.FirstOrDefaultAsync(s => s.StoreId == newStoreId );
+
+                if (newStore != null)
+                {
+                    
+                    // Deactivate the previous manager
+                    if (newStore.UserId != null)
+                    {
+                        using (var userContext = new LedgerLinkDbContext(_context.Database.GetDbConnection(), _auditContext))
+                        {
+                            var userRepository = new UserRepository(userContext);
+                            await userRepository.DeactivateStoreManagerAsync(newStore.UserId.Value);
+                        }
+                    }
+
+                    newStore.UserId = newManagerId; // Assign the new manager
+                    newStoreContext.Stores.Update(newStore);
+                    await newStoreContext.SaveChangesAsync();
+
+                }
+            }
+        }
+
     }
 }

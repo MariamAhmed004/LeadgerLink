@@ -32,7 +32,7 @@ namespace LeadgerLink.Server.Controllers
         private readonly IRepository<Role> _roleRepository;
 
         // Repository for managing store-related data
-        private readonly IRepository<Store> _storeRepository;
+        private readonly IStoreRepository _storeRepository;
 
         // Logger for logging errors and information
         private readonly ILogger<UsersController> _logger;
@@ -45,7 +45,7 @@ namespace LeadgerLink.Server.Controllers
             UserManager<ApplicationUser> userManager,
             IUserRepository userRepository,
             IRepository<Role> roleRepository,
-            IRepository<Store> storeRepository,
+            IStoreRepository storeRepository,
             ILogger<UsersController> logger,
             IAuditContext auditContext)
         {
@@ -116,7 +116,7 @@ namespace LeadgerLink.Server.Controllers
             if (dto == null) return BadRequest("Invalid payload.");
 
             // Fetch the existing user
-            var existing = await _userRepository.GetByIdAsync(id);
+            var existing = await _userRepository.GetByIdRelationAsync(id);
             if (existing == null) return NotFound();
 
             // Validate input fields
@@ -141,21 +141,12 @@ namespace LeadgerLink.Server.Controllers
             {
                 if (dto.ReassignStoreManager == true && existing.Role != null && existing.Role.RoleTitle == "Store Manager")
                 {
-                    var store = await _storeRepository.GetByIdAsync(dto.StoreId.Value);
-                    if (store != null && store.UserId.HasValue && store.UserId.Value != id)
-                    {
-                        var prevManager = await _userRepository.GetByIdAsync(store.UserId.Value);
-                        if (prevManager != null)
-                        {
-                            prevManager.StoreId = null;
-                            prevManager.IsActive = false;
-                            prevManager.UpdatedAt = DateTime.UtcNow;
-                            await _userRepository.UpdateAsync(prevManager);
-                        }
-                    }
-                    store.UserId = id;
-                    await _storeRepository.UpdateAsync(store);
+                   
+                    // Reassign the store manager
+                    await _storeRepository.ReassignStoreManagerAsync(id, existing.StoreId, dto.StoreId);
                 }
+
+                // Update the store ID
                 existing.StoreId = dto.StoreId.Value;
             }
 

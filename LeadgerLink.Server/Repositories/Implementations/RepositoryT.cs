@@ -78,8 +78,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return await _dbSet.Where(predicate).ToListAsync();
         }
 
-        // update entity
-        public async Task UpdateAsync(T entity)
+        // Updates an entity in the database.
+        public  async Task UpdateAsync(T entity)
         {
             if (entity == null) throw new ArgumentNullException(nameof(entity));
             _dbSet.Update(entity);
@@ -95,6 +95,15 @@ namespace LeadgerLink.Server.Repositories.Implementations
         public async Task<bool> AnyAsync(Expression<Func<T, bool>> predicate)
         {
             return await _context.Set<T>().AnyAsync(predicate);
+        }
+
+        public void Detach<TEntity>(TEntity entity) where TEntity : class
+        {
+            var entry = _context.Entry(entity);
+            if (entry != null)
+            {
+                entry.State = EntityState.Detached;
+            }
         }
 
     }

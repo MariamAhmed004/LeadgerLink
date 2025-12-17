@@ -38,5 +38,6 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task SaveChangesAsync();
 
         Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
+		void Detach<TEntity>(TEntity entity) where TEntity : class;
     }
 }

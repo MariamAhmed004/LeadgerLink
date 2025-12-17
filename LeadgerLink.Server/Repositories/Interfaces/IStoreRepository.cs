@@ -15,5 +15,10 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Return all stores including common relations (User, OperationalStatus) for listing.
         Task<IEnumerable<Store>> GetAllWithRelationsAsync(int? organizationId = null);
-    }
+
+        // Reassigns the manager for a store, deactivating the old manager and activating the new one.
+        Task ReassignManagerAsync(int storeId, int? oldManagerId, int? newManagerId);
+        Task ReassignStoreManagerAsync(int newManagerId, int? previousStoreId, int? newStoreIdd);
+        
+        }
 }

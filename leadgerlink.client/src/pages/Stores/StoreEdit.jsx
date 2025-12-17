@@ -8,6 +8,7 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import TimestampField from "../../components/Form/TimestampField";
 import FormActions from "../../components/Form/FormActions";
+import InfoModal from "../../components/UI/InfoModal";
 
 const emailIsValid = (e) => /^\S+@\S+\.\S+$/.test(String(e || "").trim());
 
@@ -32,6 +33,11 @@ const StoreEdit = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // manager assignment
+  const [initialManagerId, setInitialManagerId] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [pendingManagerId, setPendingManagerId] = useState(null);
 
   // helper: fetch operational statuses
   const fetchOperationalStatuses = async () => {
@@ -66,13 +72,31 @@ const StoreEdit = () => {
       }
       const store = await res.json();
       setStoreName(store.storeName || "");
-      setOperationalStatusId(String(store.operationalStatusId || ""));
+      setOperationalStatusId(store.operationalStatusId ? String(store.operationalStatusId) : "");
       setEmail(store.email || "");
       setPhoneNumber(store.phoneNumber || "");
       setManagerId(String(store.userId || ""));
+      setInitialManagerId(String(store.userId || "")); // Track the initial manager
       setOpeningDate(store.openingDate ? new Date(store.openingDate).toISOString().slice(0, 10) : "");
       setWorkingHours(store.workingHours || "");
       setLocation(store.location || "");
+
+      // Add operational status to options if it exists
+      if (store.operationalStatusId && store.operationalStatusName) {
+        setStatusOptions((prev) => {
+          const exists = prev.some((opt) => opt.value === String(store.operationalStatusId));
+          if (!exists) {
+            return [
+              ...prev,
+              {
+                label: store.operationalStatusName,
+                value: String(store.operationalStatusId)
+              }
+            ];
+          }
+          return prev;
+        });
+      }
     } catch (err) {
       console.error(err);
       setError(err?.message || "Failed to load store data.");
@@ -89,29 +113,22 @@ const StoreEdit = () => {
       try {
         await fetchOperationalStatuses();
 
-        // managers: attempt endpoints that may expose users
+        // Fetch users filtered by storeId
         try {
-          const endpoints = ["/api/users/all", "/api/users"];
-          let usersData = [];
-          for (const ep of endpoints) {
-            try {
-              const r = await fetch(ep, { credentials: "include" });
-              if (!r.ok) continue;
-              const j = await r.json();
-              usersData = Array.isArray(j) ? j : (Array.isArray(j.items) ? j.items : []);
-              break;
-            } catch {
-              // try next
-            }
-          }
+          const res = await fetch(`/api/users?storeId=${storeId}`, { credentials: "include" });
+          if (!res.ok) throw new Error("Failed to fetch users for the store.");
+          const usersData = await res.json();
           if (!mounted) return;
+
           const opts = [
             { label: "Select manager", value: "" },
             ...(Array.isArray(usersData)
               ? usersData.map((u) => ({
                   label:
                     u.fullName ??
-                    (u.userFirstname ? `${u.userFirstname} ${u.userLastname}` : (u.name ?? u.userName ?? "Unnamed")),
+                    (u.userFirstname
+                      ? `${u.userFirstname} ${u.userLastname}`
+                      : u.name ?? u.userName ?? "Unnamed"),
                   value: String(u.userId ?? u.UserId ?? u.id ?? "")
                 }))
               : [])
@@ -131,7 +148,9 @@ const StoreEdit = () => {
     };
 
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [storeId]);
 
   // client-only validation and canonical payload
@@ -153,7 +172,8 @@ const StoreEdit = () => {
 
     try {
       // canonical payload (no createdAt/updatedAt)
-      const payload = {
+        const payload = {
+        storeId: Number(storeId), // Include the store ID
         storeName: storeName.trim(),
         operationalStatusId: opIdNum,
         email: email ? email.trim() : null,
@@ -191,6 +211,16 @@ const StoreEdit = () => {
     }
   };
 
+    const handleManagerChange = (newManagerId) => {
+        // If the new manager is different from the initial manager, show the confirmation modal
+        if (newManagerId !== initialManagerId) {
+            setPendingManagerId(newManagerId); // Store the new manager ID
+            setShowModal(true); // Show the confirmation modal
+        } else {
+            setManagerId(newManagerId); // Directly set the manager if no change
+        }
+    };
+
   return (
     <div className="container py-5">
       <PageHeader
@@ -225,7 +255,13 @@ const StoreEdit = () => {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Store Manager" value={managerId} onChange={setManagerId} options={managerOptions} searchable={true} />
+            <SelectField
+              label="Store Manager"
+              value={managerId}
+              onChange={handleManagerChange} // Use the new handler
+              options={managerOptions}
+              searchable={true}
+            />
           </div>
 
           <div className="col-12 col-md-6 text-start">
@@ -261,6 +297,41 @@ const StoreEdit = () => {
           )}
         </div>
       </FormBody>
+
+      <InfoModal
+        show={showModal}
+        title="Confirm Manager Change"
+        onClose={() => {
+          setShowModal(false); // Close modal
+          setPendingManagerId(null); // Reset pending manager
+          setManagerId(initialManagerId); // Reset to the initial manager
+        }}
+      >
+        <p>
+          Changing the store manager will deactivate the current manager and remove them from store management. Are you sure you want to proceed?
+        </p>
+        <div className="d-flex justify-content-end">
+          <button
+            className="btn btn-secondary me-2"
+            onClick={() => {
+              setShowModal(false); // Close modal
+              setPendingManagerId(null); // Reset pending manager
+              setManagerId(initialManagerId); // Reset to the initial manager
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setManagerId(pendingManagerId); // Confirm manager change
+              setShowModal(false); // Close modal
+            }}
+          >
+            Confirm
+          </button>
+        </div>
+      </InfoModal>
     </div>
   );
 };

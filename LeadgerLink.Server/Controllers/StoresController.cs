@@ -10,6 +10,7 @@ using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Contexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -260,6 +261,7 @@ namespace LeadgerLink.Server.Controllers
                 phoneNumber = store.PhoneNumber,
                 openingDate = store.OpeningDate,
                 operationalStatusName = store.OperationalStatus != null ? store.OperationalStatus.OperationalStatusName : null,
+                operationalStatusId = store.OperationalStatusId,
                 workingHours = store.WorkingHours,
                 createdAt = store.CreatedAt,
                 updatedAt = store.UpdatedAt
@@ -269,35 +271,60 @@ namespace LeadgerLink.Server.Controllers
             return Ok(dto);
         }
 
-        // PUT: api/stores/{id}
-        // Updates an existing store.
         [Authorize(Roles = "Organization Admin")]
         [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] Store model)
         {
-            // Validate the input model and store ID
             if (model == null || id != model.StoreId) return BadRequest();
 
-            // Fetch the existing store
-            var existing = await _repository.GetByIdAsync(id);
-            if (existing == null) return NotFound();
+            // Enable tracking for this operation
+            _auditContext.DisableTracking = false;
 
-            await SetAuditContextUserId();
+            try
+            {
+                // 1. Fetch the store (Tracked)
+                var existing = await _repository.GetByIdWithRelationsAsync(id);
+                if (existing == null) return NotFound();
 
-            // Update store fields
-            existing.StoreName = model.StoreName;
-            existing.Location = model.Location;
-            existing.Email = model.Email;
-            existing.PhoneNumber = model.PhoneNumber;
-            existing.OpeningDate = model.OpeningDate;
-            existing.OperationalStatusId = model.OperationalStatusId;
-            existing.WorkingHours = model.WorkingHours;
-            existing.UpdatedAt = DateTime.UtcNow;
+                // Authorization and Audit logic
+                var userId = await ResolveUserIdAsync();
+                var user = await _userRepository.GetByIdAsync(userId.Value);
+                if (user == null || existing.OrgId != user.OrgId) return Forbid();
+                await SetAuditContextUserId();
 
-            // Update the store in the repository
-            await _repository.UpdateAsync(existing);
-            return NoContent();
+                // 2. Prepare Manager Changes
+                if (existing.UserId != model.UserId)
+                {
+                    
+                    
+                    await _repository.ReassignManagerAsync(existing.StoreId, existing.UserId, model.UserId);
+                    
+                }
+// Update the UserId in the store only if ReassignManagerAsync succeeds
+                    existing.UserId = model.UserId;
+                existing.User = null; // Or fetch and assign the new user entity if needed
+                // 3. Update Store Fields
+                existing.StoreName = model.StoreName;
+                existing.Location = model.Location;
+                existing.Email = model.Email;
+                existing.PhoneNumber = model.PhoneNumber;
+                existing.OpeningDate = model.OpeningDate;
+                existing.OperationalStatusId = model.OperationalStatusId;
+                existing.WorkingHours = model.WorkingHours;
+                existing.UpdatedAt = DateTime.UtcNow;
+
+                // 4. Save Everything
+                await _repository.UpdateAsync(existing);
+
+                return NoContent();
+            }
+            finally
+            {
+                // Reset tracking behavior
+                _auditContext.DisableTracking = true;
+            }
         }
+
 
         // Helper to get organization by user ID with safe error handling.
         private async Task<Organization?> _organization_repository_get(int userId)
