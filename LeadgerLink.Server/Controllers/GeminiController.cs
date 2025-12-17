@@ -16,16 +16,14 @@ public class GeminiController : ControllerBase
     public async Task<IActionResult> SendMessage([FromBody] GeminiRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
-        {
             return BadRequest("Message cannot be empty.");
-        }
 
         try
         {
-            var response = await _geminiChatService.SendMessageAsync(request.Message);
-            return Ok(new { response });
+            var result = await _geminiChatService.SendMessageAsync(request.Message);
+            return Ok(new { response = result });
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
             return StatusCode(500, ex.Message);
         }
