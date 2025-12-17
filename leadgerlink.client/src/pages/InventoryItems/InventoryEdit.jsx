@@ -10,10 +10,12 @@ import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
 import { MdOutlineInventory } from "react-icons/md";
+import { useAuth } from "../../Context/AuthContext"; // Import the AuthContext hook
 
 const InventoryItemEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth(); // Access the logged-in user from the context
 
   // Primary fields
   const [itemName, setItemName] = useState("");
@@ -49,6 +51,9 @@ const InventoryItemEdit = () => {
   const [productDescription, setProductDescription] = useState("");
   const [vatList, setVatList] = useState([]);
   const [costPrice, setCostPrice] = useState(0);
+
+  // Fetched store id from inventory details (used when user is Organization Admin)
+  const [fetchedStoreId, setFetchedStoreId] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -139,6 +144,9 @@ const InventoryItemEdit = () => {
       setVatCategoryId(it.vatCategoryId != null ? String(it.vatCategoryId) : "");
       setProductDescription(it.productDescription || "");
 
+      // Capture storeId from the inventory item details (do NOT take from loggedInUser)
+      setFetchedStoreId(it.storeId != null ? String(it.storeId) : "");
+
       // existing image preview
       await loadExistingImage(id);
     } catch (ex) {
@@ -214,26 +222,6 @@ const InventoryItemEdit = () => {
     return { ...base, isOnSale: false };
   };
 
-  const submitJson = async (payload) => {
-    return fetch(`/api/inventoryitems/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  };
-
-  const submitMultipart = async (payload) => {
-    const fd = new FormData();
-    fd.append("payload", new Blob([JSON.stringify(payload)], { type: "application/json" }), "payload.json");
-    if (imageFile) fd.append("image", imageFile);
-    return fetch(`/api/inventoryitems/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      credentials: "include",
-      body: fd,
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -241,8 +229,20 @@ const InventoryItemEdit = () => {
     if (errors.length > 0) { setError(errors.join(" ")); return; }
     setSaving(true);
     const payload = buildPayload();
+
     try {
-      const res = imageFile ? await submitMultipart(payload) : await submitJson(payload);
+      // Construct API URL, append fetched storeId only when logged-in user is Organization Admin
+      let apiUrl = `/api/inventoryitems/${encodeURIComponent(id)}`;
+      if (loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin")) {
+        if (fetchedStoreId) {
+          apiUrl += `?storeId=${encodeURIComponent(fetchedStoreId)}`;
+        } else {
+          // If inventory details did not include a storeId, fail early rather than guessing from user context
+          throw new Error("Unable to determine store ID from inventory details.");
+        }
+      }
+
+      const res = imageFile ? await submitMultipart(payload, apiUrl) : await submitJson(payload, apiUrl);
       if (!res.ok) {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
@@ -254,6 +254,28 @@ const InventoryItemEdit = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const submitJson = async (payload, apiUrl) => {
+    const url = apiUrl || `/api/inventoryitems/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  };
+
+  const submitMultipart = async (payload, apiUrl) => {
+    const fd = new FormData();
+    fd.append("payload", new Blob([JSON.stringify(payload)], { type: "application/json" }), "payload.json");
+    if (imageFile) fd.append("image", imageFile);
+    const url = apiUrl || `/api/inventoryitems/${encodeURIComponent(id)}`;
+    return fetch(url, {
+      method: "PUT",
+      credentials: "include",
+      body: fd,
+    });
   };
 
   const mapOptions = (items, labelKey, valueKey) => (items || []).map((i) => ({ label: i[labelKey] ?? i.name ?? i.unitName ?? String(i), value: String(i[valueKey] ?? i.id ?? i.unitId ?? "") }));

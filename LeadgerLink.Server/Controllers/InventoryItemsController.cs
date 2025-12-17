@@ -405,11 +405,12 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+
         // PUT api/inventoryitems/{id}
         // Updates an existing inventory item by its ID.
         [Authorize]
         [HttpPut("{id:int}")]
-        public async Task<ActionResult> UpdateInventoryItem(int id)
+        public async Task<ActionResult> UpdateInventoryItem(int id, [FromQuery] int? storeId = null)
         {
             // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
@@ -425,8 +426,41 @@ namespace LeadgerLink.Server.Controllers
             var domainUser = await _userRepository.GetByIdAsync(userId.Value);
             if (domainUser == null) return Unauthorized();
 
-            // Validate user's store association
-            if (!domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
+            // Validate user's organization association
+            if (!domainUser.OrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
+
+            // Check if the user is an Organization Admin
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+
+            // If storeId is provided, validate it
+            if (storeId.HasValue)
+            {
+                if (!isOrgAdmin)
+                {
+                    return Forbid("Only Organization Admins can set the store ID.");
+                }
+
+                // Fetch the store and validate organization ID
+                var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId.Value);
+                if (store == null)
+                {
+                    return BadRequest("Invalid store ID.");
+                }
+
+                if (store.OrgId != domainUser.OrgId)
+                {
+                    return Forbid("The store does not belong to the same organization as the user.");
+                }
+            }
+            else
+            {
+                // Default to the user's store ID if not provided
+                storeId = domainUser.StoreId;
+                if (!storeId.HasValue)
+                {
+                    return BadRequest("Unable to resolve store for the user.");
+                }
+            }
 
             // Fetch the existing inventory item
             var existing = await _inventoryRepo.GetByIdAsync(id);
@@ -491,6 +525,7 @@ namespace LeadgerLink.Server.Controllers
                 existing.CostPerUnit = dto.costPerUnit ?? existing.CostPerUnit;
                 existing.MinimumQuantity = dto.minimumQuantity;
                 existing.UpdatedAt = DateTime.UtcNow;
+                existing.StoreId = storeId.Value; // Update the store ID
 
                 // Assign supplier if provided
                 if (dto.supplierId.HasValue)
