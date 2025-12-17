@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
+using DotNetEnv;
 
 namespace LeadgerLink.Server
 {
@@ -16,6 +17,21 @@ namespace LeadgerLink.Server
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Load environment variables from .env file (only in development)
+            if (builder.Environment.IsDevelopment())
+            {
+                DotNetEnv.Env.Load();
+                builder.Configuration.AddEnvironmentVariables();
+                Console.WriteLine($"Loaded GEMINI_API_KEY: {Environment.GetEnvironmentVariable("GEMINI_API_KEY")}");
+            }
+
+            // Log all configuration keys and values (for debugging)
+            Console.WriteLine("Configuration values:");
+            foreach (var key in builder.Configuration.AsEnumerable())
+            {
+                Console.WriteLine($"Key: {key.Key}, Value: {key.Value}");
+            }
 
             // Add services to the container.
 
@@ -102,6 +118,9 @@ namespace LeadgerLink.Server
             // Add Swagger for API documentation and testing in development mode.
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            // Add HttpClient for GeminiChatService
+            builder.Services.AddHttpClient<GeminiChatService>();
 
             var app = builder.Build();
 
