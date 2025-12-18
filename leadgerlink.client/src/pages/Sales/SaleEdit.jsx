@@ -12,10 +12,12 @@ import FormActions from "../../components/Form/FormActions";
 import InputWithButton from "../../components/Form/InputWithButton";
 import InfoModal from "../../components/Ui/InfoModal";
 import TextArea from "../../components/Form/TextArea";
+import { useAuth } from "../../Context/AuthContext";
 
 const SaleEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   const [timestamp, setTimestamp] = useState(new Date());
   const [paymentMethodId, setPaymentMethodId] = useState("");
@@ -29,6 +31,9 @@ const SaleEdit = () => {
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
   const [selection, setSelection] = useState([]);
+
+  // Capture storeId from fetched sale details (used when user is Organization Admin)
+  const [fetchedStoreId, setFetchedStoreId] = useState("");
 
   const parseNum = (v) => {
     const n = Number(v);
@@ -49,18 +54,8 @@ const SaleEdit = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        // load payment methods + products
-        const [pmRes, prodRes, saleRes] = await Promise.all([
-          fetch("/api/sales/payment-methods", { credentials: "include" }),
-          fetch("/api/products/for-current-store", { credentials: "include" }),
-          fetch(`/api/sales/${encodeURIComponent(id)}`, { credentials: "include" })
-        ]);
-
-        if (pmRes.ok) {
-          const pm = await pmRes.json();
-          setPaymentMethods(pm || []);
-        }
-
+        // Fetch sale first so we have storeId from the sale details
+        const saleRes = await fetch(`/api/sales/${encodeURIComponent(id)}`, { credentials: "include" });
         if (!saleRes.ok) {
           const txt = await saleRes.text().catch(() => null);
           throw new Error(txt || `Failed to load sale (${saleRes.status})`);
@@ -73,7 +68,26 @@ const SaleEdit = () => {
         setAppliedDiscount(sale.appliedDiscount != null ? String(Number(sale.appliedDiscount)) : "");
         setNotes(sale.notes || "");
 
-        // load products and pre-select quantities based on sale items
+        // Capture storeId from sale details (do NOT take from user context)
+        setFetchedStoreId(sale.storeId != null ? String(sale.storeId) : "");
+
+        // Decide product URL: include storeId query only when loggedInUser is Organization Admin
+        const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+        const productUrl = (isOrgAdmin && sale.storeId)
+          ? `/api/products/for-current-store?storeId=${encodeURIComponent(sale.storeId)}`
+          : "/api/products/for-current-store";
+
+        // Fetch payment methods and products in parallel
+        const [pmRes, prodRes] = await Promise.all([
+          fetch("/api/sales/payment-methods", { credentials: "include" }),
+          fetch(productUrl, { credentials: "include" })
+        ]);
+
+        if (pmRes.ok) {
+          const pm = await pmRes.json();
+          setPaymentMethods(pm || []);
+        }
+
         if (prodRes.ok) {
           const list = await prodRes.json();
           const arr = Array.isArray(list) ? list : (list.items || []);
@@ -84,7 +98,6 @@ const SaleEdit = () => {
           const byProductIdQty = new Map((sale.saleItems || []).map(si => [Number(si.productId), Number(si.quantity)]));
 
           (arr || []).forEach(p => {
-            // use the same canonical fields as SalesNew
             const description = p.description ?? "";
             const isRecipe =
               (p.isRecipe === true) ||
@@ -106,6 +119,9 @@ const SaleEdit = () => {
 
           setRecipes(rec);
           setProducts(oth);
+        } else {
+          // If product fetch failed, still allow editing other fields
+          console.warn("Failed to load products for sale edit");
         }
       } catch (err) {
         console.error(err);
@@ -113,7 +129,7 @@ const SaleEdit = () => {
       }
     };
     load();
-  }, [id]);
+  }, [id, loggedInUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -138,7 +154,18 @@ const SaleEdit = () => {
     };
 
     try {
-      const res = await fetch(`/api/sales/${encodeURIComponent(id)}`, {
+      // Construct API URL, append fetched storeId only when logged-in user is Organization Admin
+      let apiUrl = `/api/sales/${encodeURIComponent(id)}`;
+      if (loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin")) {
+        if (fetchedStoreId) {
+          apiUrl += `?storeId=${encodeURIComponent(fetchedStoreId)}`;
+        } else {
+          // If sale details did not include a storeId, fail early rather than guessing from user context
+          throw new Error("Unable to determine store ID from sale details.");
+        }
+      }
+
+      const res = await fetch(apiUrl, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -205,14 +232,13 @@ const SaleEdit = () => {
             <InputField label="Amount Paid (BHD)" value={String(amountPaid.toFixed(3))} onChange={() => {}} readOnly disabled placeholder="0.000" />
           </div>
 
-
           <div className="col-12 col-md-6 text-start">
             <SelectField label="Payment Method" required value={paymentMethodId} onChange={setPaymentMethodId} options={[{ label: "Select payment method", value: "" }, ...paymentMethods.map((p) => ({ label: p.name, value: String(p.paymentMethodId) }))]} />
-                  </div>
+          </div>
 
-                  <div className="col-12 text-start">
-                      <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} placeholder="Add any notes for this sale" />
-                  </div>
+          <div className="col-12 text-start">
+            <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} placeholder="Add any notes for this sale" />
+          </div>
 
           <div className="col-12 col-md-6 d-flex justify-content-center align-items-center">
             <FormActions onCancel={() => navigate(`/sales/${id}`)} submitLabel="Save Changes" loading={saving} />

@@ -24,7 +24,10 @@ namespace LeadgerLink.Server.Controllers
         private readonly IRepository<VatCategory> _vatRepository;
 
         // Repository for managing user-related data
-        private readonly IUserRepository _userRepository;
+        private readonly IUserRepository _user_repository;
+
+        // Repository for store-related queries (used instead of DbContext)
+        private readonly IStoreRepository _storeRepository;
 
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
@@ -34,11 +37,13 @@ namespace LeadgerLink.Server.Controllers
             IProductRepository productRepository,
             IRepository<VatCategory> vatRepository,
             IUserRepository userRepository,
+            IStoreRepository storeRepository,
             IAuditContext auditContext)
         {
             _productRepository = productRepository;
             _vatRepository = vatRepository;
-            _userRepository = userRepository;
+            _user_repository = userRepository;
+            _storeRepository = storeRepository;
             _auditContext = auditContext;
         }
 
@@ -71,28 +76,43 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("for-current-store")]
         public async Task<ActionResult> GetForCurrentStore([FromQuery] int? storeId = null)
         {
+            // Validate user authentication and resolve domain user
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+            var domainUser = await _user_repository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            var isOrgAdmin = User.IsInRole("Organization Admin");
             int resolvedStoreId;
 
-            // Resolve store ID from query or user claims
             if (storeId.HasValue)
             {
+                // Only Organization Admins may specify storeId
+                if (!isOrgAdmin)
+                {
+                    return Forbid("Only Organization Admins can specify storeId.");
+                }
+
+                // Validate store exists and belongs to the same organization as the admin user using store repository
+                var store = await _storeRepository.GetByIdWithRelationsAsync(storeId.Value);
+                if (store == null)
+                {
+                    return BadRequest("Invalid store ID.");
+                }
+
+                if (!domainUser.OrgId.HasValue || store.OrgId != domainUser.OrgId)
+                {
+                    return Forbid("The specified store does not belong to the same organization as the user.");
+                }
+
                 resolvedStoreId = storeId.Value;
             }
             else
             {
-                // Validate user authentication
-                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-                // Resolve user email
-                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? User.Identity?.Name;
-                if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
-
-                // Fetch the user
-                var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-                if (user == null || !user.StoreId.HasValue) return Ok(new ProductListDto[0]);
-
-                resolvedStoreId = user.StoreId.Value;
+                // Fallback to the user's store
+                if (!domainUser.StoreId.HasValue) return Ok(new ProductListDto[0]);
+                resolvedStoreId = domainUser.StoreId.Value;
             }
 
             // Fetch products for the resolved store
@@ -168,7 +188,7 @@ namespace LeadgerLink.Server.Controllers
             if (string.IsNullOrWhiteSpace(email)) return null;
 
             // Fetch the user from the repository using the email
-            var user = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            var user = await _user_repository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
 
             // Return the user ID if the user exists, otherwise return null
             return user?.UserId;

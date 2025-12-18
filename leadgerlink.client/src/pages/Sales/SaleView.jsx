@@ -70,7 +70,8 @@ const SaleView = () => {
   const updatedAt = sale?.updatedAt ?? sale?.modifiedAt ?? null;
   const items = Array.isArray(sale?.saleItems) ? sale.saleItems : [];
 
-  const isStoreManager = (loggedInUser?.roles || []).includes("Store Manager");
+  // Allow edit if user is Store Manager OR Organization Admin
+  const isStoreManager = (loggedInUser?.roles || []).some(r => r === "Store Manager" || r === "Organization Admin");
 
   const headerProps = {
     icon: <FaFileInvoice size={28} />,
@@ -115,7 +116,7 @@ const SaleView = () => {
           {
             icon: <FaPencilAlt />,
             title: "Edit Sale",
-              onClick: () => navigate(`/sales/edit/${saleId}`),
+            onClick: () => navigate(`/sales/edit/${saleId}`),
           },
         ]
       : []),

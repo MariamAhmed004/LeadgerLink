@@ -1,16 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using DocumentFormat.OpenXml.Wordprocessing;
+using LeadgerLink.Server.Contexts;
+using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
-using LeadgerLink.Server.Repositories.Interfaces;
-using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
-using LeadgerLink.Server.Contexts;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -342,10 +343,58 @@ namespace LeadgerLink.Server.Controllers
         // Updates an existing sale with new details and items.
         [Authorize]
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] CreateSaleDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] CreateSaleDto dto, [FromQuery] int? storeId = null)
         {
             // Validate user authentication
             if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Set the audit context user ID
+            await SetAuditContextUserId();
+
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            // Fetch domain user
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Validate user's organization association
+            if (!domainUser.OrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
+
+            // Check if the user is an Organization Admin
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+
+            // If storeId is provided, validate it
+            if (storeId.HasValue)
+            {
+                if (!isOrgAdmin)
+                {
+                    return Forbid("Only Organization Admins can set the store ID.");
+                }
+
+                // Fetch the store and validate organization ID
+                var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId.Value);
+                if (store == null)
+                {
+                    return BadRequest("Invalid store ID.");
+                }
+
+                if (store.OrgId != domainUser.OrgId)
+                {
+                    return Forbid("The store does not belong to the same organization as the user.");
+                }
+
+            }
+            else
+            {
+                // Default to the user's store ID if not provided
+                storeId = domainUser.StoreId;
+                if (!storeId.HasValue)
+                {
+                    return BadRequest("Unable to resolve store for the user.");
+                }
+            }
 
             // Validate the request body
             if (dto == null) return BadRequest("Invalid payload.");

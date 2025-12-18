@@ -349,6 +349,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Fetch the sale with related data
             var sale = await _context.Sales
                 .Include(s => s.PaymentMethod)
+                .Include(s => s.Store)
                 .Include(s => s.SaleItems)
                     .ThenInclude(si => si.Product)
                 .FirstOrDefaultAsync(s => s.SaleId == saleId);
@@ -372,6 +373,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     .FirstOrDefaultAsync(),
                 CreatedAt = sale.CreatedAt,
                 UpdatedAt = sale.UpdatedAt,
+                StoreId = sale.StoreId,
                 SaleItems = sale.SaleItems.Select(si => new SaleItemDetailDto
                 {
                     ProductId = si.ProductId,

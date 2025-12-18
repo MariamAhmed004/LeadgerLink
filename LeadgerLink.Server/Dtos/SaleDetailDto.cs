@@ -24,5 +24,6 @@ namespace LeadgerLink.Server.Dtos
         public string CreatedAt { get; set; } = string.Empty;
         public string UpdatedAt { get; set; } = string.Empty;
         public List<SaleItemDetailDto> SaleItems { get; set; } = new();
+        public int? StoreId { get; set; }
     }
 }
