@@ -311,6 +311,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         // Create a new sale with items.
         public async Task<int> CreateSaleAsync(CreateSaleDto dto, int storeId, int userId)
         {
+            // Step 1: Create the sale
             var sale = new Sale
             {
                 Timestamp = dto.Timestamp == default ? DateTime.UtcNow : dto.Timestamp,
@@ -327,7 +328,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
             _context.Sales.Add(sale);
             await _context.SaveChangesAsync();
 
-            // Insert sale items
+            // Step 2: Insert sale items
+            var productQuantities = new List<(int ProductId, decimal Quantity)>();
             foreach (var it in dto.Items!.Where(i => i.Quantity > 0))
             {
                 var item = new SaleItem
@@ -337,9 +339,36 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     Quantity = it.Quantity
                 };
                 _context.SaleItems.Add(item);
+
+                // Collect product quantities for deduction
+                productQuantities.Add((it.ProductId, it.Quantity));
             }
 
             await _context.SaveChangesAsync();
+
+            // Step 3: Separate products into inventory items and recipes
+            var productRepository = new ProductRepository(_context);
+            var (inventoryItems, recipes) = await productRepository.SeparateProductsAsync(productQuantities);
+
+            // Step 4: Deduct quantities for inventory items and recipes
+            var inventoryItemRepository = new InventoryItemRepository(_context);
+            var (success, insufficientInventoryItems, insufficientRecipeIngredients) =
+                await inventoryItemRepository.DeductQuantitiesAsync(inventoryItems, recipes);
+
+            // Step 5: Handle insufficient stock (optional: log or throw an exception)
+            if (!success)
+            {
+                // Log insufficient stock details or handle as needed
+                if (insufficientInventoryItems.Any())
+                {
+                    Console.WriteLine($"Insufficient Inventory Items: {string.Join(", ", insufficientInventoryItems)}");
+                }
+                if (insufficientRecipeIngredients.Any())
+                {
+                    Console.WriteLine($"Insufficient Recipe Ingredients: {string.Join(", ", insufficientRecipeIngredients)}");
+                }
+            }
+
             return sale.SaleId;
         }
 

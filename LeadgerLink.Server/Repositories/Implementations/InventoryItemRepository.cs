@@ -426,5 +426,80 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .AsNoTracking()
                 .FirstOrDefaultAsync();
         }
+
+        public async Task<(bool Success, List<int> InsufficientInventoryItems, List<int> InsufficientRecipeIngredients)> DeductQuantitiesAsync(
+            List<(int InventoryItemId, decimal Quantity)> inventoryItems,
+            List<(int RecipeId, decimal Quantity)> recipes)
+        {
+            var insufficientInventoryItems = new List<int>();
+            var insufficientRecipeIngredients = new List<int>();
+
+            // Deduct quantities for inventory items
+            foreach (var (inventoryItemId, quantity) in inventoryItems)
+            {
+                var inventoryItem = await _context.InventoryItems.FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+                if (inventoryItem == null)
+                {
+                    throw new InvalidOperationException($"Inventory item with ID {inventoryItemId} not found.");
+                }
+
+                if (inventoryItem.Quantity < quantity)
+                {
+                    // Insufficient stock, set quantity to zero and add to insufficient list
+                    insufficientInventoryItems.Add(inventoryItemId);
+                    inventoryItem.Quantity = 0;
+                }
+                else
+                {
+                    inventoryItem.Quantity -= quantity;
+                }
+
+                _context.InventoryItems.Update(inventoryItem);
+            }
+
+            // Deduct quantities for recipes
+            foreach (var (recipeId, quantity) in recipes)
+            {
+                var recipe = await _context.Recipes
+                    .Include(r => r.RecipeInventoryItems)
+                    .ThenInclude(rii => rii.InventoryItem)
+                    .FirstOrDefaultAsync(r => r.RecipeId == recipeId);
+
+                if (recipe == null)
+                {
+                    throw new InvalidOperationException($"Recipe with ID {recipeId} not found.");
+                }
+
+                foreach (var recipeInventoryItem in recipe.RecipeInventoryItems)
+                {
+                    var ingredient = recipeInventoryItem.InventoryItem;
+                    if (ingredient == null)
+                    {
+                        throw new InvalidOperationException($"Ingredient with ID {recipeInventoryItem.InventoryItemId} not found for recipe ID {recipeId}.");
+                    }
+
+                    var requiredQuantity = recipeInventoryItem.Quantity * quantity;
+                    if (ingredient.Quantity < requiredQuantity)
+                    {
+                        // Insufficient stock, set quantity to zero and add to insufficient list
+                        insufficientRecipeIngredients.Add(recipeInventoryItem.InventoryItemId);
+                        ingredient.Quantity = 0;
+                    }
+                    else
+                    {
+                        ingredient.Quantity -= requiredQuantity;
+                    }
+
+                    _context.InventoryItems.Update(ingredient);
+                }
+            }
+
+            // Save changes to the database
+            await _context.SaveChangesAsync();
+
+            // Return success indicator and lists of insufficient items
+            var success = !insufficientInventoryItems.Any() && !insufficientRecipeIngredients.Any();
+            return (success, insufficientInventoryItems, insufficientRecipeIngredients);
+        }
     }
 }

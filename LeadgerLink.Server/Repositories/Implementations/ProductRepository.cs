@@ -271,5 +271,41 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             return list;
         }
+
+        public async Task<(List<(int InventoryItemId, decimal Quantity)> InventoryItems, List<(int RecipeId, decimal Quantity)> Recipes)>
+    SeparateProductsAsync(IEnumerable<(int ProductId, decimal Quantity)> productQuantities)
+{
+    var inventoryItems = new List<(int InventoryItemId, decimal Quantity)>();
+    var recipes = new List<(int RecipeId, decimal Quantity)>();
+
+    foreach (var (productId, quantity) in productQuantities)
+    {
+        var product = await _context.Products
+            .Include(p => p.InventoryItem)
+            .Include(p => p.Recipe)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.ProductId == productId);
+
+        if (product == null)
+        {
+            throw new InvalidOperationException($"Product with ID {productId} not found.");
+        }
+
+        if (product.InventoryItemId.HasValue)
+        {
+            inventoryItems.Add((product.InventoryItemId.Value, quantity));
+        }
+        else if (product.RecipeId.HasValue)
+        {
+            recipes.Add((product.RecipeId.Value, quantity));
+        }
+        else
+        {
+            throw new InvalidOperationException($"Product with ID {productId} has no associated inventory item or recipe.");
+        }
+    }
+
+    return (inventoryItems, recipes);
+}
     }
 }
