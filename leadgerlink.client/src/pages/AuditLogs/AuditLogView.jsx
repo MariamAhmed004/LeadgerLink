@@ -5,6 +5,7 @@ import PageHeader from "../../components/Listing/PageHeader";
 import DetailTable from "../../components/Listing/DetailTable";
 import DetailPageAction from "../../components/Listing/DetailPageAction";
 import { HiOutlineDocumentSearch } from "react-icons/hi";
+import { useAuth } from "../../Context/AuthContext";
 /*
   AuditLogView.jsx
   - Detail view for a single audit log.
@@ -33,6 +34,7 @@ export default function AuditLogView() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   // determine mode: organization if organizationId query param or scope=org provided
   const orgScope = Boolean(searchParams.get("organizationId") || (searchParams.get("scope") || "").toLowerCase() === "org");
@@ -96,7 +98,11 @@ export default function AuditLogView() {
     return () => { mounted = false; };
   }, [id, orgScope]);
 
-  const headerTitle = orgScope ? "View Organization Audit Log" : "View Application Audit Log";
+  // role-based override for header and back navigation — do not change orgScope variable above
+  const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+  const isAppAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Application Admin");
+
+  const headerTitle = isOrgAdmin ? "View Organization Audit Log" : (isAppAdmin ? "View Application Audit Log" : (orgScope ? "View Organization Audit Log" : "View Application Audit Log"));
   const idVal = log ? (log.auditLogId ?? id) : id;
   const recordedAt = log ? fmtDate(log.timestamp ?? log.Timestamp) : "";
 
@@ -107,8 +113,10 @@ export default function AuditLogView() {
     actions: []
   };
 
+  // back action follows role when available, otherwise falls back to orgScope
+  const backToOrg = isOrgAdmin ? true : (isAppAdmin ? false : orgScope);
   const actions = [
-    { icon: <FaArrowLeft />, title: `Back to ${orgScope ? "Organization" : "Application"} Audit Logs`, onClick: () => navigate(orgScope ? "/organizationauditlogs" : "/applicationauditlogs") }
+    { icon: <FaArrowLeft />, title: `Back to ${backToOrg ? "Organization" : "Application"} Audit Logs`, onClick: () => navigate(backToOrg ? "/organizationauditlogs" : "/applicationauditlogs") }
   ];
 
   const detailRows = log ? [
@@ -117,7 +125,7 @@ export default function AuditLogView() {
     { label: "Level", value: log.auditLogLevel ?? log.AuditLogLevel ?? "" },
     { label: "User", value: user ? (user.fullName ?? `${user.userFirstname ?? ""} ${user.userLastname ?? ""}`.trim()) : (log.userName ?? log.UserName ?? "—") },
     { label: "Role", value: user?.role ?? user?.Role ?? "—" },
-    // organization vs store column
+    // organization vs store column (unchanged; still driven by orgScope)
     { label: orgScope ? "Store" : "Organization", value: orgScope ? (storeName || user?.storeName || user?.StoreName || user?.organizationName || user?.OrganizationName || "—") : (user?.organizationName ?? user?.OrganizationName ?? "—") },
     { label: "Old Value", value: log.oldValue ?? log.OldValue ?? "" },
     { label: "New Value", value: log.newValue ?? log.NewValue ?? "" },
