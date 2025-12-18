@@ -12,12 +12,14 @@ import TabbedMenu from "../../components/Form/TabbedMenu";
 import MenuTabCard from "../../components/Form/MenuTabCard";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
+import { useAuth } from "../../Context/AuthContext";
 
 const PLACEHOLDER_IMG = "/images/placeholder.png";
 
 const RecipeEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,9 @@ const RecipeEdit = () => {
   const [sellingPrice, setSellingPrice] = useState(0);
   const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
 
+  // Capture storeId from fetched recipe details (used when user is Organization Admin)
+  const [fetchedStoreId, setFetchedStoreId] = useState(null);
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -50,17 +55,12 @@ const RecipeEdit = () => {
       try {
         if (!id) throw new Error("Missing recipe id");
 
-        const [rRes, vatRes, itemsRes] = await Promise.all([
-          fetch(`/api/recipes/${encodeURIComponent(id)}/with-ingredients`, { credentials: 'include' }).catch(() => null),
-          fetch('/api/products/vatcategories', { credentials: 'include' }).catch(() => null),
-          fetch('/api/inventoryitems/list-for-current-store?page=1&pageSize=1000', { credentials: 'include' }).catch(() => null)
-        ]);
-
-        if (!rRes || !rRes.ok) {
-          const txt = await rRes?.text().catch(() => null);
+        // Fetch recipe first so we can capture storeId from recipe details.
+        const rRes = await fetch(`/api/recipes/${encodeURIComponent(id)}/with-ingredients`, { credentials: "include" });
+        if (!rRes.ok) {
+          const txt = await rRes.text().catch(() => null);
           throw new Error(txt || `Failed to load recipe`);
         }
-
         const rJson = await rRes.json();
         if (!mounted) return;
 
@@ -71,6 +71,22 @@ const RecipeEdit = () => {
         setOriginalOnSale(!!rJson.isOnSale || !!rJson.relatedProductId);
         setSaleDescription(rJson.productDescription ?? "");
         setPreviewImage(rJson.image ?? "");
+
+        // Capture storeId from recipe details (do NOT take from user context)
+        setFetchedStoreId(rJson.storeId ?? null);
+
+        // Decide inventory items URL: include storeId query only when loggedInUser is Organization Admin
+        const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+        let inventoryUrl = `/api/inventoryitems/list-for-current-store?page=1&pageSize=1000`;
+        if (isOrgAdmin && rJson.storeId) {
+          inventoryUrl += `&storeId=${encodeURIComponent(rJson.storeId)}`;
+        }
+
+        // Fetch VAT categories and inventory items in parallel now that we have recipe/store info
+        const [vatRes, itemsRes] = await Promise.all([
+          fetch("/api/products/vatcategories", { credentials: "include" }).catch(() => null),
+          fetch(inventoryUrl, { credentials: "include" }).catch(() => null)
+        ]);
 
         // map ingredients available for selection from itemsRes
         if (itemsRes && itemsRes.ok) {
@@ -133,7 +149,6 @@ const RecipeEdit = () => {
             } catch { }
           }
         }
-
       } catch (ex) {
         console.error(ex);
         if (mounted) setError(ex?.message || 'Failed to load recipe');
@@ -143,7 +158,7 @@ const RecipeEdit = () => {
     };
     load();
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, loggedInUser]);
 
   // Build tabs for TabbedMenu
   const tabs = [
@@ -205,11 +220,27 @@ const RecipeEdit = () => {
     const fd = new FormData();
     fd.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'payload.json');
     if (imageFile) fd.append('image', imageFile);
-    return fetch(`/api/recipes/${encodeURIComponent(id)}`, { method: 'PUT', credentials: 'include', body: fd });
+
+    // Append fetched storeId query only when logged-in user is Organization Admin
+    let url = `/api/recipes/${encodeURIComponent(id)}`;
+    const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+    if (isOrgAdmin && fetchedStoreId) url += `?storeId=${encodeURIComponent(fetchedStoreId)}`;
+
+    return fetch(url, { method: 'PUT', credentials: 'include', body: fd });
   };
 
   const submitJson = async (payload) => {
-    return fetch(`/api/recipes/${encodeURIComponent(id)}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // Append fetched storeId query only when logged-in user is Organization Admin
+    let url = `/api/recipes/${encodeURIComponent(id)}`;
+    const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+    if (isOrgAdmin && fetchedStoreId) url += `?storeId=${encodeURIComponent(fetchedStoreId)}`;
+
+    return fetch(url, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
   };
 
   const handleSubmit = async (e) => {

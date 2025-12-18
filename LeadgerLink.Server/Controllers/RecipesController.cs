@@ -301,7 +301,7 @@ namespace LeadgerLink.Server.Controllers
         // Updates an existing recipe with ingredients and optionally product linkage.
         [Authorize]
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id)
+        public async Task<IActionResult> Update(int id, [FromQuery] int? storeId = null)
         {
             // Parse the payload first
             string? payloadStr = null;
@@ -339,6 +339,32 @@ namespace LeadgerLink.Server.Controllers
 
             if (dto == null) return BadRequest("Invalid payload.");
             if (dto.RecipeId != id) return BadRequest("Recipe id mismatch.");
+
+            // If storeId was supplied, validate caller is Organization Admin and belongs to same organization as store
+            if (storeId.HasValue)
+            {
+                // Only Organization Admins may specify storeId
+                if (!User.IsInRole("Organization Admin"))
+                {
+                    return Forbid("Only Organization Admins can specify storeId.");
+                }
+
+                // Resolve current logged-in user
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+                var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.UserId == userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate store exists
+                var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId.Value);
+                if (store == null) return BadRequest("Invalid store ID.");
+
+                // Ensure store belongs to same organization as the logged-in admin
+                if (!domainUser.OrgId.HasValue || store.OrgId != domainUser.OrgId)
+                {
+                    return Forbid("The specified store does not belong to the same organization as the user.");
+                }
+            }
 
             await SetAuditContextUserId();
 
