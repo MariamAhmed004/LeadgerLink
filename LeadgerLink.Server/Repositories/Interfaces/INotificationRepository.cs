@@ -30,5 +30,12 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         /// Mark a notification as read for the given user.
         /// </summary>
         Task MarkAsReadAsync(int notificationId, int userId);
+
+        Task<int> SendNotificationAsync(
+            string subject,
+            string message,
+            int userId,
+            int notificationTypeId,
+            DateTime? createdAt = null);
     }
 }

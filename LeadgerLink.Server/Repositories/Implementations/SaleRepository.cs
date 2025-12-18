@@ -13,10 +13,12 @@ namespace LeadgerLink.Server.Repositories.Implementations
     public class SaleRepository : Repository<Sale>, ISaleRepository
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly IInventoryItemRepository inventoryItemRepository;
 
-        public SaleRepository(LedgerLinkDbContext context) : base(context)
+        public SaleRepository(LedgerLinkDbContext context, IInventoryItemRepository inventoryItemRepository) : base(context)
         {
             _context = context;
+            this.inventoryItemRepository = inventoryItemRepository;
         }
 
         // Daily totals for the current month for a store.
@@ -351,7 +353,6 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var (inventoryItems, recipes) = await productRepository.SeparateProductsAsync(productQuantities);
 
             // Step 4: Deduct quantities for inventory items and recipes
-            var inventoryItemRepository = new InventoryItemRepository(_context);
             var (success, insufficientInventoryItems, insufficientRecipeIngredients) =
                 await inventoryItemRepository.DeductQuantitiesAsync(inventoryItems, recipes);
 

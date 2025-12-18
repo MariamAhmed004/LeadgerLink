@@ -13,11 +13,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
     public class InventoryItemRepository : Repository<InventoryItem>, IInventoryItemRepository
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly INotificationRepository _notificationRepository;
 
         // Constructor requires DbContext.
-        public InventoryItemRepository(LedgerLinkDbContext context) : base(context)
+        public InventoryItemRepository(LedgerLinkDbContext context, INotificationRepository notificationRepository) : base(context)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _notificationRepository = notificationRepository;
         }
 
         // Count low-stock items across all stores in an organization.
@@ -437,7 +439,10 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Deduct quantities for inventory items
             foreach (var (inventoryItemId, quantity) in inventoryItems)
             {
-                var inventoryItem = await _context.InventoryItems.FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+                var inventoryItem = await _context.InventoryItems
+                    .Include(ii => ii.Store) // Include the store to fetch the store manager
+                    .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+
                 if (inventoryItem == null)
                 {
                     throw new InvalidOperationException($"Inventory item with ID {inventoryItemId} not found.");
@@ -497,9 +502,45 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Save changes to the database
             await _context.SaveChangesAsync();
 
+            // Step 1: Get low-stock items
+            var lowStockItemIds = inventoryItems.Select(ii => ii.InventoryItemId).ToList();
+            var lowStockItems = await GetLowStockItemsAsync(lowStockItemIds);
+
+            // Step 2: Send notifications for low-stock items
+            foreach (var (inventoryItemId, inventoryItemName) in lowStockItems)
+            {
+                var inventoryItem = await _context.InventoryItems
+                    .Include(ii => ii.Store)
+                    .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+
+                if (inventoryItem?.Store?.UserId != null)
+                {
+                    await _notificationRepository.SendNotificationAsync(
+                        subject: "Low Stock Alert",
+                        message: $"The inventory item '{inventoryItemName}' is low on stock.",
+                        userId: inventoryItem.Store.UserId.Value, // Store manager's user ID
+                        notificationTypeId: 1 // Static placeholder for notification type ID
+                    );
+                }
+            }
+
             // Return success indicator and lists of insufficient items
             var success = !insufficientInventoryItems.Any() && !insufficientRecipeIngredients.Any();
             return (success, insufficientInventoryItems, insufficientRecipeIngredients);
+        }
+
+        public async Task<List<(int InventoryItemId, string InventoryItemName)>> GetLowStockItemsAsync(IEnumerable<int> inventoryItemIds)
+        {
+            // Fetch inventory items by IDs and check their quantities against their thresholds
+            var lowStockItems = await _context.InventoryItems
+                .Where(ii => inventoryItemIds.Contains(ii.InventoryItemId) &&
+                             ii.MinimumQuantity.HasValue &&
+                             ii.Quantity < ii.MinimumQuantity.Value)
+                .Select(ii => new { ii.InventoryItemId, ii.InventoryItemName })
+                .ToListAsync();
+
+            // Return the list of tuples containing both ID and name
+            return lowStockItems.Select(ii => (ii.InventoryItemId, ii.InventoryItemName)).ToList();
         }
     }
 }

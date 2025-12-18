@@ -80,5 +80,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<IEnumerable<object>> GetSuppliersForOrganizationAsync(int organizationId);
         // Categories for organization (projection)
         Task<IEnumerable<object>> GetCategoriesForOrganizationAsync(int organizationId);
+
+        Task<(bool Success, List<int> InsufficientInventoryItems, List<int> InsufficientRecipeIngredients)> DeductQuantitiesAsync(
+            List<(int InventoryItemId, decimal Quantity)> inventoryItems,
+            List<(int RecipeId, decimal Quantity)> recipes);
     }
 }

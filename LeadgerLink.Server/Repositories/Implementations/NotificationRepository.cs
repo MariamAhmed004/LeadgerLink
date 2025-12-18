@@ -92,5 +92,32 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .AsNoTracking()
                 .FirstOrDefaultAsync();
         }
+
+        // Send a notification to a user
+        public async Task<int> SendNotificationAsync(
+            string subject,
+            string message,
+            int userId,
+            int notificationTypeId,
+            DateTime? createdAt = null)
+        {
+            // Create a new notification object
+            var notification = new Notification
+            {
+                Subject = subject,
+                Message = message,
+                UserId = userId,
+                NotificationTypeId = notificationTypeId,
+                CreatedAt = createdAt ?? DateTime.UtcNow,
+                IsRead = false // Default to unread
+            };
+
+            // Add the notification to the database
+            _context.Notifications.Add(notification);
+            await _context.SaveChangesAsync();
+
+            // Return the ID of the newly created notification
+            return notification.NotificationId;
+        }
     }
 }

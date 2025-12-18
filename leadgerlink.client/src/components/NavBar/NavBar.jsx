@@ -237,7 +237,7 @@ const NavBar = () => {
                                                         fullName: null,
                                                         userId: null
                                                     });
-                                                    navigate("/login");
+                                                    navigate("/");
                                                 }
                                             }}
                                         >

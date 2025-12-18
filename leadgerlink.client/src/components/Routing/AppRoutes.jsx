@@ -250,9 +250,9 @@ const AppRoutes = () => {
       {/* ---------------------------
           Notifications
           --------------------------- */}
-          <Route path="/notifications" element={<RoleBasedRoute element={<Notifications />} allowedRoles={[]} />} />
+          <Route path="/notifications" element={<RoleBasedRoute element={<Notifications />} />} />
 
-          <Route path="/notifications/:id" element={<RoleBasedRoute element={<NotificationView />} allowedRoles={[]} />} />
+          <Route path="/notifications/:id" element={<RoleBasedRoute element={<NotificationView />}  />} />
 
       {/* ---------------------------
           Fallback / Not found
