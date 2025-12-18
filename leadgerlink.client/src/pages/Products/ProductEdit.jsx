@@ -7,10 +7,12 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import FormActions from "../../components/Form/FormActions";
 import TextArea from "../../components/Form/TextArea";
+import { useAuth } from "../../Context/AuthContext";
 
 const ProductEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,6 +27,7 @@ const ProductEdit = () => {
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT Applicable", value: "" }]);
   const [recipeId, setRecipeId] = useState(null);
   const [inventoryItemId, setInventoryItemId] = useState(null);
+  const [storeId, setStoreId] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +50,7 @@ const ProductEdit = () => {
         setDescription(pJson.description ?? "");
         setRecipeId(pJson.recipeId ?? null);
         setInventoryItemId(pJson.inventoryItemId ?? null);
+        setStoreId(pJson.storeId ?? null);
         // load VAT categories from correct endpoint
         try {
           const vRes = await fetch('/api/products/vatcategories', { credentials: 'include' });
@@ -95,7 +99,15 @@ const ProductEdit = () => {
         sellingPrice: Number(Number(sellingPrice).toFixed(3)),
         description: description || null
       };
-      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+
+      // Append storeId query only when current user is Organization Admin and we have a storeId from the product details
+      let apiUrl = `/api/products/${encodeURIComponent(id)}`;
+      const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+      if (isOrgAdmin && storeId) {
+        apiUrl += `?storeId=${encodeURIComponent(storeId)}`;
+      }
+
+      const res = await fetch(apiUrl, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

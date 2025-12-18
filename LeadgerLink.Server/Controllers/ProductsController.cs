@@ -138,7 +138,7 @@ namespace LeadgerLink.Server.Controllers
         // PUT: api/products/{id}
         // Updates an existing product.
         [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto, [FromQuery] int? storeId = null)
         {
             // Validate the input DTO and product ID
             if (dto == null || id != dto.ProductId) return BadRequest("Invalid payload.");
@@ -146,6 +146,39 @@ namespace LeadgerLink.Server.Controllers
             // Fetch the existing product
             var product = await _productRepository.GetByIdAsync(id);
             if (product == null) return NotFound();
+
+            // Ensure user is authenticated and resolve domain user
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+            var domainUser = await _user_repository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // If storeId provided, only Organization Admins may do so and the store must belong to same org
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+            if (storeId.HasValue)
+            {
+                if (!isOrgAdmin)
+                {
+                    return Forbid("Only Organization Admins can specify storeId.");
+                }
+
+                // Validate store exists and belongs to the same organization as the admin user using store repository
+                var store = await _storeRepository.GetByIdWithRelationsAsync(storeId.Value);
+                if (store == null)
+                {
+                    return BadRequest("Invalid store ID.");
+                }
+
+                if (!domainUser.OrgId.HasValue || store.OrgId != domainUser.OrgId)
+                {
+                    return Forbid("The specified store does not belong to the same organization as the user.");
+                }
+
+                // Optionally ensure the product's StoreId matches the provided storeId before updating product's fields
+                // (not strictly required by the request but can be enforced if desired)
+                // if (product.StoreId != storeId.Value) return Forbid("Product does not belong to the specified store.");
+            }
 
             // Set the audit context user ID
             await SetAuditContextUserId();
