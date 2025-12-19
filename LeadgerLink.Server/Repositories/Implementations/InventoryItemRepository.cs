@@ -1,11 +1,12 @@
+using ClosedXML.Excel;
+using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
-using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -542,5 +543,91 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Return the list of tuples containing both ID and name
             return lowStockItems.Select(ii => (ii.InventoryItemId, ii.InventoryItemName)).ToList();
         }
+
+        public byte[] GenerateInventoryTemplate()
+        {
+            // Fetch categories and units from the database
+            var categories = _context.InventoryItemCategories
+                .Select(c => c.InventoryItemCategoryName)
+                .ToList();
+
+            var units = _context.Units
+                .Select(u => u.UnitName)
+                .ToList();
+
+            using (var workbook = new XLWorkbook())
+            {
+                // --- Data sheet ---
+                var wsData = workbook.Worksheets.Add("Data");
+
+                // Headers
+                wsData.Cell(1, 1).Value = "Item Name";
+                wsData.Cell(1, 2).Value = "Description";
+                wsData.Cell(1, 3).Value = "Supplier";
+                wsData.Cell(1, 4).Value = "Supplier Contact Method"; // New column
+                wsData.Cell(1, 5).Value = "Category";
+                wsData.Cell(1, 6).Value = "Unit";
+                wsData.Cell(1, 7).Value = "Cost Per Unit";
+                wsData.Cell(1, 8).Value = "Quantity";
+                wsData.Cell(1, 9).Value = "Threshold";
+
+                // Style headers
+                var headerRange = wsData.Range(1, 1, 1, 9);
+                headerRange.Style.Font.Bold = true;
+                headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                // Adjust column widths (3x wider)
+                for (int col = 1; col <= 9; col++)
+                {
+                    wsData.Column(col).Width = wsData.Column(col).Width * 3;
+                }
+
+                // --- Lookup sheet ---
+                var wsLookup = workbook.Worksheets.Add("Lookup");
+
+                // Categories
+                wsLookup.Cell(1, 1).Value = "Categories";
+                wsLookup.Cell(2, 1).Value = "Select"; // Placeholder
+                for (int i = 0; i < categories.Count; i++)
+                    wsLookup.Cell(i + 3, 1).Value = categories[i];
+
+                // Units
+                wsLookup.Cell(1, 2).Value = "Units";
+                wsLookup.Cell(2, 2).Value = "Select"; // Placeholder
+                for (int i = 0; i < units.Count; i++)
+                    wsLookup.Cell(i + 3, 2).Value = units[i];
+
+                // Hide lookup sheet
+                wsLookup.Visibility = XLWorksheetVisibility.VeryHidden;
+
+                // --- Data Validation ---
+                var categoryRange = wsLookup.Range(2, 1, categories.Count + 2, 1); // Include placeholder
+                var unitRange = wsLookup.Range(2, 2, units.Count + 2, 2); // Include placeholder
+
+                // Apply dropdowns for Category (col 5) and Unit (col 6)
+                var categoryCells = wsData.Range("E2:E101"); // rows 2–101
+                categoryCells.SetDataValidation().List(categoryRange);
+
+                var unitCells = wsData.Range("F2:F101"); // rows 2–101
+                unitCells.SetDataValidation().List(unitRange);
+
+                // --- Set initial values to "Select" ---
+                for (int row = 2; row <= 101; row++)
+                {
+                    wsData.Cell(row, 5).Value = "Select"; // Set "Select" for Category
+                    wsData.Cell(row, 6).Value = "Select"; // Set "Select" for Unit
+                }
+
+                // --- Save to byte array ---
+                using (var stream = new MemoryStream())
+                {
+                    workbook.SaveAs(stream);
+                    return stream.ToArray();
+                }
+            }
+        }
+
+
+
     }
 }

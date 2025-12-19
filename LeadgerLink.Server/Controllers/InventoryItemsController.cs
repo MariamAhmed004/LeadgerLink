@@ -734,6 +734,27 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+        // GET api/inventoryitems/template
+        // Generates an Excel template for bulk uploading inventory items.
+        [HttpGet("template")]
+        public IActionResult GenerateInventoryTemplate()
+        {
+            try
+            {
+                // Call the repository method to generate the template
+                var template = _inventoryRepo.GenerateInventoryTemplate();
+
+                // Return the template as a downloadable Excel file
+                return File(template, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "InventoryTemplate.xlsx");
+            }
+            catch (Exception ex)
+            {
+                // Log error and return 500 status
+                _logger.LogError(ex, "Failed to generate inventory template");
+                return StatusCode(500, "Failed to generate inventory template");
+            }
+        }
+
         // Resolves the user ID from the current user's claims.
         private async Task<int?> ResolveUserIdAsync()
         {

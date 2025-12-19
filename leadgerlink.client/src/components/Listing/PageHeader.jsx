@@ -9,7 +9,7 @@ const PageHeader = ({
   // backward-compatible single action
   actionLabel,
   actionRoute,
-  // new actions array: [{ icon, title, route }]
+  // new actions array: [{ icon, title, route, onClick }]
   actions = []
 }) => {
   // merge backward-compatible single action into actions array if provided
@@ -19,8 +19,8 @@ const PageHeader = ({
   }
 
   return (
-      <div className="d-flex justify-content-between align-items-start mb-4 w-100 text-start">
-          <div style={{ flexBasis: "66%" }} className="ms-3">
+    <div className="d-flex justify-content-between align-items-start mb-4 w-100 text-start">
+      <div style={{ flexBasis: "66%" }} className="ms-3">
         <div className="d-flex align-items-center">
           {icon && <span className="me-3">{icon}</span>}
           <h4 className="fw-bold text-dark mb-1">{title}</h4>
@@ -28,8 +28,8 @@ const PageHeader = ({
 
         <hr className="my-2" style={{ opacity: 0.85 }} />
 
-              {descriptionLines && descriptionLines.length > 0 && (
-                  <div className="mx-3">
+        {descriptionLines && descriptionLines.length > 0 && (
+          <div className="mx-3">
             {/* First description line - black */}
             {descriptionLines[0] && (
               <p className="mb-1 text-dark">
@@ -64,15 +64,26 @@ const PageHeader = ({
         }}
       >
         {allActions.map((act, idx) => (
-          <Link
-            key={idx}
-            to={act.route}
-            className="btn btn-primary page-header-btn mb-2 mx-3 w-100"
-            role="button"
-          >
-            {act.icon && <span className="me-2">{act.icon}</span>}
-            <span>{act.title}</span>
-          </Link>
+          act.onClick ? (
+            <button
+              key={idx}
+              className="btn btn-primary page-header-btn mb-2 mx-3 w-100"
+              onClick={act.onClick}
+            >
+              {act.icon && <span className="me-2">{act.icon}</span>}
+              <span>{act.title}</span>
+            </button>
+          ) : (
+            <Link
+              key={idx}
+              to={act.route}
+              className="btn btn-primary page-header-btn mb-2 mx-3 w-100"
+              role="button"
+            >
+              {act.icon && <span className="me-2">{act.icon}</span>}
+              <span>{act.title}</span>
+            </Link>
+          )
         ))}
       </div>
     </div>

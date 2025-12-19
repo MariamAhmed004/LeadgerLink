@@ -84,5 +84,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<(bool Success, List<int> InsufficientInventoryItems, List<int> InsufficientRecipeIngredients)> DeductQuantitiesAsync(
             List<(int InventoryItemId, decimal Quantity)> inventoryItems,
             List<(int RecipeId, decimal Quantity)> recipes);
+
+        // Generates an Excel template for bulk uploading inventory items.
+        byte[] GenerateInventoryTemplate();
     }
 }

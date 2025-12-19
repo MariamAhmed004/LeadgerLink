@@ -1,15 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { FaPlus, FaTruck } from 'react-icons/fa';
+import { FaPlus, FaTruck, FaUpload } from 'react-icons/fa'; // Import FaUpload for the bulk upload icon
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
 import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
+import InfoModal from '../../components/Ui/InfoModal'; // Import InfoModal
 import { MdOutlineInventory } from "react-icons/md";
-import { useAuth } from "../../Context/AuthContext"; // Add this import if not present
+import { useAuth } from "../../Context/AuthContext";
 
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
+  // Modal state
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+
   // Filter state
   const [stockLevel, setStockLevel] = useState('');
   const [supplier, setSupplier] = useState('');
@@ -182,6 +186,31 @@ const InventoryItemsListPage = () => {
     ? ['Stock Level', 'Store', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity']
     : ['Stock Level', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity'];
 
+  // Function to download the template
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/inventoryitems/template', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'InventoryTemplate.xlsx';
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      alert('Failed to download template. Please try again.');
+    }
+  };
+
   // Render
   return (
     <div className="container py-5">
@@ -194,7 +223,15 @@ const InventoryItemsListPage = () => {
         ]}
         actions={[
             { icon: <FaPlus />, title: 'New Inventory Item', route: '/inventory/new' },
-          { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock'}
+          { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock' },
+          {
+            icon: <FaUpload />,
+            title: 'Bulk Upload Inventory Items',
+            onClick: () => {
+              console.log("Bulk Upload button clicked");
+              setShowBulkUploadModal(true);
+            },
+          },
         ]}
       />
 
@@ -240,7 +277,25 @@ const InventoryItemsListPage = () => {
         onPageChange={setCurrentPage}
         entriesPerPage={entriesPerPage}
         totalEntries={totalFiltered}
-      />
+          />
+
+
+          {/* InfoModal for Bulk Upload */}
+          <InfoModal
+              show={showBulkUploadModal}
+              title="Bulk Upload Inventory Items"
+              onClose={() => setShowBulkUploadModal(false)}
+          >
+              <p>
+                  Use this feature to bulk upload inventory items. You can download the template below, fill it out, and upload it back to the system.
+              </p>
+              <div className="text-end">
+                  <button className="btn btn-primary" onClick={handleDownloadTemplate}>
+                      Download Template
+                  </button>
+              </div>
+          </InfoModal>
+
     </div>
   );
 };
