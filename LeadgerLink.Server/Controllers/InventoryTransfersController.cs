@@ -480,7 +480,8 @@ namespace LeadgerLink.Server.Controllers
                     dto.NewDriverName,
                     dto.NewDriverEmail,
                     items,
-                    dto.Notes
+                    dto.Notes,
+                    domainUser.UserId
                 );
 
                 return NoContent();

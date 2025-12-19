@@ -386,9 +386,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
     string? newDriverName,
     string? newDriverEmail,
     IEnumerable<CreateInventoryTransferItemDto> items,
-    string? notes)
+    string? notes,
+    int loggedInUserId)
         {
             var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .Include(t => t.Driver)
                 .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
 
             if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
@@ -428,30 +432,42 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 }
                 else if (assignedDriverId.HasValue)
                 {
-                    // validate presence of supplied driver id
-                    var exists = await _context.Drivers.AnyAsync(d => d.DriverId == assignedDriverId.Value);
-                    if (!exists) throw new KeyNotFoundException($"Driver {assignedDriverId.Value} not found.");
+                    // Fetch the driver's email if newDriverEmail is null
+                    if (string.IsNullOrWhiteSpace(newDriverEmail))
+                    {
+                        var driver = await _context.Drivers
+                            .FirstOrDefaultAsync(d => d.DriverId == assignedDriverId.Value);
+
+                        if (driver == null) throw new KeyNotFoundException($"Driver {assignedDriverId.Value} not found.");
+
+                        newDriverEmail = driver.DriverEmail;
+                    }
                 }
 
-                // assign driver if available
+                // Assign driver if available
                 if (assignedDriverId.HasValue)
                 {
                     transfer.DriverId = assignedDriverId.Value;
                 }
 
-                // override notes if provided
+                // Override notes if provided
                 if (notes != null)
                 {
                     transfer.Notes = notes.Trim();
                 }
 
-                // set status to Approved when possible
+                // Set status to Approved when possible
                 var approved = await _context.InventoryTransferStatuses
                     .FirstOrDefaultAsync(s => (s.TransferStatus ?? string.Empty).Trim().ToLower() == "approved");
                 if (approved != null)
                 {
                     transfer.InventoryTransferStatusId = approved.TransferStatusId;
                 }
+
+                // Set the approved by user ID
+                var userId = loggedInUserId;
+
+                transfer.ApprovedBy = userId;
 
                 _context.InventoryTransfers.Update(transfer);
                 await _context.SaveChangesAsync();
@@ -483,6 +499,47 @@ namespace LeadgerLink.Server.Repositories.Implementations
                         await _context.TransferItems.AddRangeAsync(toAdd);
                         await _context.SaveChangesAsync();
                     }
+                }
+
+
+                // Distribute transfer items with IsRequested = false
+                var (inventoryItems, recipes) = await DistributeTransferItemsAsync(transferId, isRequested: false);
+
+                // Fetch names for inventory items
+                var inventoryItemNames = await _context.InventoryItems
+                    .Where(ii => inventoryItems.Select(i => i.InventoryItemId).Contains(ii.InventoryItemId))
+                    .ToDictionaryAsync(ii => ii.InventoryItemId, ii => ii.InventoryItemName);
+
+                // Fetch names for recipes
+                var recipeNames = await _context.Recipes
+                    .Where(r => recipes.Select(rp => rp.RecipeId).Contains(r.RecipeId))
+                    .ToDictionaryAsync(r => r.RecipeId, r => r.RecipeName);
+
+                // Deduct quantities from the store approving the transfer
+                var deductionResult = await _inventoryItemRepository.DeductQuantitiesAsync(inventoryItems, recipes);
+                if (!deductionResult.Success)
+                {
+                    throw new InvalidOperationException("Failed to deduct quantities for the transfer.");
+                }
+
+                // Send an email to the driver
+                if (!string.IsNullOrWhiteSpace(newDriverEmail))
+                {
+                    var receivingStoreName = transfer.ToStoreNavigation?.StoreName ?? "Unknown Store";
+                    var emailSubject = "Transfer Approved Notification";
+                    var emailBody = $@"
+            <p>Dear {transfer.Driver?.DriverName ?? "Driver"},</p>
+            <p>The transfer with ID <strong>{transfer.InventoryTransferId}</strong> has been approved.</p>
+            <p>Please deliver the items to <strong>{receivingStoreName}</strong>.</p>
+            <p>Items to deliver:</p>
+            <ul>
+                {string.Join("", inventoryItems.Select(ii => $"<li>{inventoryItemNames[ii.InventoryItemId]}: Quantity {ii.Quantity}</li>"))}
+                {string.Join("", recipes.Select(r => $"<li>{recipeNames[r.RecipeId]}: Quantity {r.Quantity}</li>"))}
+            </ul>
+            <p>Thank you for your service.</p>
+            <p>Best regards,<br>LedgerLink Team</p>";
+
+                    await _emailService.SendAsync(newDriverEmail, emailSubject, emailBody);
                 }
 
                 await tx.CommitAsync();

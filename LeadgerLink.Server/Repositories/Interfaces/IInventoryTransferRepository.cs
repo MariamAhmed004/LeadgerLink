@@ -54,7 +54,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
             string? newDriverName,
             string? newDriverEmail,
             IEnumerable<CreateInventoryTransferItemDto> items,
-            string? notes);
+            string? notes,
+            int loggedInUser);
 
         // Reject a transfer: update its status to "Rejected" and optionally override notes.
         Task RejectTransferAsync(int transferId, string? notes = null);
