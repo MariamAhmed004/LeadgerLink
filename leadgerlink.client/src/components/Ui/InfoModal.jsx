@@ -76,11 +76,13 @@ const InfoModal = ({ show, title, onClose, children }) => {
           maxWidth: 720,
           width: "100%",
           borderRadius: 8,
-          boxShadow: "0 8px 30px rgba(2,6,23,0.2)"
+          boxShadow: "0 8px 30px rgba(2,6,23,0.2)",
+          maxHeight: "80vh", // Limit modal height to 80% of the viewport height
+          overflowY: "auto" // Enable scrolling if content exceeds the height
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="card-body">
+        <div className="card-body text-start"> {/* Added text-start for left alignment */}
           <div className="d-flex justify-content-between align-items-start mb-3">
             <h5 className="card-title mb-0">{title}</h5>
             {!hasChildButtons && (

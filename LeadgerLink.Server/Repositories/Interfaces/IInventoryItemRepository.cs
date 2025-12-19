@@ -87,5 +87,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Generates an Excel template for bulk uploading inventory items.
         byte[] GenerateInventoryTemplate();
+
+        // Uploads inventory items from a provided file stream for a specific store.
+        Task<(bool Success, string Message)> UploadInventoryItemsAsync(Stream fileStream, int storeId);
     }
 }

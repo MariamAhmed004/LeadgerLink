@@ -778,5 +778,63 @@ namespace LeadgerLink.Server.Controllers
             // Resolve the user ID and set it in the audit context
             _auditContext.UserId = await ResolveUserIdAsync();
         }
+
+        // POST api/inventoryitems/upload
+        [Authorize]
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadInventoryItems([FromForm] IFormFile file, [FromForm] int? storeId = null)
+        {
+            // Validate user authentication
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            // Fetch domain user
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Determine store ID
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+            int? resolvedStoreId = null;
+
+            if (isOrgAdmin)
+            {
+                resolvedStoreId = storeId;
+                if (!resolvedStoreId.HasValue)
+                    return BadRequest("Store ID is required for organization admins.");
+            }
+            else
+            {
+                resolvedStoreId = domainUser.StoreId;
+                if (!resolvedStoreId.HasValue)
+                    return BadRequest("Unable to resolve store for the current user.");
+            }
+
+            // Validate file
+            if (file == null || file.Length == 0)
+                return BadRequest("No file uploaded or file is empty.");
+
+            try
+            {
+                // Process the uploaded file
+                using var stream = file.OpenReadStream();
+                var (success, message) = await _inventoryRepo.UploadInventoryItemsAsync(stream, resolvedStoreId.Value);
+
+                if (!success)
+                    return BadRequest(message);
+
+                return Ok(new { message = "Inventory items uploaded successfully." });
+            }
+            catch (Exception ex)
+            {
+                // Log error and return 500 status
+                _logger.LogError(ex, "Failed to upload inventory items");
+                await _auditLogger.LogExceptionAsync("Failed to upload inventory items", ex.StackTrace);
+                return StatusCode(500, "An error occurred while processing the file.");
+            }
+        }
+
     }
 }

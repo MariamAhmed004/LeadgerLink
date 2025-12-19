@@ -8,6 +8,8 @@ import PaginationSection from '../../components/Listing/PaginationSection';
 import InfoModal from '../../components/Ui/InfoModal'; // Import InfoModal
 import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext";
+import SelectField from "../../components/Form/SelectField";
+
 
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
@@ -34,6 +36,11 @@ const InventoryItemsListPage = () => {
   const { loggedInUser } = useAuth();
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin");
+
+  // State for file and store selection
+  const [file, setFile] = useState(null);
+  const [storeId, setStoreId] = useState(isOrgAdmin ? "" : loggedInUser?.storeId ?? "");
+  const [stores, setStores] = useState([]);
 
   // Stock level options (values must match server expectations)
   // Server expects stockLevel query param values that can be normalized to:
@@ -112,6 +119,35 @@ const InventoryItemsListPage = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [stockLevel, supplier, category, entriesPerPage, searchTerm]);
+
+    // Load stores for organization admin
+    useEffect(() => {
+        if (!isOrgAdmin) return;
+        const loadStores = async () => {
+            try {
+                const orgId = loggedInUser?.orgId ?? null;
+                if (!orgId) {
+                    setStores([]);
+                    return;
+                }
+                const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
+                if (res.ok) {
+                    const data = await res.json();
+                    setStores(
+                        data.map((store) => ({
+                            id: store.storeId ?? store.id, // Ensure the correct ID field is used
+                            name: store.storeName ?? store.name ?? `Store ${store.storeId ?? store.id}`, // Ensure the correct name field is used
+                        }))
+                    );
+                } else {
+                    setStores([]);
+                }
+            } catch {
+                setStores([]);
+            }
+        };
+        loadStores();
+    }, [isOrgAdmin, loggedInUser]);
 
   // Helper
   const getStockColor = (quantity, minimumQuantity) => {
@@ -211,6 +247,45 @@ const InventoryItemsListPage = () => {
     }
   };
 
+  // Handle file upload
+    const handleUpload = async () => {
+        if (!file || (isOrgAdmin && !storeId)) {
+            alert("Please select a file and a store.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        if (isOrgAdmin) {
+            formData.append("storeId", storeId);
+        }
+
+        // Debugging: Log the FormData keys and values
+        for (const [key, value] of formData.entries()) {
+            console.log(`${key}:`, value);
+        }
+
+        try {
+            const response = await fetch("/api/inventoryitems/upload", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to upload file.");
+            }
+
+            alert("File uploaded successfully!");
+            setShowBulkUploadModal(false);
+        } catch (error) {
+            console.error("Error uploading file:", error);
+            alert("Failed to upload file. Please try again.");
+        }
+    };
+
+    const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
+
   // Render
   return (
     <div className="container py-5">
@@ -226,7 +301,7 @@ const InventoryItemsListPage = () => {
           { icon: <FaTruck />, title: 'Restock Items', route: '/inventory-items/restock' },
           {
             icon: <FaUpload />,
-            title: 'Bulk Upload Inventory Items',
+            title: 'Upload Inventory Items',
             onClick: () => {
               console.log("Bulk Upload button clicked");
               setShowBulkUploadModal(true);
@@ -281,17 +356,93 @@ const InventoryItemsListPage = () => {
 
 
           {/* InfoModal for Bulk Upload */}
+          {/* InfoModal for Bulk Upload */}
           <InfoModal
               show={showBulkUploadModal}
               title="Bulk Upload Inventory Items"
               onClose={() => setShowBulkUploadModal(false)}
           >
               <p>
-                  Use this feature to bulk upload inventory items. You can download the template below, fill it out, and upload it back to the system.
+                  Use this feature to bulk upload inventory items into the system. Please follow the instructions below to ensure a successful upload:
+              </p>
+              <ul>
+                  <li>
+                      <strong>Download the Template:</strong> Click the <em>"Download Template"</em> button below to download the Excel template.
+                  </li>
+                  <li>
+                      <strong>Fill Out the Template:</strong> Populate the template with the required data. Ensure the following:
+                      <ul>
+                          <li><strong>Item Name:</strong> This field is mandatory and must not be empty.</li>
+                          <li><strong>Description:</strong> Provide a brief description of the item (optional).</li>
+                          <li><strong>Supplier:</strong> Enter the supplier's name. If the supplier does not exist, it will be created automatically.</li>
+                          <li><strong>Supplier Contact Method:</strong> Enter the contact method for the supplier (e.g., email, phone).</li>
+                          <li><strong>Category:</strong> Select a valid category from the dropdown in the template.</li>
+                          <li><strong>Unit:</strong> Select a valid unit from the dropdown in the template.</li>
+                          <li><strong>Cost Per Unit:</strong> Enter a numeric value for the cost per unit.</li>
+                          <li><strong>Quantity:</strong> Enter a numeric value for the quantity.</li>
+                          <li><strong>Threshold:</strong> Enter a numeric value for the minimum quantity threshold.</li>
+                      </ul>
+                  </li>
+                  <li>
+                      <strong>Avoid Modifying the Template:</strong> Do not change the structure, headers, or formatting of the template.
+                  </li>
+                  <li>
+                      <strong>Save the File:</strong> Save the file in Excel format (.xlsx) after filling out the data.
+                  </li>
+                  <li>
+                      <strong>Upload the File:</strong> Use the upload feature to submit the file. Ensure the file adheres to the following rules:
+                      <ul>
+                          <li>The file must be in Excel format (.xlsx).</li>
+                          <li>The headers must match the template exactly.</li>
+                          <li>Ensure all required fields are filled out correctly.</li>
+                      </ul>
+                  </li>
+              </ul>
+              <p>
+                  <strong>Note:</strong> If a supplier with the same name and contact method already exists for the store, it will be reused. Otherwise, a new supplier will be created and linked to the inventory item.
               </p>
               <div className="text-end">
                   <button className="btn btn-primary" onClick={handleDownloadTemplate}>
                       Download Template
+                  </button>
+              </div>
+
+              {/* For organization admins: store selection */}
+              {isOrgAdmin && (
+                  <div className="mb-3">
+                      <label className="form-label">Select Store</label>
+                      <SelectField
+                          label="Store"
+                          value={storeId}
+                          onChange={setStoreId}
+                          options={[{ label: "Select store", value: "" }, ...storeOptions]}
+                          required
+                      />
+                  </div>
+              )}
+
+              {/* File upload section */}
+              <div className="mb-3">
+                  <label className="form-label">Upload File</label>
+                  <input
+                      type="file"
+                      className="form-control"
+                      accept=".xlsx, .xls"
+                      onChange={e => setFile(e.target.files[0])}
+                  />
+              </div>
+
+              {/* Note about file requirements */}
+              <div className="mb-3">
+                  <small className="text-muted">
+                      <strong>File Requirements:</strong> Must be an Excel file (.xlsx or .xls) with the correct format.
+                  </small>
+              </div>
+
+              {/* Submit button */}
+              <div className="text-end">
+                  <button className="btn btn-success" onClick={handleUpload}>
+                      Upload
                   </button>
               </div>
           </InfoModal>

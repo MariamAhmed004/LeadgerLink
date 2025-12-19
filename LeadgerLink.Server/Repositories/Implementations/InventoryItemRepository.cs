@@ -627,7 +627,164 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
         }
 
+        public async Task<(bool Success, string Message)> UploadInventoryItemsAsync(Stream fileStream, int storeId)
+        {
+            try
+            {
+                using (var workbook = new XLWorkbook(fileStream))
+                {
+                    var wsData = workbook.Worksheet("Data");
 
+                    // Validate headers
+                    var headers = new[]
+                    {
+                "Item Name", "Description", "Supplier", "Supplier Contact Method",
+                "Category", "Unit", "Cost Per Unit", "Quantity", "Threshold"
+            };
+
+                    for (int col = 1; col <= headers.Length; col++)
+                    {
+                        if (wsData.Cell(1, col).GetString() != headers[col - 1])
+                        {
+                            return (false, $"Invalid template format. Expected header '{headers[col - 1]}' in column {col}.");
+                        }
+                    }
+
+                    // Read rows (skip header row)
+                    var rows = wsData.RowsUsed().Skip(1);
+
+                    foreach (var row in rows)
+                    {
+                        // Check if the row has no item name, stop processing further rows
+                        var itemName = row.Cell(1).GetString().Trim();
+                        if (string.IsNullOrWhiteSpace(itemName))
+                        {
+                            break; // Stop processing further rows
+                        }
+
+                        // Read other values from the row
+                        var description = row.Cell(2).GetString().Trim();
+                        var supplierName = row.Cell(3).GetString().Trim();
+                        var supplierContactMethod = row.Cell(4).GetString().Trim();
+                        var categoryName = row.Cell(5).GetString().Trim();
+                        var unitName = row.Cell(6).GetString().Trim();
+
+                        var costPerUnitCell = row.Cell(7);
+                        decimal costPerUnit;
+                        if (!costPerUnitCell.TryGetValue<decimal>(out costPerUnit))
+                        {
+                            if (costPerUnitCell.TryGetValue<int>(out var intCostPerUnit))
+                            {
+                                costPerUnit = intCostPerUnit; // Convert int to decimal
+                            }
+                            else
+                            {
+                                return (false, $"Invalid cost per unit in row {row.RowNumber()}.");
+                            }
+                        }
+
+                        var quantityCell = row.Cell(8);
+                        decimal quantity;
+                        if (!quantityCell.TryGetValue<decimal>(out quantity))
+                        {
+                            if (quantityCell.TryGetValue<int>(out var intQuantity))
+                            {
+                                quantity = intQuantity; // Convert int to decimal
+                            }
+                            else
+                            {
+                                return (false, $"Invalid quantity in row {row.RowNumber()}.");
+                            }
+                        }
+
+                        var thresholdCell = row.Cell(9);
+                        decimal threshold;
+                        if (!thresholdCell.TryGetValue<decimal>(out threshold))
+                        {
+                            if (thresholdCell.TryGetValue<int>(out var intThreshold))
+                            {
+                                threshold = intThreshold; // Convert int to decimal
+                            }
+                            else
+                            {
+                                return (false, $"Invalid threshold in row {row.RowNumber()}.");
+                            }
+                        }
+
+                        // Validate required fields
+                        if (string.IsNullOrWhiteSpace(supplierName) ||
+                            string.IsNullOrWhiteSpace(categoryName) || string.IsNullOrWhiteSpace(unitName))
+                        {
+                            return (false, $"Missing required fields in row {row.RowNumber()}.");
+                        }
+
+                        // Check or add supplier
+                        var supplier = await _context.Suppliers
+                            .FirstOrDefaultAsync(s => s.SupplierName == supplierName &&
+                                                      s.ContactMethod == supplierContactMethod &&
+                                                      s.StoreId == storeId);
+
+                        if (supplier == null)
+                        {
+                            supplier = new Supplier
+                            {
+                                SupplierName = supplierName,
+                                ContactMethod = supplierContactMethod,
+                                StoreId = storeId
+                            };
+                            _context.Suppliers.Add(supplier);
+                            await _context.SaveChangesAsync(); // Save to get the new supplier ID
+                        }
+
+                        // Check category
+                        var category = await _context.InventoryItemCategories
+                            .FirstOrDefaultAsync(c => c.InventoryItemCategoryName == categoryName);
+
+                        if (category == null)
+                        {
+                            return (false, $"Invalid category '{categoryName}' in row {row.RowNumber()}.");
+                        }
+
+                        // Check unit
+                        var unit = await _context.Units
+                            .FirstOrDefaultAsync(u => u.UnitName == unitName);
+
+                        if (unit == null)
+                        {
+                            return (false, $"Invalid unit '{unitName}' in row {row.RowNumber()}.");
+                        }
+
+                        // Add inventory item
+                        var inventoryItem = new InventoryItem
+                        {
+                            InventoryItemName = itemName,
+                            Description = description,
+                            SupplierId = supplier.SupplierId,
+                            InventoryItemCategoryId = category.InventoryItemCategoryId,
+                            UnitId = unit.UnitId,
+                            CostPerUnit = costPerUnit,
+                            Quantity = quantity,
+                            MinimumQuantity = threshold,
+                            StoreId = storeId,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        _context.InventoryItems.Add(inventoryItem);
+                    }
+
+                    // Save all changes
+                    await _context.SaveChangesAsync();
+                }
+
+                return (true, "Inventory items uploaded successfully.");
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (if logging is implemented)
+                return (false, $"An error occurred while processing the file: {ex.Message}");
+            }
+        }
 
     }
 }
