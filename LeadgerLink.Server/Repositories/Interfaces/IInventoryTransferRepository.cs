@@ -69,5 +69,10 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task AddTransferItemAsync(TransferItem transferItem);
 
         Task<InventoryTransfer?> GetTransferWithStoresAsync(int transferId);
+
+        Task<(List<(int InventoryItemId, decimal Quantity)> InventoryItems, List<(int RecipeId, decimal Quantity)> Recipes)> DistributeTransferItemsAsync(int transferId, bool isRequested);
+
+        Task SetTransferToDeliveredAsync(int transferId);
+
     }
 }

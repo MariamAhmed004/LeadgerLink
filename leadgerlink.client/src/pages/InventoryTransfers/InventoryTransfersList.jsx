@@ -8,6 +8,7 @@ import FilterSection from '../../components/Listing/FilterSection';
 import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
+import InfoModal from '../../components/Ui/InfoModal';
 
 // Inventory Transfers list
 export default function InventoryTransfersList() {
@@ -31,7 +32,10 @@ export default function InventoryTransfersList() {
   const [rowsData, setRowsData] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+    const [error, setError] = useState('');
+
+    // Add this at the top level of the component
+    const [showModal, setShowModal] = useState(false);
 
   const transferFlowOptions = [
     { label: 'All', value: '' },
@@ -188,6 +192,58 @@ export default function InventoryTransfersList() {
         >
           Draft - Click to fill
         </button>
+      );
+    }
+    // Store Manager: if transfer is IN, status is approved, and user is requester -> show "Set to Delivered" button
+    else if (isStoreManager && inOutLower === 'in' && statusLower === 'approved' && isRequester && id) {
+      statusCell = (
+        <>
+          <button
+            type="button"
+            className="btn btn-sm btn-warning"
+            onClick={() => setShowModal(true)}
+            title="Set to Delivered"
+          >
+            Approved - Set to Delivered
+          </button>
+          <InfoModal
+            show={showModal}
+            title="Confirm Delivery"
+            onClose={() => setShowModal(false)}
+          >
+            <p>Are you sure you want to mark this transfer as delivered?</p>
+            <div className="d-flex justify-content-end">
+              <button
+                className="btn btn-secondary me-2"
+                onClick={() => setShowModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setShowModal(false);
+                  // Call API to set status to delivered
+                    fetch(`/api/inventorytransfers/${id}/deliver`, {
+                    method: 'POST',
+                    credentials: 'include',
+                  })
+                    .then((res) => {
+                      if (!res.ok) throw new Error('Failed to set transfer as delivered');
+                      // Reload data or update state
+                      window.location.reload();
+                    })
+                    .catch((err) => {
+                      console.error(err);
+                      alert('Failed to set transfer as delivered');
+                    });
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </InfoModal>
+        </>
       );
     } else {
       // default: show plain status text (preserve original behavior)

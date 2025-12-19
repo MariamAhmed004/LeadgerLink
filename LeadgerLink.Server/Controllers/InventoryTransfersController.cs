@@ -560,6 +560,69 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+
+        // POST api/inventorytransfers/{id}/deliver
+        // Sets the transfer status to "delivered" and processes the transfer items.
+        [Authorize]
+        [HttpPost("{id:int}/deliver")]
+        public async Task<ActionResult> DeliverTransfer(int id)
+        {
+            // Validate the transfer ID
+            if (id <= 0) return BadRequest("Invalid transfer ID.");
+
+            // Resolve user ID
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            // Fetch the domain user using the repository
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Validate transfer exists and user has access
+            var transfer = await _repository.GetTransferWithStoresAsync(id);
+            if (transfer == null) return NotFound();
+
+            // Check if the user is an organization admin or has access to the transfer
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+            if (!isOrgAdmin && domainUser.StoreId.HasValue)
+            {
+                var sId = domainUser.StoreId.Value;
+                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+            }
+
+            try
+            {
+                // Call the repository method to set the transfer to "delivered"
+                await _repository.SetTransferToDeliveredAsync(id);
+                return NoContent();
+            }
+            catch (KeyNotFoundException knf)
+            {
+                // Log the error and return a 404 status code
+                _logger.LogWarning(knf, "Deliver failed for transfer {Id}", id);
+                return NotFound(knf.Message);
+            }
+            catch (InvalidOperationException ioe)
+            {
+                // Log the error and return a 400 status code
+                _logger.LogWarning(ioe, "Deliver failed for transfer {Id}", id);
+                return BadRequest(ioe.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                // Log the database error and return a 500 status code
+                _logger.LogError(dbEx, "DB error delivering transfer {Id}", id);
+                return StatusCode(500, "Failed to deliver transfer.");
+            }
+            catch (Exception ex)
+            {
+                // Log the general error and return a 500 status code
+                _logger.LogError(ex, "Failed to deliver transfer {Id}", id);
+                return StatusCode(500, "Failed to deliver transfer.");
+            }
+        }
+
+
         // Resolves the user ID from the current user's claims.
         private async Task<int?> ResolveUserIdAsync()
         {

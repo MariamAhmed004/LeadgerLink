@@ -50,6 +50,9 @@ namespace LeadgerLink.Server.Repositories.Interfaces
             UpdateRecipeDto dto,
             HttpRequest request
         );
+        Task<(bool Success, string Message)> ReceiveRecipesAsync(
+    List<(int RecipeId, decimal Quantity)> recipes,
+    int storeId);
 
     }
 }

@@ -463,5 +463,114 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
         }
 
+        public async Task<(bool Success, string Message)> ReceiveRecipesAsync(
+    List<(int RecipeId, decimal Quantity)> recipes,
+    int storeId)
+        {
+            try
+            {
+                // Validate input
+                if (recipes == null || !recipes.Any())
+                {
+                    return (false, "No recipes provided.");
+                }
+
+                // Create a copy of the recipes collection to ensure it is not modified during enumeration
+                var recipesCopy = recipes.ToList();
+
+                foreach (var (recipeId, recipeQuantity) in recipesCopy)
+                {
+                    // Validate recipe quantity
+                    if (recipeQuantity <= 0)
+                    {
+                        return (false, $"Invalid quantity for recipe ID {recipeId}.");
+                    }
+
+                    // Fetch the recipe with its ingredients
+                    var recipe = await _context.Recipes
+                        .Include(r => r.RecipeInventoryItems)
+                        .FirstOrDefaultAsync(r => r.RecipeId == recipeId);
+
+                    if (recipe == null)
+                    {
+                        return (false, $"Recipe with ID {recipeId} not found.");
+                    }
+
+                    // Process each ingredient in the recipe
+                    foreach (var ingredient in recipe.RecipeInventoryItems)
+                    {
+                        if (ingredient.Quantity <= 0)
+                        {
+                            continue; // Skip invalid ingredients
+                        }
+
+                        // Calculate the total quantity required for the ingredient
+                        var totalIngredientQuantity = ingredient.Quantity * recipeQuantity;
+
+                        // Fetch the inventory item for the store
+                        var inventoryItem = await _context.InventoryItems
+                            .FirstOrDefaultAsync(ii => ii.InventoryItemId == ingredient.InventoryItemId && ii.StoreId == storeId);
+
+                        if (inventoryItem != null)
+                        {
+                            // Update the quantity of the existing inventory item
+                            inventoryItem.Quantity += totalIngredientQuantity;
+                            inventoryItem.UpdatedAt = DateTime.UtcNow;
+                            _context.InventoryItems.Update(inventoryItem);
+                        }
+                        else
+                        {
+                            // Fetch the inventory item details to create a new entry
+                            var inventoryItemDetails = await _context.InventoryItems
+                                .AsNoTracking()
+                                .FirstOrDefaultAsync(ii => ii.InventoryItemId == ingredient.InventoryItemId);
+
+                            if (inventoryItemDetails == null)
+                            {
+                                return (false, $"Inventory item with ID {ingredient.InventoryItemId} not found.");
+                            }
+
+                            // Create a new inventory item for the store
+                            var newItem = new InventoryItem
+                            {
+                                InventoryItemName = inventoryItemDetails.InventoryItemName,
+                                Description = inventoryItemDetails.Description + " ---- received from recipe transfer",
+                                SupplierId = inventoryItemDetails.SupplierId,
+                                InventoryItemCategoryId = inventoryItemDetails.InventoryItemCategoryId,
+                                UnitId = inventoryItemDetails.UnitId,
+                                CostPerUnit = inventoryItemDetails.CostPerUnit,
+                                Quantity = totalIngredientQuantity,
+                                MinimumQuantity = inventoryItemDetails.MinimumQuantity,
+                                StoreId = storeId,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            };
+
+                            await _context.InventoryItems.AddAsync(newItem);
+
+                            // Add a record for RecipeInventoryItem to associate the ingredient with the recipe
+                            var recipeInventoryItem = new RecipeInventoryItem
+                            {
+                                RecipeId = recipeId,
+                                InventoryItemId = inventoryItemDetails.InventoryItemId,
+                                Quantity = ingredient.Quantity
+                            };
+
+                            await _context.RecipeInventoryItems.AddAsync(recipeInventoryItem);
+                        }
+                    }
+                }
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+
+                return (true, "Recipes received successfully.");
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (if logging is implemented)
+                return (false, $"An error occurred while receiving recipes: {ex.Message}");
+            }
+        }
     }
 }

@@ -786,5 +786,91 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
         }
 
+        public async Task<(bool Success, string Message)> ReceiveInventoryItemsAsync(
+    List<(int InventoryItemId, decimal Quantity)> inventoryItems,
+    int storeId)
+        {
+            try
+            {
+                // Validate input
+                if (inventoryItems == null || !inventoryItems.Any())
+                {
+                    return (false, "No inventory items provided.");
+                }
+
+                // List to hold new inventory items to be added
+                var newInventoryItems = new List<InventoryItem>();
+
+                foreach (var (inventoryItemId, quantity) in inventoryItems)
+                {
+                    // Validate quantity
+                    if (quantity <= 0)
+                    {
+                        return (false, $"Invalid quantity for inventory item ID {inventoryItemId}.");
+                    }
+
+                    // Check if the inventory item already exists for the store
+                    var existingItem = await _context.InventoryItems
+                        .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId && ii.StoreId == storeId);
+
+                    if (existingItem != null)
+                    {
+                        // Update the quantity and description of the existing item
+                        existingItem.Quantity += quantity;
+                        existingItem.Description += " ---- received from inventory transfer";
+                        existingItem.UpdatedAt = DateTime.UtcNow;
+                        _context.InventoryItems.Update(existingItem);
+                    }
+                    else
+                    {
+                        // Fetch the inventory item details to create a new entry
+                        var inventoryItemDetails = await _context.InventoryItems
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+
+                        if (inventoryItemDetails == null)
+                        {
+                            return (false, $"Inventory item with ID {inventoryItemId} not found.");
+                        }
+
+                        // Create a new inventory item for the store
+                        var newItem = new InventoryItem
+                        {
+                            InventoryItemName = inventoryItemDetails.InventoryItemName,
+                            Description = inventoryItemDetails.Description + " ---- received from inventory transfer",
+                            SupplierId = inventoryItemDetails.SupplierId,
+                            InventoryItemCategoryId = inventoryItemDetails.InventoryItemCategoryId,
+                            UnitId = inventoryItemDetails.UnitId,
+                            CostPerUnit = inventoryItemDetails.CostPerUnit,
+                            Quantity = quantity,
+                            MinimumQuantity = inventoryItemDetails.MinimumQuantity,
+                            StoreId = storeId,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        newInventoryItems.Add(newItem);
+                    }
+                }
+
+                // Add new inventory items to the database
+                if (newInventoryItems.Any())
+                {
+                    await _context.InventoryItems.AddRangeAsync(newInventoryItems);
+                }
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+
+                return (true, "Inventory items received successfully.");
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (if logging is implemented)
+                return (false, $"An error occurred while receiving inventory items: {ex.Message}");
+            }
+        }
+
+
     }
 }

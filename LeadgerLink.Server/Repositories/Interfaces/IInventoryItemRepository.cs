@@ -90,5 +90,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         // Uploads inventory items from a provided file stream for a specific store.
         Task<(bool Success, string Message)> UploadInventoryItemsAsync(Stream fileStream, int storeId);
+        Task<(bool Success, string Message)> ReceiveInventoryItemsAsync(
+    List<(int InventoryItemId, decimal Quantity)> inventoryItems,
+    int storeId);
     }
 }

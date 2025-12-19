@@ -1,21 +1,32 @@
-﻿using System;
+﻿using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
+using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
+using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using LeadgerLink.Server.Dtos;
-using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Repositories.Interfaces;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
     public class InventoryTransferRepository : IInventoryTransferRepository
     {
         private readonly LedgerLinkDbContext _context;
+        private readonly IInventoryItemRepository _inventoryItemRepository;
+        private readonly IRecipeRepository _recipeRepository;
+        private readonly IEmailService _emailService;
 
-        public InventoryTransferRepository(LedgerLinkDbContext context)
+        public InventoryTransferRepository(
+            LedgerLinkDbContext context,
+            IInventoryItemRepository inventoryItemRepository,
+            IRecipeRepository recipeRepository,
+            IEmailService emailService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
+            _recipeRepository = recipeRepository ?? throw new ArgumentNullException(nameof(recipeRepository));
+            _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
         }
 
         public async Task<int> CountTransfersByOrganizationAsync(int organizationId, DateTime? from = null, DateTime? to = null)
@@ -548,5 +559,108 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
         }
 
+        public async Task<(List<(int InventoryItemId, decimal Quantity)> InventoryItems, List<(int RecipeId, decimal Quantity)> Recipes)> DistributeTransferItemsAsync(int transferId, bool isRequested)
+        {
+            // Validate the transfer ID
+            if (transferId <= 0)
+            {
+                throw new ArgumentException("Invalid transfer ID.", nameof(transferId));
+            }
+
+            // Fetch transfer items for the specified transfer ID and filter by IsRequested
+            var transferItems = await _context.TransferItems
+                .Where(ti => ti.InventoryTransferId == transferId && ti.IsRequested == isRequested)
+                .ToListAsync();
+
+            // Initialize collections for inventory items and recipes
+            var inventoryItems = new List<(int InventoryItemId, decimal Quantity)>();
+            var recipes = new List<(int RecipeId, decimal Quantity)>();
+
+            // Distribute transfer items into the respective collections
+            foreach (var item in transferItems)
+            {
+                if (item.InventoryItemId.HasValue && item.Quantity.HasValue)
+                {
+                    inventoryItems.Add((item.InventoryItemId.Value, item.Quantity.Value));
+                }
+                else if (item.RecipeId.HasValue && item.Quantity.HasValue)
+                {
+                    recipes.Add((item.RecipeId.Value, item.Quantity.Value));
+                }
+            }
+
+            // Return the distributed collections
+            return (inventoryItems, recipes);
+        }
+
+        public async Task SetTransferToDeliveredAsync(int transferId)
+        {
+            // Validate the transfer ID
+            if (transferId <= 0)
+            {
+                throw new ArgumentException("Invalid transfer ID.", nameof(transferId));
+            }
+
+            // Fetch the transfer
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.Driver) // Include the driver to fetch their email
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
+
+            if (transfer == null)
+            {
+                throw new KeyNotFoundException($"Transfer with ID {transferId} not found.");
+            }
+
+            // Set the transfer status to "delivered"
+            var deliveredStatus = await _context.InventoryTransferStatuses
+                .FirstOrDefaultAsync(s => s.TransferStatus != null && s.TransferStatus.ToLower() == "delivered");
+
+            if (deliveredStatus == null)
+            {
+                throw new InvalidOperationException("The 'delivered' status could not be found.");
+            }
+
+            transfer.InventoryTransferStatusId = deliveredStatus.TransferStatusId;
+            transfer.RecievedAt = DateTime.UtcNow;
+
+            _context.InventoryTransfers.Update(transfer);
+            await _context.SaveChangesAsync();
+
+            // Distribute transfer items with IsRequested = false
+            var (inventoryItems, recipes) = await DistributeTransferItemsAsync(transferId, isRequested: false);
+
+            // Process inventory items
+            if (inventoryItems.Any())
+            {
+                var inventoryResult = await _inventoryItemRepository.ReceiveInventoryItemsAsync(inventoryItems, transfer.ToStore);
+                if (!inventoryResult.Success)
+                {
+                    throw new InvalidOperationException($"Failed to process inventory items: {inventoryResult.Message}");
+                }
+            }
+
+            // Process recipes
+            if (recipes.Any())
+            {
+                var recipeResult = await _recipeRepository.ReceiveRecipesAsync(recipes, transfer.ToStore);
+                if (!recipeResult.Success)
+                {
+                    throw new InvalidOperationException($"Failed to process recipes: {recipeResult.Message}");
+                }
+            }
+
+            // Send an email to the driver
+            if (transfer.Driver != null && !string.IsNullOrWhiteSpace(transfer.Driver.DriverEmail))
+            {
+                var emailSubject = "Transfer Received Notification";
+                var emailBody = $@"
+            <p>Dear {transfer.Driver.DriverName},</p>
+            <p>The transfer with ID <strong>{transfer.InventoryTransferId}</strong> has been successfully received.</p>
+            <p>Thank you for your service.</p>
+            <p>Best regards,<br>LedgerLink Team</p>";
+
+                await _emailService.SendAsync(transfer.Driver.DriverEmail, emailSubject, emailBody);
+            }
+        }
     }
 }
