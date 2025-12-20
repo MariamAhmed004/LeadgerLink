@@ -782,10 +782,10 @@ namespace LeadgerLink.Server.Controllers
         // POST api/inventoryitems/upload
         [Authorize]
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadInventoryItems([FromForm] IFormFile file, [FromForm] int? storeId = null)
+        public async Task<IActionResult> UploadInventoryItems([FromForm] UploadInventoryItemsDto dto)
         {
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest("No file uploaded or file is empty.");
 
             // Resolve user ID
             var userId = await ResolveUserIdAsync();
@@ -797,29 +797,15 @@ namespace LeadgerLink.Server.Controllers
 
             // Determine store ID
             var isOrgAdmin = User.IsInRole("Organization Admin");
-            int? resolvedStoreId = null;
+            int? resolvedStoreId = isOrgAdmin ? dto.StoreId : domainUser.StoreId;
 
-            if (isOrgAdmin)
-            {
-                resolvedStoreId = storeId;
-                if (!resolvedStoreId.HasValue)
-                    return BadRequest("Store ID is required for organization admins.");
-            }
-            else
-            {
-                resolvedStoreId = domainUser.StoreId;
-                if (!resolvedStoreId.HasValue)
-                    return BadRequest("Unable to resolve store for the current user.");
-            }
-
-            // Validate file
-            if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded or file is empty.");
+            if (!resolvedStoreId.HasValue)
+                return BadRequest("Unable to resolve store for the current user.");
 
             try
             {
                 // Process the uploaded file
-                using var stream = file.OpenReadStream();
+                using var stream = dto.File.OpenReadStream();
                 var (success, message) = await _inventoryRepo.UploadInventoryItemsAsync(stream, resolvedStoreId.Value);
 
                 if (!success)
@@ -829,7 +815,6 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log error and return 500 status
                 _logger.LogError(ex, "Failed to upload inventory items");
                 await _auditLogger.LogExceptionAsync("Failed to upload inventory items", ex.StackTrace);
                 return StatusCode(500, "An error occurred while processing the file.");
