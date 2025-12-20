@@ -384,13 +384,19 @@ const RecipeNew = () => {
             <TextArea label="Recipe Instructions" value={instructions} onChange={setInstructions} rows={6} placeholder="Step by step instructions..." />
           </div>
 
-                  <div className="col-12 text-start">
+          <div className="col-12 text-start">
             <label className="form-label">Add recipe ingredients by selecting items from your inventory.</label>
-                      <TabbedMenu
-                          tabs={tabs}
-                          onSelectionChange={handleSelectionChange}
-                      />
-
+            {loading ? (
+              <div className="d-flex justify-content-center align-items-center py-5">
+                <div className="spinner-border text-primary me-2" role="status" aria-label="Loading ingredients"></div>
+                <span>Loading ingredients...</span>
+              </div>
+            ) : (
+              <TabbedMenu
+                tabs={tabs}
+                onSelectionChange={handleSelectionChange}
+              />
+            )}
           </div>
 
           <div className="col-12 mt-4">
@@ -438,12 +444,6 @@ const RecipeNew = () => {
               loading={saving}
             />
           </div>
-
-          {loading && (
-            <div className="col-12">
-              <div className="text-muted">Loading lookups…</div>
-            </div>
-          )}
 
           {error && (
             <div className="col-12">

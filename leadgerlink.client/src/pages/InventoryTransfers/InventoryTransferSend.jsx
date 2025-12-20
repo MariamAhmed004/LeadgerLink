@@ -8,6 +8,7 @@ import InputField from '../../components/Form/InputField';
 import TabbedMenu from '../../components/Form/TabbedMenu';
 import MenuTabCard from '../../components/Form/MenuTabCard';
 import TextArea from '../../components/Form/TextArea';
+import InfoModal from '../../components/Ui/InfoModal';
 
 export default function InventoryTransferSend() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function InventoryTransferSend() {
   const [fromStore, setFromStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0,10));
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
 
@@ -25,6 +27,8 @@ export default function InventoryTransferSend() {
   const [otherItems, setOtherItems] = useState([]);
   const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({});
   const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({});
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [sendError, setSendError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -84,6 +88,7 @@ export default function InventoryTransferSend() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
+      setLoading(true);
       try {
         const [recipesRes, itemsRes] = await Promise.all([
           fetch('/api/recipes/for-current-store', { credentials: 'include' }).catch(() => null),
@@ -129,7 +134,9 @@ export default function InventoryTransferSend() {
         } else {
           setOtherItems([]);
         }
-      } catch { /* noop */ }
+      } finally {
+        if (mounted) setLoading(false);
+      }
     };
     load();
     return () => { mounted = false; };
@@ -185,16 +192,20 @@ export default function InventoryTransferSend() {
 
   const handleSend = async (e) => {
     e?.preventDefault?.();
+    setSendError('');
+    setShowConfirmModal(true);
+  };
 
-    if (!window.confirm('Send this transfer request? This will set status to Requested.')) return;
-
+  const confirmSend = async () => {
+    setShowConfirmModal(false);
+    setSendError('');
     try {
       const meta = {
         requesterStoreId: requester ? Number(requester) : null,
         fromStoreId: fromStore ? Number(fromStore) : null,
         date,
         notes: notes ? String(notes).trim() : null,
-          status: 'requested'
+        status: 'requested'
       };
 
       // update transfer metadata (sets status to pending)
@@ -227,7 +238,7 @@ export default function InventoryTransferSend() {
       navigate('/inventory/transfers');
     } catch (err) {
       console.error('Send failed', err);
-      alert(err?.message || 'Failed to send transfer');
+      setSendError(err?.message || 'Failed to send transfer');
     }
   };
 
@@ -239,53 +250,84 @@ export default function InventoryTransferSend() {
         descriptionLines={["Review and send your transfer request."]}
       />
 
-          <FormBody onSubmit={(e) => e.preventDefault()} plain>
-              <div className="row gx-4 gy-4">
-                  <div className="col-12 col-md-6">
-                      <SelectField label="Requester" value={requester} onChange={() => { }} options={storeOptions} disabled />
-                  </div>
+      <FormBody onSubmit={(e) => e.preventDefault()} plain>
+        <div className="row gx-4 gy-4">
+          <div className="col-12 col-md-6">
+              <SelectField label="Requester" value={requester} onChange={() => { }} options={storeOptions} disabled />
+          </div>
 
-                  <div className="col-12 col-md-6">
-                      {/* Request From - editable */}
-                      <SelectField
-                          label="Request From"
-                          value={fromStore}
-                          onChange={handleFromStoreChange}
-                          options={storeOptions.filter(o => String(o.value) !== String(requester))}
-                      />
-                  </div>
+          <div className="col-12 col-md-6">
+              {/* Request From - editable */}
+              <SelectField
+                  label="Request From"
+                  value={fromStore}
+                  onChange={handleFromStoreChange}
+                  options={storeOptions.filter(o => String(o.value) !== String(requester))}
+              />
+          </div>
 
-                  <div className="col-12 col-md-6">
-                      {/* Date - editable */}
-                      <InputField
-                          label="Date"
-                          value={date}
-                          onChange={handleDateChange}
-                          type="date"
-                      />
-                  </div>
+          <div className="col-12 col-md-6">
+              {/* Date - editable */}
+              <InputField
+                  label="Date"
+                  value={date}
+                  onChange={handleDateChange}
+                  type="date"
+              />
+          </div>
 
-                  <div className="col-12 text-start">
-                      <label className="mb-3">Select the items you want to request supplies from the other store for</label>
-                      <TabbedMenu tabs={tabs} contentMaxHeight={360} onSelectionChange={handleSelectionChange} />
-                  </div>
+          <div className="col-12 text-start">
+              <label className="mb-3">Select the items you want to request supplies from the other store for</label>
+              {loading ? (
+                <div className="text-center py-4">
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  Loading items...
+                </div>
+              ) : (
+                <TabbedMenu tabs={tabs} contentMaxHeight={360} onSelectionChange={handleSelectionChange} />
+              )}
+          </div>
 
-                  <div className="col-12">
-                      {/* Notes editable so user can adjust before sending */}
-                      <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} />
-                  </div>
+          <div className="col-12">
+              {/* Notes editable so user can adjust before sending */}
+              <TextArea label="Notes (optional)" value={notes} onChange={setNotes} rows={4} />
+          </div>
 
-                  <div className="col-12 d-flex justify-content-between align-items-center">
-                      <div>
-                          <button type="button" className="btn btn-danger" onClick={() => navigate('/inventory/transfers')}>Cancel</button>
-                      </div>
+          {sendError && (
+            <div className="col-12">
+              <div className="alert alert-danger">{sendError}</div>
+            </div>
+          )}
 
-                      <div>
-                          <button type="button" className="btn btn-success" onClick={handleSend}>Send Request</button>
-                      </div>
-                  </div>
+          <div className="col-12 d-flex justify-content-between align-items-center">
+              <div>
+                  <button type="button" className="btn btn-danger" onClick={() => navigate('/inventory/transfers')}>Cancel</button>
               </div>
-          </FormBody>
+
+              <div>
+                  <button type="button" className="btn btn-success" onClick={handleSend}>Send Request</button>
+              </div>
+          </div>
+        </div>
+      </FormBody>
+
+      <InfoModal
+        show={showConfirmModal}
+        title="Confirm Send Transfer Request"
+        onClose={() => setShowConfirmModal(false)}
+      >
+        <p>
+          Are you sure you want to send this transfer request? This will set status to <strong>Requested</strong>.
+        </p>
+        <div className="d-flex justify-content-end">
+          <button className="btn btn-secondary me-2" onClick={() => setShowConfirmModal(false)}>
+            Cancel
+          </button>
+          <button className="btn btn-success" onClick={confirmSend}>
+            Yes, Send Request
+          </button>
+        </div>
+      </InfoModal>
     </div>
   );
 }

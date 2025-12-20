@@ -878,5 +878,35 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 );
             }
         }
+
+        public async Task<IEnumerable<InventoryTransferOverviewDto>> GetLatestForOrganizationAsync(int organizationId, int maxCount = 6)
+        {
+            var transfers = await _context.InventoryTransfers
+                .Include(t => t.RequestedByNavigation)
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.InventoryTransferStatus)
+                .Where(t =>
+                    (t.FromStoreNavigation != null && t.FromStoreNavigation.OrgId == organizationId)
+                    || (t.ToStoreNavigation != null && t.ToStoreNavigation.OrgId == organizationId)
+                )
+                .OrderByDescending(t => t.RequestedAt)
+                .Take(maxCount)
+                .Select(t => new InventoryTransferOverviewDto
+                {
+                    Requester = t.RequestedByNavigation != null
+                        ? (t.RequestedByNavigation.UserFirstname + " " + t.RequestedByNavigation.UserLastname).Trim()
+                        : null,
+                    FromStore = t.FromStoreNavigation != null
+                        ? t.FromStoreNavigation.StoreName
+                        : null,
+                    Status = t.InventoryTransferStatus != null
+                        ? t.InventoryTransferStatus.TransferStatus
+                        : null
+                })
+                .ToListAsync();
+
+            return transfers;
+        }
+
     }
 }

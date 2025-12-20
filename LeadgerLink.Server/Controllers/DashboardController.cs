@@ -52,6 +52,9 @@ namespace LeadgerLink.Server.Controllers
                 if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
                 var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+                domainUser = await _userRepository.GetByIdRelationAsync(domainUser.UserId);
+
                 if (domainUser == null) return Unauthorized();
 
                 // ------------------------- Determine scope -------------------------

@@ -623,6 +623,27 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+        // GET api/inventorytransfers/latest-for-organization
+        // Retrieves the latest updated inventory transfers for a given organization.
+        [HttpGet("latest-for-organization")]
+        public async Task<ActionResult<IEnumerable<InventoryTransferOverviewDto>>> GetLatestForOrganization([FromQuery] int organizationId, [FromQuery] int maxCount = 6)
+        {
+            try
+            {
+                // Fetch the latest transfers for the organization
+                var transfers = await _repository.GetLatestForOrganizationAsync(organizationId, maxCount);
+
+                // Return the result
+                return Ok(transfers);
+            }
+            catch (Exception ex)
+            {
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to load latest inventory transfers for organization {OrganizationId}", organizationId);
+                return StatusCode(500, "Failed to load latest inventory transfers for organization");
+            }
+        }
+
 
         // Resolves the user ID from the current user's claims.
         private async Task<int?> ResolveUserIdAsync()

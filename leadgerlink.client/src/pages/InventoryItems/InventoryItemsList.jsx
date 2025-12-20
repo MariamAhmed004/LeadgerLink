@@ -10,7 +10,6 @@ import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext";
 import SelectField from "../../components/Form/SelectField";
 
-
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
   // Modal state
@@ -41,6 +40,14 @@ const InventoryItemsListPage = () => {
   const [file, setFile] = useState(null);
   const [storeId, setStoreId] = useState(isOrgAdmin ? "" : loggedInUser?.storeId ?? "");
   const [stores, setStores] = useState([]);
+
+  // InfoModal state for upload errors and success
+  const [infoModal, setInfoModal] = useState({
+    show: false,
+    title: '',
+    message: '',
+    onClose: null,
+  });
 
   // Stock level options (values must match server expectations)
   // Server expects stockLevel query param values that can be normalized to:
@@ -248,41 +255,59 @@ const InventoryItemsListPage = () => {
   };
 
   // Handle file upload
-    const handleUpload = async () => {
-        if (!file || (isOrgAdmin && !storeId)) {
-            alert("Please select a file and a store.");
-            return;
-        }
+    const [successMessage, setSuccessMessage] = useState("");
 
-        const formData = new FormData();
-        formData.append("file", file);
-        if (isOrgAdmin) {
-            formData.append("storeId", storeId);
-        }
+  const handleUpload = async () => {
+    if (!file || (isOrgAdmin && !storeId)) {
+      setInfoModal({
+        show: true,
+        title: "Missing File or Store",
+        message: "Please select a file and a store.",
+        onClose: () => setInfoModal({ ...infoModal, show: false }),
+      });
+      return;
+    }
 
-        // Debugging: Log the FormData keys and values
-        for (const [key, value] of formData.entries()) {
-            console.log(`${key}:`, value);
-        }
+    const formData = new FormData();
+    formData.append("file", file);
+    if (isOrgAdmin) {
+      formData.append("storeId", storeId);
+    }
 
-        try {
-            const response = await fetch("/api/inventoryitems/upload", {
-                method: "POST",
-                body: formData,
-                credentials: "include",
-            });
+    // Debugging: Log the FormData keys and values
+    for (const [key, value] of formData.entries()) {
+      console.log(`${key}:`, value);
+    }
 
-            if (!response.ok) {
-                throw new Error("Failed to upload file.");
-            }
+    try {
+      const response = await fetch("/api/inventoryitems/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
 
-            alert("File uploaded successfully!");
-            setShowBulkUploadModal(false);
-        } catch (error) {
-            console.error("Error uploading file:", error);
-            alert("Failed to upload file. Please try again.");
-        }
-    };
+      if (!response.ok) {
+        throw new Error("Failed to upload file.");
+      }
+
+      setShowBulkUploadModal(false);
+      setInfoModal({
+        show: true,
+        title: "Upload Successful",
+        message: "File uploaded successfully!",
+        onClose: () => setInfoModal({ ...infoModal, show: false }),
+      });
+      setSuccessMessage(""); // Clear legacy success message
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setInfoModal({
+        show: true,
+        title: "Upload Failed",
+        message: "Failed to upload file. Please try again.",
+        onClose: () => setInfoModal({ ...infoModal, show: false }),
+      });
+    }
+  };
 
     const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
 
@@ -355,7 +380,6 @@ const InventoryItemsListPage = () => {
           />
 
 
-          {/* InfoModal for Bulk Upload */}
           {/* InfoModal for Bulk Upload */}
           <InfoModal
               show={showBulkUploadModal}
@@ -447,6 +471,14 @@ const InventoryItemsListPage = () => {
               </div>
           </InfoModal>
 
+          {/* InfoModal for upload errors and success */}
+          <InfoModal
+            show={infoModal.show}
+            title={infoModal.title}
+            onClose={infoModal.onClose}
+          >
+            <div>{infoModal.message}</div>
+          </InfoModal>
     </div>
   );
 };

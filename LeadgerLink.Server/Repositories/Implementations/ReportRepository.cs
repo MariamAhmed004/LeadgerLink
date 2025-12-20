@@ -298,15 +298,17 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
         public async Task<TransferCountsDto> GetInventoryTransferCountsForOrganizationAsync(int organizationId, DateTime from, DateTime to)
         {
-            var outgoing = await _context.InventoryTransfers
-                .Where(t => t.FromStoreNavigation.OrgId == organizationId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
-                .CountAsync();
+            // "Completed" = Delivered, "Pending" = any other status
+            var transfers = _context.InventoryTransfers.Include(t => t.InventoryTransferStatus)
+                .Where(t =>
+                    (t.FromStoreNavigation.OrgId == organizationId || t.ToStoreNavigation.OrgId == organizationId) &&
+                    (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to))
+                );
 
-            var incoming = await _context.InventoryTransfers
-                .Where(t => t.ToStoreNavigation.OrgId == organizationId && (from == DateTime.MinValue || (t.RequestedAt >= from && t.RequestedAt <= to)))
-                .CountAsync();
+            var completed = await transfers.CountAsync(t => t.InventoryTransferStatus.TransferStatus == "delivered");
+            var pending = await transfers.CountAsync(t => t.InventoryTransferStatus.TransferStatus != "delivered");
 
-            return new TransferCountsDto { Outgoing = outgoing, Incoming = incoming };
+            return new TransferCountsDto { Pending = pending, Completed = completed };
         }
 
         public async Task<IEnumerable<ChartPointDto>> GetTopProductsBySalesForOrganizationAsync(int organizationId, int topN)

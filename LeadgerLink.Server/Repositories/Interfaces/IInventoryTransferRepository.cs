@@ -75,5 +75,6 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         Task SetTransferToDeliveredAsync(int transferId);
 
-    }
+        Task<IEnumerable<InventoryTransferOverviewDto>> GetLatestForOrganizationAsync(int organizationId, int maxCount = 6);
+    } 
 }

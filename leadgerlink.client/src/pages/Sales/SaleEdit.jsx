@@ -32,6 +32,9 @@ const SaleEdit = () => {
   const [products, setProducts] = useState([]);
   const [selection, setSelection] = useState([]);
 
+  // Loading state for products/recipes
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
   // Capture storeId from fetched sale details (used when user is Organization Admin)
   const [fetchedStoreId, setFetchedStoreId] = useState("");
 
@@ -53,6 +56,7 @@ const SaleEdit = () => {
 
   useEffect(() => {
     const load = async () => {
+      setLoadingProducts(true);
       try {
         // Fetch sale first so we have storeId from the sale details
         const saleRes = await fetch(`/api/sales/${encodeURIComponent(id)}`, { credentials: "include" });
@@ -126,6 +130,8 @@ const SaleEdit = () => {
       } catch (err) {
         console.error(err);
         setError(err.message || "Failed to load data");
+      } finally {
+        setLoadingProducts(false);
       }
     };
     load();
@@ -207,7 +213,14 @@ const SaleEdit = () => {
           </div>
 
           <div className="col-12">
-            <TabbedMenu tabs={tabs} onSelectionChange={(sel) => setSelection(sel)} />
+            {loadingProducts ? (
+              <div className="d-flex justify-content-center align-items-center py-5">
+                <div className="spinner-border text-primary me-2" role="status" aria-label="Loading products"></div>
+                <span>Loading products...</span>
+              </div>
+            ) : (
+              <TabbedMenu tabs={tabs} onSelectionChange={(sel) => setSelection(sel)} />
+            )}
           </div>
 
           <div className="col-12 col-md-6 text-start">

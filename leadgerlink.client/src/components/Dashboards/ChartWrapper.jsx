@@ -1,6 +1,12 @@
 ﻿import React from "react";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
+// Import the exporting module
+import "highcharts/modules/exporting";
+// Optional: Import export-data module for CSV/XLS export
+import "highcharts/modules/export-data";
+// Optional: Import offline-exporting module for client-side PDF/image export
+import "highcharts/modules/offline-exporting";
 
 /*
   ChartWrapper.jsx
@@ -138,7 +144,7 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
   if (lc.includes("pie")) {
     merged.plotOptions = merged.plotOptions || {};
     merged.plotOptions.pie = merged.plotOptions.pie || {};
-    const defaultPieSize = chartHeight ? Math.max(40, Math.floor((chartHeight - wrapperHeaderReserve - wrapperPaddingReserve) * 0.55)) : "65%";
+    const defaultPieSize = chartHeight ? Math.max(40, Math.floor((chartHeight - wrapperHeaderReserve - wrapperPaddingReserve) * 0.55)) : "60%";
     if (merged.series && Array.isArray(merged.series) && merged.series.length > 0) {
       if (merged.series[0].size === undefined) {
         merged.series[0].size = defaultPieSize;
@@ -154,10 +160,10 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
     // If user explicitly disabled legend in options, respect it; otherwise ensure legend visible
     merged.legend = merged.legend ?? {
       enabled: true,
-      layout: "vertical",
-      align: "right",
-      verticalAlign: "middle",
-      itemMarginTop: 6,
+       layout: 'horizontal',
+        align: 'center',
+        verticalAlign: 'bottom',
+      itemMarginTop: 3,
       itemStyle: { fontSize: "12px" }
     };
   } else {
@@ -171,6 +177,20 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
       }
     }
   }
+
+  // After merging options, enable exporting
+  merged.exporting = {
+    enabled: true,
+    buttons: {
+      contextButton: {
+        menuItems: [
+          "downloadPNG",
+          "downloadJPEG",
+          "downloadSVG"
+        ]
+      }
+    }
+  };
 
   // Ensure the Highcharts internal container fills the chart area
   const containerProps = { style: { width: "100%", height: "100%" } };
@@ -236,3 +256,4 @@ export default function ChartWrapper({ chartType = "chart", height = 260, option
     </div>
   );
 }
+

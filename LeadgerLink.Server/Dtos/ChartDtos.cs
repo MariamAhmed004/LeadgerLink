@@ -17,7 +17,9 @@ namespace LeadgerLink.Server.Dtos
 
     public class TransferCountsDto
     {
-        public int Outgoing { get; set; }
-        public int Incoming { get; set; }
+        public int? Outgoing { get; set; }
+        public int? Incoming { get; set; }
+        public int? Pending { get; set; }
+        public int? Completed { get; set; }
     }
 }
