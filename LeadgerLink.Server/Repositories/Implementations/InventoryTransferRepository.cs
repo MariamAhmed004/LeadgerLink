@@ -291,7 +291,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
         public async Task UpdateTransferAsync(int transferId, CreateInventoryTransferDto dto)
         {
-            var transfer = await _context.InventoryTransfers.FindAsync(transferId);
+            var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
+
             if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
 
             // Map store ids if provided
@@ -317,6 +321,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 transfer.Notes = dto.Notes.Trim();
             }
 
+
+
             // Status -> resolve status id if supplied (trim both sides to tolerate trailing spaces)
             if (!string.IsNullOrWhiteSpace(dto.Status))
             {
@@ -329,15 +335,46 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 {
                     transfer.InventoryTransferStatusId = st.TransferStatusId;
                 }
-                else
-                {
-                    // No matching status found — do not change existing status id.
-                    // Optionally log if you have a logger in this repository.
-                }
+                               
             }
 
             _context.InventoryTransfers.Update(transfer);
             await _context.SaveChangesAsync();
+
+            // Check if the transfer status is being set to Draft or Requested
+            if (transfer.InventoryTransferStatus != null)
+            {
+                var status = transfer.InventoryTransferStatus.TransferStatus?.Trim().ToLowerInvariant();
+
+                if (status == "draft")
+                {
+                    // Notify employees of the requesting store
+                    if (transfer.FromStoreNavigation?.Users != null)
+                    {
+                        var employeeIds = transfer.FromStoreNavigation.Users
+                            .Select(e => e.UserId)
+                            .ToList();
+
+                        await SendTransferStatusNotificationAsync("Draft", employeeIds);
+                    }
+                }
+                else if (status == "requested")
+                {
+                    // Notify both store managers
+                    var storeManagerIds = new List<int>();
+                    if (transfer.FromStoreNavigation?.UserId != null)
+                    {
+                        storeManagerIds.Add(transfer.FromStoreNavigation.UserId.Value);
+                    }
+                    if (transfer.ToStoreNavigation?.UserId != null)
+                    {
+                        storeManagerIds.Add(transfer.ToStoreNavigation.UserId.Value);
+                    }
+
+                    await SendTransferStatusNotificationAsync("Requested", storeManagerIds);
+                }
+            }
+
         }
 
         public async Task UpdateTransferItemsAsync(int transferId, CreateInventoryTransferItemDto[] items)
@@ -472,6 +509,19 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 _context.InventoryTransfers.Update(transfer);
                 await _context.SaveChangesAsync();
 
+                // Notify both store managers
+                var storeManagerIds = new List<int>();
+                if (transfer.FromStoreNavigation?.UserId != null)
+                {
+                    storeManagerIds.Add(transfer.FromStoreNavigation.UserId.Value);
+                }
+                if (transfer.ToStoreNavigation?.UserId != null)
+                {
+                    storeManagerIds.Add(transfer.ToStoreNavigation.UserId.Value);
+                }
+
+                await SendTransferStatusNotificationAsync("Approved", storeManagerIds);
+
                 // append provided items as sent items (IsRequested = false)
                 if (items != null)
                 {
@@ -554,6 +604,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
         public async Task RejectTransferAsync(int transferId, string? notes = null)
         {
             var transfer = await _context.InventoryTransfers
+                .Include(t => t.FromStoreNavigation)
+                .Include(t => t.ToStoreNavigation)
                 .FirstOrDefaultAsync(t => t.InventoryTransferId == transferId);
 
             if (transfer == null) throw new KeyNotFoundException($"Transfer {transferId} not found.");
@@ -574,7 +626,22 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             _context.InventoryTransfers.Update(transfer);
             await _context.SaveChangesAsync();
+
+            // Notify both store managers
+            var storeManagerIds = new List<int>();
+            if (transfer.FromStoreNavigation?.UserId != null)
+            {
+                storeManagerIds.Add(transfer.FromStoreNavigation.UserId.Value);
+            }
+            if (transfer.ToStoreNavigation?.UserId != null)
+            {
+                storeManagerIds.Add(transfer.ToStoreNavigation.UserId.Value);
+            }
+
+            await SendTransferStatusNotificationAsync("Rejected", storeManagerIds);
+
         }
+
         // Fetch transfer status by name.
         public async Task<InventoryTransferStatus?> GetTransferStatusByNameAsync(string statusName)
         {
@@ -590,7 +657,52 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             if (transfer == null) throw new ArgumentNullException(nameof(transfer));
 
-            // Add the transfer to the database and save changes.
+            // Check if the transfer status is being set to Draft or Requested
+           
+                var status = _context.InventoryTransferStatuses
+                    .Where(i => i.TransferStatusId == transfer.InventoryTransferStatusId)
+                    .Select(i => i.TransferStatus)
+                    .FirstOrDefault()
+                    ?.Trim()
+                    .ToLowerInvariant();
+
+                // Fetch navigation properties for FromStoreNavigation and ToStoreNavigation
+                transfer.FromStoreNavigation =  _context.Stores.Include(s => s.Users).FirstOrDefault(s => s.StoreId == transfer.FromStore);
+
+                transfer.ToStoreNavigation = await _context.Stores.FindAsync(transfer.ToStore);
+
+                if (status == "draft")
+                {
+                    // Notify employees of the requesting store
+                    if (transfer.FromStoreNavigation?.Users != null)
+                    {
+                        var employeeIds = transfer.FromStoreNavigation.Users
+                            .Select(e => e.UserId)
+                            .ToList();
+
+                        await SendTransferStatusNotificationAsync("Draft", employeeIds);
+                    }
+                }
+                else if (status == "requested")
+                {
+                    // Notify both store managers
+                    var storeManagerIds = new List<int>();
+                    if (transfer.FromStoreNavigation?.UserId != null)
+                    {
+                        storeManagerIds.Add(transfer.FromStoreNavigation.UserId.Value);
+                    }
+                    if (transfer.ToStoreNavigation?.UserId != null)
+                    {
+                        storeManagerIds.Add(transfer.ToStoreNavigation.UserId.Value);
+                    }
+
+                    await SendTransferStatusNotificationAsync("Requested", storeManagerIds);
+                }
+            
+
+            
+
+            // Add the transfer to the database and save changes
             _context.InventoryTransfers.Add(transfer);
             await _context.SaveChangesAsync();
             return transfer;
@@ -683,6 +795,19 @@ namespace LeadgerLink.Server.Repositories.Implementations
             _context.InventoryTransfers.Update(transfer);
             await _context.SaveChangesAsync();
 
+            // Notify both store managers
+            var storeManagerIds = new List<int>();
+            if (transfer.FromStoreNavigation?.UserId != null)
+            {
+                storeManagerIds.Add(transfer.FromStoreNavigation.UserId.Value);
+            }
+            if (transfer.ToStoreNavigation?.UserId != null)
+            {
+                storeManagerIds.Add(transfer.ToStoreNavigation.UserId.Value);
+            }
+
+            await SendTransferStatusNotificationAsync("Delivered", storeManagerIds);
+
             // Distribute transfer items with IsRequested = false
             var (inventoryItems, recipes) = await DistributeTransferItemsAsync(transferId, isRequested: false);
 
@@ -717,6 +842,40 @@ namespace LeadgerLink.Server.Repositories.Implementations
             <p>Best regards,<br>LedgerLink Team</p>";
 
                 await _emailService.SendAsync(transfer.Driver.DriverEmail, emailSubject, emailBody);
+            }
+        }
+
+        public async Task SendTransferStatusNotificationAsync(string status, IEnumerable<int> userIds)
+        {
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                throw new ArgumentException("Status cannot be null or empty.", nameof(status));
+            }
+
+            if (userIds == null || !userIds.Any())
+            {
+                throw new ArgumentException("User IDs cannot be null or empty.", nameof(userIds));
+            }
+
+            // Define the notification type name
+            const string notificationTypeName = "Transfer Request Update";
+
+            // Define the notification subject and message
+            var subject = $"Transfer Status Updated to {status}";
+            var message = $"The status of a transfer request has been updated to '{status}'. Please check the transfer details for more information.";
+
+            // Fetch the NotificationRepository instance
+            var notificationRepository = new NotificationRepository(_context);
+
+            // Send notifications to each user
+            foreach (var userId in userIds)
+            {
+                await notificationRepository.SendNotificationAsync(
+                    subject: subject,
+                    message: message,
+                    userId: userId,
+                    notificationTypeName: notificationTypeName
+                );
             }
         }
     }

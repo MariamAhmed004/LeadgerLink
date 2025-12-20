@@ -520,7 +520,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                         subject: "Low Stock Alert",
                         message: $"The inventory item '{inventoryItemName}' is low on stock.",
                         userId: inventoryItem.Store.UserId.Value, // Store manager's user ID
-                        notificationTypeId: 1 // Static placeholder for notification type ID
+                        notificationTypeName: "low stock alert"// Static placeholder for notification type ID
                     );
                 }
             }

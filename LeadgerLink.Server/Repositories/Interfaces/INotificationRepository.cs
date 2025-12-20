@@ -35,7 +35,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
             string subject,
             string message,
             int userId,
-            int notificationTypeId,
+            string notificationTypeName,
             DateTime? createdAt = null);
     }
 }

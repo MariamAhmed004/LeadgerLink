@@ -567,7 +567,7 @@ namespace LeadgerLink.Server.Controllers
         [Authorize]
         [HttpPost("{id:int}/deliver")]
         public async Task<ActionResult> DeliverTransfer(int id)
-        {
+         {
             // Validate the transfer ID
             if (id <= 0) return BadRequest("Invalid transfer ID.");
 

@@ -496,8 +496,11 @@ namespace LeadgerLink.Server.Repositories.Implementations
                         return (false, $"Recipe with ID {recipeId} not found.");
                     }
 
+                    // Create a copy of the RecipeInventoryItems collection to ensure it is not modified during enumeration
+                    var recipeInventoryItemsCopy = recipe.RecipeInventoryItems.ToList();
+
                     // Process each ingredient in the recipe
-                    foreach (var ingredient in recipe.RecipeInventoryItems)
+                    foreach (var ingredient in recipeInventoryItemsCopy)
                     {
                         if (ingredient.Quantity <= 0)
                         {

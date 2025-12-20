@@ -98,16 +98,25 @@ namespace LeadgerLink.Server.Repositories.Implementations
             string subject,
             string message,
             int userId,
-            int notificationTypeId,
+            string notificationTypeName,
             DateTime? createdAt = null)
         {
+            // Fetch the NotificationTypeId based on the NotificationTypeName
+            var notificationType = await _context.NotificationTypes
+                .FirstOrDefaultAsync(nt => nt.NotificationTypeName == notificationTypeName);
+
+            if (notificationType == null)
+            {
+                throw new InvalidOperationException($"Notification type '{notificationTypeName}' not found.");
+            }
+
             // Create a new notification object
             var notification = new Notification
             {
                 Subject = subject,
                 Message = message,
                 UserId = userId,
-                NotificationTypeId = notificationTypeId,
+                NotificationTypeId = notificationType.NotificationTypeId, // Use the fetched NotificationTypeId
                 CreatedAt = createdAt ?? DateTime.UtcNow,
                 IsRead = false // Default to unread
             };
