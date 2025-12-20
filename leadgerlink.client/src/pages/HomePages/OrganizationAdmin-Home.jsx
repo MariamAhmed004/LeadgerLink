@@ -3,21 +3,43 @@ import { useAuth } from "../../Context/AuthContext";
 import WelcomeMessage from "../../components/homepages/WelcomeMessage";
 import CardSection from "../../components/homepages/HomePageCardSection";
 import HomePageTable from "../../components/homepages/HomePageTable";
-import { geminiApi } from "../../Services/api"; // Import Gemini API service
 
+/*
+  OrganizationAdmin-Home.jsx
+  Summary:
+  - Organization admin home page showing welcome message, organization overview cards,
+    recent activity table and latest notifications. Loads data scoped to the admin's org.
+*/
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const OrgAdminHomePage = () => {
     const { loggedInUser } = useAuth();
+
+    // --------------------------------------------------
+    // STATE DECLARATIONS
+    // --------------------------------------------------
+    // Username to display in the welcome message
     const [username, setUsername] = useState("OrgAdmin<User>");
+    // Overview cards (stores, users, active today)
     const [overviewCards, setOverviewCards] = useState([]);
+    // Recent activity rows for the HomePageTable
     const [activityLogs, setActivityLogs] = useState([]);
+    // Latest notifications rows for the HomePageTable
     const [notifications, setNotifications] = useState([]);
+    // Resolved organization id used to scope org-level queries
     const [orgId, setOrgId] = useState(null);
 
-    const [geminiMessage, setGeminiMessage] = useState(""); // State for Gemini message
-    const [geminiResponse, setGeminiResponse] = useState(""); // State for Gemini response
-
+    // --------------------------------------------------
+    // HELPERS
+    // --------------------------------------------------
+    // Helper to produce YYYY-MM-DD for today's date queries
     const getTodayString = () => new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
+    // --------------------------------------------------
+    // DATA FETCHERS / EFFECTS
+    // --------------------------------------------------
     // Fetch organization overview stats (counts filtered by organization)
     const fetchOverviewStats = async () => {
         try {
@@ -25,6 +47,7 @@ const OrgAdminHomePage = () => {
             const authOrgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
             const userId = loggedInUser?.userId ?? loggedInUser?.UserId ?? null;
 
+            // If no identifying context, return safe defaults
             if (!userId && !authOrgId) {
                 setOverviewCards([
                     { title: "Total Stores", value: 0 },
@@ -59,9 +82,10 @@ const OrgAdminHomePage = () => {
                 return null;
             }
 
+            // store resolved org id for other fetches
             setOrgId(resolvedOrgId);
 
-            // parallel fetch counts
+            // parallel fetch counts scoped to the organization
             const today = getTodayString();
             const [storesRes, usersRes, activeUsersRes] = await Promise.all([
                 fetch(`/api/stores/count?organizationId=${resolvedOrgId}`, { credentials: "include" }),
@@ -144,6 +168,9 @@ const OrgAdminHomePage = () => {
         }
     };
 
+    // --------------------------------------------------
+    // EFFECT: initialize page data on mount
+    // --------------------------------------------------
     useEffect(() => {
         // set username from auth if available
         setUsername(loggedInUser?.fullName ?? loggedInUser?.userName ?? "OrgAdmin<User>");
@@ -158,15 +185,9 @@ const OrgAdminHomePage = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loggedInUser]);
 
-    const handleGeminiTest = async () => {
-        try {
-            const response = await geminiApi.sendMessage(geminiMessage);
-            setGeminiResponse(response.response);
-        } catch (err) {
-            setGeminiResponse(`Error: ${err.message}`);
-        }
-    };
-
+    // --------------------------------------------------
+    // RENDER
+    // --------------------------------------------------
     return (
         <div className="container py-5">
             {/* Welcome Message */}
@@ -190,26 +211,6 @@ const OrgAdminHomePage = () => {
                 rows={notifications}
                 emptyMessage="No notifications yet."
             />
-
-            {/* Gemini API Test Section */}
-            <div className="mt-5">
-                <h3>Gemini API Test</h3>
-                <textarea
-                    value={geminiMessage}
-                    onChange={(e) => setGeminiMessage(e.target.value)}
-                    placeholder="Type your message here..."
-                    rows={4}
-                    className="form-control mb-3"
-                />
-                <button onClick={handleGeminiTest} className="btn btn-primary mb-3">
-                    Send to Gemini
-                </button>
-                {geminiResponse && (
-                    <div className="alert alert-info">
-                        <strong>Response:</strong> {geminiResponse}
-                    </div>
-                )}
-            </div>
         </div>
     );
 };

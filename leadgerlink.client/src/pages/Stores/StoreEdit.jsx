@@ -10,13 +10,32 @@ import TimestampField from "../../components/Form/TimestampField";
 import FormActions from "../../components/Form/FormActions";
 import InfoModal from "../../components/UI/InfoModal";
 
+/*
+  StoreEdit.jsx
+  Summary:
+  - Edit store page: loads a store and related lookups, allows updating store details
+    (status, manager, contact, opening date, working hours and location) and
+    saves changes to the server. Includes a confirmation modal for manager changes.
+*/
+
+// --------------------------------------------------
+// HELPERS / VALIDATORS
+// --------------------------------------------------
+// Simple email validation used by client-side checks
 const emailIsValid = (e) => /^\S+@\S+\.\S+$/.test(String(e || "").trim());
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const StoreEdit = () => {
+  // Router helpers: navigation and route param (store id)
   const navigate = useNavigate();
   const { id: storeId } = useParams();
 
-  // form fields
+  // --------------------------------------------------
+  // STATE: form fields
+  // --------------------------------------------------
+  // Core editable store fields
   const [storeName, setStoreName] = useState("");
   const [operationalStatusId, setOperationalStatusId] = useState("");
   const [email, setEmail] = useState("");
@@ -26,20 +45,31 @@ const StoreEdit = () => {
   const [workingHours, setWorkingHours] = useState("");
   const [location, setLocation] = useState("");
 
-  // lookups / ui
+  // --------------------------------------------------
+  // STATE: lookups and UI flags
+  // --------------------------------------------------
+  // Options for status and manager selects
   const [statusOptions, setStatusOptions] = useState([{ label: "Select status", value: "" }]);
   const [managerOptions, setManagerOptions] = useState([{ label: "Select manager", value: "" }]);
+
+  // Loading / saving / feedback state
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // manager assignment
+  // --------------------------------------------------
+  // STATE: manager reassignment helpers
+  // --------------------------------------------------
+  // Track current manager to detect changes and confirm reassignment
   const [initialManagerId, setInitialManagerId] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [pendingManagerId, setPendingManagerId] = useState(null);
 
-  // helper: fetch operational statuses
+  // --------------------------------------------------
+  // DATA FETCHERS
+  // --------------------------------------------------
+  // Fetch operational statuses for select control
   const fetchOperationalStatuses = async () => {
     try {
       const res = await fetch("/api/stores/operationalstatuses", { credentials: "include" });
@@ -56,11 +86,12 @@ const StoreEdit = () => {
       ];
       setStatusOptions(opts);
     } catch (ex) {
+      // keep default options on failure and log for diagnostics
       console.error("Failed to load operational statuses", ex);
     }
   };
 
-  // Load store data
+  // Load a single store's data into form fields
   const loadStoreData = async () => {
     setLoading(true);
     setError("");
@@ -71,6 +102,8 @@ const StoreEdit = () => {
         throw new Error(txt || `Failed to load store (status ${res.status})`);
       }
       const store = await res.json();
+
+      // Populate form fields from returned store DTO
       setStoreName(store.storeName || "");
       setOperationalStatusId(store.operationalStatusId ? String(store.operationalStatusId) : "");
       setEmail(store.email || "");
@@ -81,7 +114,7 @@ const StoreEdit = () => {
       setWorkingHours(store.workingHours || "");
       setLocation(store.location || "");
 
-      // Add operational status to options if it exists
+      // Ensure the store's status is present in the status options list
       if (store.operationalStatusId && store.operationalStatusName) {
         setStatusOptions((prev) => {
           const exists = prev.some((opt) => opt.value === String(store.operationalStatusId));
@@ -105,21 +138,26 @@ const StoreEdit = () => {
     }
   };
 
+  // --------------------------------------------------
+  // EFFECT: load lookups and store data on mount / storeId change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
+        // load status options first
         await fetchOperationalStatuses();
 
-        // Fetch users filtered by storeId
+        // Fetch users for manager select (filtered by store)
         try {
           const res = await fetch(`/api/users?storeId=${storeId}`, { credentials: "include" });
           if (!res.ok) throw new Error("Failed to fetch users for the store.");
           const usersData = await res.json();
           if (!mounted) return;
 
+          // Build manager options from users returned for this store
           const opts = [
             { label: "Select manager", value: "" },
             ...(Array.isArray(usersData)
@@ -138,6 +176,7 @@ const StoreEdit = () => {
           console.error("Failed to load manager list", ex);
         }
 
+        // Load the store details into the form
         await loadStoreData();
       } catch (ex) {
         console.error(ex);
@@ -153,7 +192,9 @@ const StoreEdit = () => {
     };
   }, [storeId]);
 
-  // client-only validation and canonical payload
+  // --------------------------------------------------
+  // SUBMIT: validate and save store
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -172,7 +213,7 @@ const StoreEdit = () => {
 
     try {
       // canonical payload (no createdAt/updatedAt)
-        const payload = {
+      const payload = {
         storeId: Number(storeId), // Include the store ID
         storeName: storeName.trim(),
         operationalStatusId: opIdNum,
@@ -199,6 +240,7 @@ const StoreEdit = () => {
       const updated = await res.json().catch(() => null);
       const updatedName = updated?.storeName ?? payload.storeName;
 
+      // show success and navigate back to list with updated state
       setSuccess(`Store "${updatedName}" updated.`);
       setTimeout(() => {
         navigate("/stores", { state: { updated: true, updatedName } });
@@ -211,16 +253,22 @@ const StoreEdit = () => {
     }
   };
 
-    const handleManagerChange = (newManagerId) => {
-        // If the new manager is different from the initial manager, show the confirmation modal
-        if (newManagerId !== initialManagerId) {
-            setPendingManagerId(newManagerId); // Store the new manager ID
-            setShowModal(true); // Show the confirmation modal
-        } else {
-            setManagerId(newManagerId); // Directly set the manager if no change
-        }
-    };
+  // --------------------------------------------------
+  // MANAGER CHANGE FLOW: confirmation modal
+  // --------------------------------------------------
+  const handleManagerChange = (newManagerId) => {
+    // If the new manager is different from the initial manager, show the confirmation modal
+    if (newManagerId !== initialManagerId) {
+      setPendingManagerId(newManagerId); // Store the new manager ID
+      setShowModal(true); // Show the confirmation modal
+    } else {
+      setManagerId(newManagerId); // Directly set the manager if no change
+    }
+  };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

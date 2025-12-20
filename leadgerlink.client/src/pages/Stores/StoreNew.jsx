@@ -11,17 +11,26 @@ import FormActions from "../../components/Form/FormActions";
 
 /*
   StoreNew.jsx
-  - Client-only validation (prevents server-side validation errors)
-  - Submit uses canonical field names only:
-      storeName, operationalStatusId, email, phoneNumber, userId, openingDate, workingHours, location
-  - Does not send createdAt/updatedAt in payload
+  Summary:
+  - Page to create a new store. Loads operational statuses and manager lookup,
+    validates input client-side, posts canonical payload to /api/stores and
+    navigates back to the stores list with a success state.
 */
 
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
 const emailIsValid = (e) => /^\S+@\S+\.\S+$/.test(String(e || "").trim());
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const StoreNew = () => {
   const navigate = useNavigate();
 
+  // --------------------------------------------------
+  // FORM STATE
+  // --------------------------------------------------
   // form fields
   const [storeName, setStoreName] = useState("");
   const [operationalStatusId, setOperationalStatusId] = useState("");
@@ -32,7 +41,9 @@ const StoreNew = () => {
   const [workingHours, setWorkingHours] = useState("");
   const [location, setLocation] = useState("");
 
-  // lookups / ui
+  // --------------------------------------------------
+  // LOOKUPS / UI STATE
+  // --------------------------------------------------
   const [statusOptions, setStatusOptions] = useState([{ label: "Select status", value: "" }]);
   const [managerOptions, setManagerOptions] = useState([{ label: "Select manager", value: "" }]);
   const [loading, setLoading] = useState(false);
@@ -40,6 +51,9 @@ const StoreNew = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // --------------------------------------------------
+  // DATA FETCHERS
+  // --------------------------------------------------
   // helper: fetch operational statuses
   const fetchOperationalStatuses = async () => {
     try {
@@ -57,6 +71,7 @@ const StoreNew = () => {
       ];
       setStatusOptions(opts);
     } catch (ex) {
+      // keep default options on failure
       console.error("Failed to load operational statuses", ex);
     }
   };
@@ -67,6 +82,7 @@ const StoreNew = () => {
       setLoading(true);
       setError("");
       try {
+        // load statuses first
         await fetchOperationalStatuses();
 
         // managers: attempt endpoints that may expose users
@@ -81,10 +97,12 @@ const StoreNew = () => {
               usersData = Array.isArray(j) ? j : (Array.isArray(j.items) ? j.items : []);
               break;
             } catch {
-              // try next
+              // try next endpoint
             }
           }
           if (!mounted) return;
+
+          // build manager options from returned users
           const opts = [
             { label: "Select manager", value: "" },
             ...(Array.isArray(usersData)
@@ -112,7 +130,9 @@ const StoreNew = () => {
     return () => { mounted = false; };
   }, []);
 
-  // client-only validation and canonical payload
+  // --------------------------------------------------
+  // SUBMIT: client-only validation and canonical payload
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -169,6 +189,9 @@ const StoreNew = () => {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

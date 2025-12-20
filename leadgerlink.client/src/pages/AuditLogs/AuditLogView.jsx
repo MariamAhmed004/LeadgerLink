@@ -8,18 +8,15 @@ import { HiOutlineDocumentSearch } from "react-icons/hi";
 import { useAuth } from "../../Context/AuthContext";
 /*
   AuditLogView.jsx
-  - Detail view for a single audit log.
-  - Supports two modes:
-    * Application audit log (default) -> header "View Application Audit Log"
-      Shows audit fields + user name + role + organization.
-    * Organization audit log (when ?organizationId or ?scope=org is present) -> header "View Organization Audit Log"
-      Shows audit fields + user name + role + STORE name (if available) or falls back to organization name.
-  - Uses endpoints:
-    GET /api/auditlogs/{id}         -> returns AuditLogDto
-    GET /api/users/{userId}         -> returns UserDetailDto (optional, for role/org/store)
-    GET /api/stores/{id}            -> optional, to resolve store name if user provides storeId/storeName
+  Summary:
+  - Displays details for a single audit log entry.
+  - Loads the audit log DTO and optionally related user and store information
+    and renders a detailed table with metadata and navigation actions.
 */
 
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
 const fmtDate = (v) => {
   if (!v) return "";
   try {
@@ -30,27 +27,45 @@ const fmtDate = (v) => {
   }
 };
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function AuditLogView() {
+  // route / query helpers
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
-  // determine mode: organization if organizationId query param or scope=org provided
+  // --------------------------------------------------
+  // MODE: determine organization scope from query
+  // --------------------------------------------------
+  // treat as organization-scoped view when organizationId or scope=org present
   const orgScope = Boolean(searchParams.get("organizationId") || (searchParams.get("scope") || "").toLowerCase() === "org");
 
+  // --------------------------------------------------
+  // STATE: data and UI flags
+  // --------------------------------------------------
+  // loaded audit log DTO
   const [log, setLog] = useState(null);
+  // optional related user DTO
   const [user, setUser] = useState(null);
+  // resolved store name for organization-scoped logs
   const [storeName, setStoreName] = useState("");
+  // loading / error UI
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // --------------------------------------------------
+  // EFFECT: load audit log and related lookups
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
+        // fetch audit log by id
         const res = await fetch(`/api/auditlogs/${encodeURIComponent(id)}`, { credentials: "include" });
         if (!res.ok) {
           if (res.status === 404) throw new Error("Audit log not found");
@@ -61,7 +76,7 @@ export default function AuditLogView() {
         if (!mounted) return;
         setLog(dto);
 
-        // if audit log has a user, fetch the user detail to show role/org/store info
+        // if audit log references a user, fetch user details to display role/org/store info
         const userId = dto?.userId;
         if (userId) {
           const uRes = await fetch(`/api/users/${encodeURIComponent(userId)}`, { credentials: "include" });
@@ -70,7 +85,7 @@ export default function AuditLogView() {
             if (!mounted) return;
             setUser(uDto);
 
-            // try to resolve store name if org-scoped and user includes storeId or storeName
+            // when org-scoped, attempt to resolve store name via user or store endpoint
             const sId = uDto?.storeId ?? uDto?.StoreId ?? null;
             const sName = uDto?.storeName ?? uDto?.StoreName ?? null;
             if (orgScope) {
@@ -98,10 +113,14 @@ export default function AuditLogView() {
     return () => { mounted = false; };
   }, [id, orgScope]);
 
-  // role-based override for header and back navigation — do not change orgScope variable above
+  // --------------------------------------------------
+  // ROLE / HEADER: compute title and navigation behavior
+  // --------------------------------------------------
+  // role flags derived from auth context
   const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
   const isAppAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Application Admin");
 
+  // header title varies by role and scope
   const headerTitle = isOrgAdmin ? "View Organization Audit Log" : (isAppAdmin ? "View Application Audit Log" : (orgScope ? "View Organization Audit Log" : "View Application Audit Log"));
   const idVal = log ? (log.auditLogId ?? id) : id;
   const recordedAt = log ? fmtDate(log.timestamp ?? log.Timestamp) : "";
@@ -109,16 +128,19 @@ export default function AuditLogView() {
   const headerProps = {
       icon: <HiOutlineDocumentSearch size={55} />,
     title: headerTitle,
-    descriptionLines: [log ? `${log.actionType ?? log.ActionType ?? ""}` : ""],
+    descriptionLines: "",
     actions: []
   };
 
-  // back action follows role when available, otherwise falls back to orgScope
+  // decide back navigation target based on role or scope
   const backToOrg = isOrgAdmin ? true : (isAppAdmin ? false : orgScope);
   const actions = [
     { icon: <FaArrowLeft />, title: `Back to ${backToOrg ? "Organization" : "Application"} Audit Logs`, onClick: () => navigate(backToOrg ? "/organizationauditlogs" : "/applicationauditlogs") }
   ];
 
+  // --------------------------------------------------
+  // DETAIL ROWS: assemble rows for DetailTable
+  // --------------------------------------------------
   const detailRows = log ? [
     { label: "Title", value: `Auditlog#${idVal} recorded at ${recordedAt}` },
     { label: "Action Type", value: log.actionType ?? log.ActionType ?? "" },
@@ -132,6 +154,9 @@ export default function AuditLogView() {
     { label: "Details", value: <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{log.details ?? log.Details ?? ""}</pre> }
   ] : [];
 
+  // --------------------------------------------------
+  // RENDER / ERROR STATES
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader {...headerProps} actions={[]} />

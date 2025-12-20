@@ -10,11 +10,15 @@ import PaginationSection from "../../components/Listing/PaginationSection";
 
 /*
   StoresList.jsx
-  - Uses /api/stores (now returns lightweight projection including managerName and operationalStatusName)
-  - Uses /api/stores/operationalstatuses for filter select
-  - Shows transient success alert when navigated back from create
+  Summary:
+  - Renders a paginated list of stores for the current organization.
+  - Loads stores and operational status options, applies client-side filters
+    and displays results in an EntityTable with a transient success alert.
 */
 
+/* --------------------------------------------------
+   CONSTANTS / STATE DECLARATIONS
+   -------------------------------------------------- */
 const DEFAULT_PAGE_SIZE = 10;
 
 export default function StoresList() {
@@ -22,7 +26,7 @@ export default function StoresList() {
   const navigate = useNavigate();
 
   // flash success (when navigated back with state)
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState("");       
 
   // filters / search
   const [statusFilter, setStatusFilter] = useState("");
@@ -38,6 +42,9 @@ export default function StoresList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* --------------------------------------------------
+     EFFECT: show transient success alert when navigated back
+     -------------------------------------------------- */
   // show success when navigated back with state { created: true, createdName }
   useEffect(() => {
     const state = location.state;
@@ -52,7 +59,9 @@ export default function StoresList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
-  // load stores and operational statuses
+  /* --------------------------------------------------
+     EFFECT: load stores and operational statuses on mount
+     -------------------------------------------------- */
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -106,6 +115,9 @@ export default function StoresList() {
     return () => { mounted = false; };
   }, []);
 
+  /* --------------------------------------------------
+     HELPERS: derive status options from stores projection
+     -------------------------------------------------- */
   const deriveStatusOptionsFromStores = (arr) => {
     const map = new Map();
     (arr || []).forEach((s) => {
@@ -117,6 +129,9 @@ export default function StoresList() {
     return [{ label: "All", value: "" }, ...Array.from(map.values())];
   };
 
+  /* --------------------------------------------------
+     DATA PROCESSING: client-side filtering and paging
+     -------------------------------------------------- */
   // client-side filtering
   const filtered = (stores || []).filter((st) => {
     // status filter: compare by id or name
@@ -143,6 +158,28 @@ export default function StoresList() {
   const page = Math.max(1, currentPage);
   const paged = filtered.slice((page - 1) * entriesPerPage, page * entriesPerPage);
 
+  /* --------------------------------------------------
+     HELPERS: status badge mapping
+     -------------------------------------------------- */
+  const STATUS_BADGE_MAP = {
+    "Open": "bg-success",
+    "Active": "bg-success",
+    "Inactive": "bg-warning",
+    "Closed": "bg-secondary",
+    "Under Maintenance": "bg-danger",
+    "Maintenance": "bg-danger",
+  };
+
+  function getStatusBadge(statusName) {
+    // Determine badge class by normalized status label
+    const normalized = String(statusName || "").trim();
+    const badgeClass = STATUS_BADGE_MAP[normalized] ?? STATUS_BADGE_MAP[normalized] ?? (normalized ? "bg-light" : "bg-secondary");
+    return <span className={`badge ${badgeClass}`}>{statusName}</span>;
+  }
+
+  /* --------------------------------------------------
+     ROW BUILDING: map stores to table rows
+     -------------------------------------------------- */
   // map to EntityTable rows
   const tableRows = paged.map((st) => {
     const statusName = st.operationalStatusName ?? "-";
@@ -151,7 +188,7 @@ export default function StoresList() {
     const workingHours = st.workingHours ?? "-";
     const manager = st.managerName ?? st.userName ?? "-";
 
-    const statusCell = <span className={`badge ${statusName && statusName.toLowerCase().includes("open") ? "bg-success" : "bg-secondary"}`}>{statusName}</span>;
+    const statusCell = getStatusBadge(statusName);
 
     return [
       statusCell,
@@ -162,6 +199,9 @@ export default function StoresList() {
     ];
   });
 
+  /* --------------------------------------------------
+     RENDER
+     -------------------------------------------------- */
   return (
     <div className="container py-5">
       <PageHeader

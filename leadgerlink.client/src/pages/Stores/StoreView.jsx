@@ -5,19 +5,29 @@ import DetailViewWithMetadata from "../Templates/DetailViewWithMetadata";
 
 /*
   StoreView
-  - Fetches store detail from repository-backed endpoint GET /api/stores/{id}
-  - Uses the server's canonical field names (storeId, storeName, location, email, phoneNumber, openingDate, operationalStatusName, workingHours, createdAt, updatedAt, userName)
-  - Presents detail + metadata via DetailViewWithMetadata
+  Summary:
+  - Displays details for a single store by fetching GET /api/stores/{id}.
+  - Maps server DTO fields to a consistent client-side shape and renders
+    a detail pane with metadata and action buttons (edit, back).
 */
 
+// --------------------------------------------------
+// STATE / HOOKS
+// --------------------------------------------------
 const StoreView = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  // store DTO mapped to client shape
   const [store, setStore] = useState(null);
+  // loading flag while fetching
   const [loading, setLoading] = useState(Boolean(id));
+  // error string displayed when fetch fails
   const [error, setError] = useState("");
 
+  // --------------------------------------------------
+  // EFFECT: Load store details on mount / id change
+  // --------------------------------------------------
   useEffect(() => {
     if (!id) {
       setLoading(false);
@@ -68,12 +78,17 @@ const StoreView = () => {
     return () => { mounted = false; };
   }, [id]);
 
+  // --------------------------------------------------
+  // PREPARE VIEW DATA
+  // --------------------------------------------------
+  // Header properties for the detail view component
   const headerProps = {
     icon: <FaStore size={55} />,
       title: store ? `Store#${store.storeId} ${store.storeName}` : (loading ? "Loading..." : "Store"),
     descriptionLines:[]
   };
 
+  // Detail rows presented in main detail section
   const detail = {
     title: store ? `Store#${store.storeId} ${store.storeName} details` : "Store details",
     rows: [
@@ -87,6 +102,7 @@ const StoreView = () => {
     ],
   };
 
+  // Metadata rows such as created/updated timestamps
   const metadata = {
     title: "About This Store",
     rows: [
@@ -95,6 +111,7 @@ const StoreView = () => {
     ],
   };
 
+  // Action buttons displayed in the view (Edit + Back)
   const actions = [
     {
       title: "Edit Store",
@@ -110,6 +127,9 @@ const StoreView = () => {
     },
   ];
 
+  // --------------------------------------------------
+  // RENDER / ERROR HANDLING
+  // --------------------------------------------------
   if (loading) {
     return <div className="container py-5">Loading store...</div>;
   }
