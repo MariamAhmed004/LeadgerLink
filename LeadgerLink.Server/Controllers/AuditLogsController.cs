@@ -32,13 +32,18 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("count")]
         public async Task<ActionResult<int>> Count(
             [FromQuery] int? actionTypeId,
-            [FromQuery] string? actionTypeName,
+            // Accept both "actionType" (legacy/client) and "actionTypeName" (existing API param)
+            [FromQuery(Name = "actionType")] string? actionType,
+            [FromQuery(Name = "actionTypeName")] string? actionTypeName,
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
             [FromQuery] int? organizationId)
         {
+            // Normalize to a single name value: prefer explicit actionTypeName, fall back to actionType query key
+            var effectiveActionTypeName = !string.IsNullOrWhiteSpace(actionTypeName) ? actionTypeName : actionType;
+
             // ------------------------- Fetch total count -------------------------
-            var total = await _auditRepo.CountAsync(actionTypeId, actionTypeName, from, to, organizationId);
+            var total = await _auditRepo.CountAsync(actionTypeId, effectiveActionTypeName, from, to, organizationId);
 
             // ------------------------- Return result -------------------------
             return Ok(total);

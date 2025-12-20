@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { FaPlus } from "react-icons/fa";
 import { useAuth } from "../../Context/AuthContext";
 import { HiUsers } from "react-icons/hi";
@@ -16,10 +17,21 @@ import PaginationSection from "../../components/Listing/PaginationSection";
   - Concatenate first + last name for display.
 */
 
+/*
+  SUMMARY:
+  - Renders the users listing with filters, paging and role-based scoping.
+  - Loads users and organizations on mount, applies client-side filtering,
+    and displays results in a paginated EntityTable.
+*/
+
+// --------------------------------------------------
+// STATE / CONSTANTS
+// --------------------------------------------------
 const DEFAULT_PAGE_SIZE = 10;
 
 export default function UsersList() {
   const { loggedInUser } = useAuth();
+  const location = useLocation();
 
   // filters / search
   const [statusFilter, setStatusFilter] = useState("");
@@ -35,7 +47,11 @@ export default function UsersList() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState(""); // state for success message
 
+  // --------------------------------------------------
+  // EFFECT: Load data on mount (users + organizations)
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -48,6 +64,7 @@ export default function UsersList() {
         const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
         const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
 
+        // Apply role-based query scoping when caller is not app admin
         if (!isAppAdmin) {
           if (isOrgAdmin || isOrgAccountant) {
             const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId;
@@ -87,19 +104,24 @@ export default function UsersList() {
     return () => { mounted = false; };
   }, [loggedInUser]);
 
-  // lookup helpers using canonical names
+  // --------------------------------------------------
+  // HELPERS: lookup helpers using canonical names
+  // --------------------------------------------------
   const findOrgName = (orgId) => {
     const o = organizations.find((x) => x.orgId === orgId || x.OrgId === orgId);
     return o ? (o.orgName ?? o.OrgName ?? "") : "";
   };
 
-  // client-side filtering using canonical fields + role-based scope
+  // --------------------------------------------------
+  // DATA PROCESSING: client-side filtering and paging
+  // --------------------------------------------------
   const filtered = users.filter((u) => {
     const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
     const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
     const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
     const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
 
+    // role-based scope enforcement
     if (!isAppAdmin) {
       if (isOrgAdmin || isOrgAccountant) {
         const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId;
@@ -110,15 +132,18 @@ export default function UsersList() {
       }
     }
 
+    // status filter
     if (statusFilter === "active" && u.isActive !== true) return false;
     if (statusFilter === "inactive" && u.isActive === true) return false;
 
+    // created after date filter
     if (createdAfter) {
       const created = u.createdAt ? new Date(u.createdAt) : null;
       if (!created) return false;
       if (!(created >= new Date(createdAfter))) return false;
     }
 
+    // free-text search across name/email/phone/role
     if (searchTerm && searchTerm.trim() !== "") {
       const s = searchTerm.trim().toLowerCase();
       const name = (((u.userFirstname ?? "") + " " + (u.userLastname ?? "")).trim()).toLowerCase();
@@ -131,12 +156,15 @@ export default function UsersList() {
     return true;
   });
 
+  // Compute paging values and current slice
   const totalEntries = filtered.length;
   const totalPages = useMemo(() => Math.max(1, Math.ceil(totalEntries / entriesPerPage)), [totalEntries, entriesPerPage]);
   const page = Math.max(1, currentPage);
   const paged = filtered.slice((page - 1) * entriesPerPage, page * entriesPerPage);
 
-  // build rows (canonical fields) - full name concatenated from first + last
+  // --------------------------------------------------
+  // ROW BUILDING: prepare rows for EntityTable
+  // --------------------------------------------------
   const tableRows = paged.map((u) => {
       const id = u.userId;
       const fullName = u.fullName ?? "-";
@@ -146,11 +174,12 @@ export default function UsersList() {
     const orgName = u.organizationName ?? findOrgName(u.orgId) ?? "-";
     const createdAt = u.createdAt ? new Date(u.createdAt).toLocaleString() : "-";
 
+    // status badge
     const statusCell = u.isActive === true
       ? <span className="badge bg-success">Active</span>
       : <span className="badge bg-secondary">Inactive</span>;
 
-    // Columns vary by role like before, but use canonical fields only
+    // Columns vary by caller role; return appropriate row array
     const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
     const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
     const isOrgAccountant = loggedInUser?.roles?.includes("Organization Accountant");
@@ -194,6 +223,9 @@ export default function UsersList() {
     ];
   });
 
+  // --------------------------------------------------
+  // COLUMN NAMES (vary by caller role)
+  // --------------------------------------------------
   const columns = (() => {
     const isAppAdmin = loggedInUser?.roles?.includes("Application Admin");
     const isOrgAdmin = loggedInUser?.roles?.includes("Organization Admin");
@@ -206,6 +238,9 @@ export default function UsersList() {
     return ["Status", "User Fullname", "Role", "Email"];
   })();
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader
@@ -219,6 +254,14 @@ export default function UsersList() {
           { icon: <FaPlus />, title: "New User", route: "/users/create" }
         ]}
       />
+
+      {successMsg && (
+        <div className="row">
+          <div className="col-12">
+            <div className="alert alert-success">{successMsg}</div>
+          </div>
+        </div>
+      )}
 
       <FilterSection
         searchValue={searchTerm}

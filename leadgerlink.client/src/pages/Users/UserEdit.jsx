@@ -10,11 +10,27 @@ import FormActions from "../../components/Form/FormActions";
 import InfoModal from "../../components/Ui/InfoModal";
 import { AuthContext } from "../../Context/AuthContext";
 
+/*
+  UserEdit.jsx
+  Summary:
+  - Edit a user profile. Loads user and lookup data, provides UI to change name,
+    phone, store assignment and active state. Handles store manager reassignment
+    and deactivation confirmation via modals. Saves changes with PUT /api/users/{id}.
+*/
+
+// --------------------------------------------------
+// COMPONENT: UserEdit
+// --------------------------------------------------
 export default function UserEdit() {
+  // Router/navigation helpers and current user context
   const navigate = useNavigate();
   const { id } = useParams();
   const { currentUser } = useContext(AuthContext); // Access the current user from AuthContext
 
+  // --------------------------------------------------
+  // STATE: form fields and flags
+  // --------------------------------------------------
+  // Editable user fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -25,27 +41,37 @@ export default function UserEdit() {
   const [isActive, setIsActive] = useState(true);
   const [reassignStoreManager, setReassignStoreManager] = useState(false);
 
+  // Lookup lists and auxiliary UI state
   const [organizationOptions, setOrganizationOptions] = useState([{ label: "Select organization", value: "" }]);
   const [storeOptions, setStoreOptions] = useState([{ label: "Select store", value: "" }]);
   const [storeManagers, setStoreManagers] = useState({}); // { storeId: { userId, name } }
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Modal and pending state for deactivation and reassignment flows
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [pendingActive, setPendingActive] = useState(true);
   const [showStoreManagerModal, setShowStoreManagerModal] = useState(false);
   const [pendingStoreId, setPendingStoreId] = useState("");
   const [storeManagerToUnassign, setStoreManagerToUnassign] = useState(null);
 
-  // Only allow editing store if the user being edited is a Store Manager or Store Employee
+  // --------------------------------------------------
+  // DERIVED FLAGS
+  // --------------------------------------------------
+  // Controls whether the store select is editable based on the user's role
   const canEditStore = role.trim().toLowerCase() === "store manager" || role.trim().toLowerCase() === "store employee";
   const isStoreManagerRole = role.trim().toLowerCase() === "store manager";
 
+  // --------------------------------------------------
+  // EFFECT: load user and lookups on mount / when id changes
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     let loadedOrgId = "";
     let loadedStoreId = "";
 
+    // Load specific user details
     const loadUser = async () => {
       setLoading(true);
       setError("");
@@ -57,6 +83,7 @@ export default function UserEdit() {
         }
         const json = await res.json();
         if (!mounted) return;
+        // Populate editable fields from returned DTO (handles multiple naming variants)
         setEmail(json.email || "");
         setPhone(json.phone || "");
         setFirstName((json.firstName ?? ((json.fullName || "").split(" ")[0] || "")) || "");
@@ -75,6 +102,7 @@ export default function UserEdit() {
       }
     };
 
+    // Load lookup lists (organizations and stores) after loading user
     const loadLookups = async () => {
       try {
         const currentOrgId = currentUser?.orgId ? String(currentUser.orgId) : ""; // Get orgId from AuthContext
@@ -91,7 +119,7 @@ export default function UserEdit() {
             const list = Array.isArray(arr) ? arr : (arr.items || []);
             const options = [{ label: "Select store", value: "" }, ...list.map(s => ({ label: s.storeName, value: String(s.storeId) }))];
             setStoreOptions(options);
-            // Build storeManagers map
+            // Build storeManagers map used to detect conflicts when assigning a store manager
             const managers = {};
             list.forEach(s => {
               if (s.userId && s.managerName) {
@@ -109,6 +137,9 @@ export default function UserEdit() {
     return () => { mounted = false; };
   }, [id, currentUser]);
 
+  // --------------------------------------------------
+  // MODAL FLOWS: deactivation
+  // --------------------------------------------------
   // Intercept deactivation and show modal
   const handleActiveChange = (val) => {
     if (!val) {
@@ -129,7 +160,10 @@ export default function UserEdit() {
     setPendingActive(true);
   };
 
-  // Intercept store change for Store Manager role
+  // --------------------------------------------------
+  // MODAL FLOWS: store manager reassignment
+  // --------------------------------------------------
+  // Intercept store change for Store Manager role to handle reassignment confirmation
   const handleStoreChange = (newStoreId) => {
     if (isStoreManagerRole && newStoreId && newStoreId !== storeId) {
       const manager = storeManagers[newStoreId];
@@ -157,6 +191,9 @@ export default function UserEdit() {
     setStoreManagerToUnassign(null);
   };
 
+  // --------------------------------------------------
+  // SUBMIT: save changes
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -188,6 +225,9 @@ export default function UserEdit() {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

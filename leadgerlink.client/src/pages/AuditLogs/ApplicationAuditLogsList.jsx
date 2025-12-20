@@ -9,13 +9,17 @@ import { HiOutlineDocumentSearch } from "react-icons/hi";
 
 /*
   ApplicationAuditLogsList.jsx
-  - Uses /api/auditlogs/overview and /api/auditlogs/count.
-  - Filters: action type (status) and timestamp range (from/to).
-  - Table columns: Status, Timestamp (navigates to details via EntityTable rowLink), User, Details.
+  Summary:
+  - Displays application-level audit logs with filters for action type and date range.
+  - Fetches counts and paged overview from server endpoints and renders a paginated table.
 */
 
+/* --------------------------------------------------
+   STATE / CONSTANTS
+   -------------------------------------------------- */
 const DEFAULT_PAGE_SIZE = 10;
 
+// Utility to pick first available field from a list of candidate keys
 const getField = (o, ...keys) => {
   if (!o) return undefined;
   for (const k of keys) {
@@ -24,14 +28,36 @@ const getField = (o, ...keys) => {
   return undefined;
 };
 
+// Map action names to Bootstrap badge classes (case-insensitive, substring match)
+const getBadgeClassForAction = (actionName) => {
+  if (!actionName) return "bg-secondary";
+  const s = String(actionName).trim().toLowerCase();
+
+  if (s.includes("create") || s.includes("created")) return "bg-success";
+  if (s.includes("edit") || s.includes("update") || s.includes("modified")) return "bg-primary";
+  if (s.includes("delete") || s.includes("removed") || s.includes("deleted")) return "bg-danger";
+  if (s.includes("login")) return "bg-info";
+  if (s.includes("logout")) return "bg-dark";
+  // fallback for errors/exceptions
+  if (s.includes("error") || s.includes("exception") || s.includes("failed")) return "bg-warning";
+
+  return "bg-secondary";
+};
+
 export default function ApplicationAuditLogsList() {
+  // --------------------------------------------------
+  // LOCAL STATE
+  // --------------------------------------------------
+  // Filters: action type and date range
   const [actionFilter, setActionFilter] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
+  // Pagination state
   const [entriesPerPage, setEntriesPerPage] = useState(DEFAULT_PAGE_SIZE);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Data containers and UI flags
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [actionOptions, setActionOptions] = useState([{ label: "All", value: "" }]);
@@ -39,7 +65,10 @@ export default function ApplicationAuditLogsList() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // build query params helper
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+  // Build query string for overview endpoint
   const buildParams = (page, pageSize, actionName, fromDate, toDate) => {
     const qs = new URLSearchParams();
     qs.append("page", String(page));
@@ -50,13 +79,16 @@ export default function ApplicationAuditLogsList() {
     return qs.toString();
   };
 
-  // load action type options (derive from first N overview items)
+  // --------------------------------------------------
+  // EFFECT: load action type options (used by filter)
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const controller = new AbortController();
 
     (async () => {
       try {
+        // Load a chunk of overview items to derive available action types
         const res = await fetch("/api/auditlogs/overview?page=1&pageSize=50", {
           credentials: "include",
           signal: controller.signal,
@@ -84,7 +116,9 @@ export default function ApplicationAuditLogsList() {
     };
   }, []);
 
-  // load count & paged overview whenever filters / paging change
+  // --------------------------------------------------
+  // EFFECT: load count and paged overview whenever filters/paging change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const controller = new AbortController();
@@ -93,12 +127,13 @@ export default function ApplicationAuditLogsList() {
       setLoading(true);
       setError("");
       try {
+        // Build count query based on selected filters
         const countQs = new URLSearchParams();
         if (actionFilter) countQs.append("actionTypeName", actionFilter);
         if (from) countQs.append("from", from);
         if (to) countQs.append("to", to);
 
-        // count
+        // Request total count
         const countRes = await fetch(`/api/auditlogs/count?${countQs.toString()}`, {
           credentials: "include",
           signal: controller.signal,
@@ -111,7 +146,7 @@ export default function ApplicationAuditLogsList() {
         if (!mounted) return;
         setTotal(typeof totalCount === "number" ? totalCount : Number(totalCount) || 0);
 
-        // overview page
+        // Request overview page
         const qs = buildParams(currentPage, entriesPerPage, actionFilter, from, to);
         const res = await fetch(`/api/auditlogs/overview?${qs}`, {
           credentials: "include",
@@ -143,24 +178,35 @@ export default function ApplicationAuditLogsList() {
     };
   }, [actionFilter, from, to, currentPage, entriesPerPage]);
 
+  // Compute total pages for pagination
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / entriesPerPage)), [total, entriesPerPage]);
 
+  // --------------------------------------------------
+  // DATA MAPPING: build rows for EntityTable
+  // --------------------------------------------------
   const tableRows = (rows || []).map((r) => {
+    // Resolve fields from possibly mixed-case DTOs
     const status = getField(r, "actionType", "ActionType") ?? "-";
     const rawTimestamp = getField(r, "timestamp", "Timestamp");
     const timestamp = rawTimestamp ? new Date(rawTimestamp).toLocaleString() : "-";
     const user = getField(r, "userName", "UserName") ?? "-";
     const details = getField(r, "details", "Details") ?? "";
 
+    // color-code badge based on action type
+    const badgeClass = getBadgeClassForAction(status);
+
     // timestamp is plain value; EntityTable will make the cell a link via linkColumnName + rowLink
     return [
-      <span className="badge bg-secondary" key="status">{status}</span>,
+      <span className={`badge ${badgeClass}`} key="status">{status}</span>,
       timestamp,
       user,
       <pre key="details" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{details}</pre>
     ];
   });
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader
@@ -176,7 +222,7 @@ export default function ApplicationAuditLogsList() {
       <FilterSection
         searchValue={""}
         onSearchChange={() => {}}
-        searchPlaceholder=""
+        searchPlaceholder={""}
         entriesValue={entriesPerPage}
         onEntriesChange={(v) => { setEntriesPerPage(Number(v)); setCurrentPage(1); }}
       >

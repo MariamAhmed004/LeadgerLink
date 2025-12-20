@@ -121,6 +121,29 @@
     color: var(--bs-dark);
 }
 
+/* Ensure links inside entity-table use primary color on hover/focus/active,
+   including visited links when hovered. Use !important to override other rules. */
+.entity-table a:hover,
+.entity-table a:focus,
+.entity-table a:active,
+.entity-table a.table-row-link:hover,
+.entity-table a.table-row-link:focus,
+.entity-table a.table-row-link:active,
+.entity-table a:visited:hover,
+.entity-table a:visited:focus {
+    color: var(--bs-primary) !important;
+    text-decoration-color: var(--bs-primary) !important;
+}
+
+/* Ensure SVG/icon children inside entity-table links inherit the text color */
+.entity-table a svg,
+.entity-table a .icon,
+.entity-table a i {
+  fill: currentColor;
+  stroke: currentColor;
+  color: inherit;
+}
+
 /* Visited links should use the secondary color */
 .table-row-link:visited,
 .entity-table a.table-row-link:visited {
@@ -337,3 +360,43 @@
   justify-content: center;
   align-items: center;
 }
+
+
+ /* Ensure header action buttons layout their icon + text cleanly */
+.page-header-actions .page-header-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* space between icon and label */
+    box-sizing: border-box;
+    /* Responsive font size: min 12px, preferred based on viewport, max 14px */
+    font-size: clamp(12px, 1.4vw, 14px);
+    padding: 0.35rem 0.5rem;
+    white-space: normal; /* allow wrapping */
+    word-break: break-word; /* break long words if needed */
+    overflow-wrap: anywhere; /* more aggressive wrap */
+    min-height: 38px;
+}
+
+    /* Fix icon sizing so it doesn't overflow the button */
+    .page-header-actions .page-header-btn > span:first-child,
+    .page-header-actions .page-header-btn svg {
+        flex: 0 0 auto; /* icon does not grow or shrink */
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25em;
+        height: 1.25em;
+        max-width: 28px;
+        max-height: 28px;
+        line-height: 1;
+    }
+
+    /* Make the text span flexible and able to shrink/wrap */
+    .page-header-actions .page-header-btn > span:last-child {
+        flex: 1 1 auto; /* label can grow and shrink */
+        min-width: 0; /* allows flex child to shrink below content width */
+        white-space: normal;
+        overflow-wrap: anywhere;
+        text-align: center;
+    }
+

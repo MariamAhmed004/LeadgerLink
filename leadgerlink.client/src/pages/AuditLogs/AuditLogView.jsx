@@ -123,10 +123,10 @@ export default function AuditLogView() {
     { label: "Title", value: `Auditlog#${idVal} recorded at ${recordedAt}` },
     { label: "Action Type", value: log.actionType ?? log.ActionType ?? "" },
     { label: "Level", value: log.auditLogLevel ?? log.AuditLogLevel ?? "" },
-    { label: "User", value: user ? (user.fullName ?? `${user.userFirstname ?? ""} ${user.userLastname ?? ""}`.trim()) : (log.userName ?? log.UserName ?? "—") },
-    { label: "Role", value: user?.role ?? user?.Role ?? "—" },
+    { label: "User", value: user ? (user.fullName ?? `${user.userFirstname ?? ""} ${user.userLastname ?? ""}`.trim()) : (log.userName ?? log.UserName ?? "none") },
+    { label: "Role", value: user?.role ?? user?.Role ?? "none" },
     // organization vs store column (unchanged; still driven by orgScope)
-    { label: orgScope ? "Store" : "Organization", value: orgScope ? (storeName || user?.storeName || user?.StoreName || user?.organizationName || user?.OrganizationName || "—") : (user?.organizationName ?? user?.OrganizationName ?? "—") },
+    { label: orgScope ? "Store" : "Organization", value: orgScope ? (storeName || user?.storeName || user?.StoreName || user?.organizationName || user?.OrganizationName || "none") : (user?.organizationName ?? user?.OrganizationName ?? "none") },
     { label: "Old Value", value: log.oldValue ?? log.OldValue ?? "" },
     { label: "New Value", value: log.newValue ?? log.NewValue ?? "" },
     { label: "Details", value: <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{log.details ?? log.Details ?? ""}</pre> }

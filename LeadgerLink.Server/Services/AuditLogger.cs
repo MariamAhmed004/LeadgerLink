@@ -136,7 +136,7 @@ namespace LeadgerLink.Server.Services
                 OldValue = null,
                 NewValue = JsonSerializer.Serialize(payload),
                 Details = "Exception",
-                ActionTypeId = MapActionType("Error"),
+                ActionTypeId = MapActionType("exception"),
                 // Exceptions are application-level audit logs
                 AuditLogLevelId = 1,
                 UserId = userId
@@ -229,6 +229,7 @@ namespace LeadgerLink.Server.Services
                 case "edit": return 4;
                 case "delete": return 5;
                 case "generate": return 6;
+                case "exception": return 1008;
                 default: return null;
             }
         }

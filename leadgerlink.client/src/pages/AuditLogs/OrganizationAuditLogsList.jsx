@@ -26,6 +26,22 @@ const getField = (o, ...keys) => {
   return undefined;
 };
 
+// Map action names to Bootstrap badge classes (case-insensitive, substring match)
+const getBadgeClassForAction = (actionName) => {
+  if (!actionName) return "bg-secondary";
+  const s = String(actionName).trim().toLowerCase();
+
+  if (s.includes("create") || s.includes("created")) return "bg-success";
+  if (s.includes("edit") || s.includes("update") || s.includes("modified")) return "bg-primary";
+  if (s.includes("delete") || s.includes("removed") || s.includes("deleted")) return "bg-danger";
+  if (s.includes("login")) return "bg-info";
+  if (s.includes("logout")) return "bg-dark";
+  // fallback for errors/exceptions
+  if (s.includes("error") || s.includes("exception") || s.includes("failed")) return "bg-warning";
+
+  return "bg-secondary";
+};
+
 export default function OrganizationAuditLogsList() {
   const { loggedInUser } = useAuth();
   const orgId = loggedInUser?.OrgId ?? loggedInUser?.orgId ?? null;
@@ -153,8 +169,12 @@ export default function OrganizationAuditLogsList() {
     const timestamp = rawTimestamp ? new Date(rawTimestamp).toLocaleString() : "-";
     const user = getField(r, "userName", "UserName") ?? "-";
     const details = getField(r, "details", "Details") ?? "";
+
+    // color-code badge based on action type
+    const badgeClass = getBadgeClassForAction(status);
+
     return [
-      <span className="badge bg-secondary" key="status">{status}</span>,
+      <span className={`badge ${badgeClass}`} key="status">{status}</span>,
       timestamp,
       user,
       <pre key="details" style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{details}</pre>

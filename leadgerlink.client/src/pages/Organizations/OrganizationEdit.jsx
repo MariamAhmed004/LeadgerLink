@@ -12,15 +12,30 @@ import InputWithButton from "../../components/Form/InputWithButton";
 import FormActions from "../../components/Form/FormActions";
 import InfoModal from "../../components/Ui/InfoModal";
 
+/*
+  OrganizationEdit.jsx
+  Summary:
+  - Edit organization page: loads organization details and industry types,
+    allows editing fields, validates on submit, and saves via PUT request.
+*/
+
 const emailIsValid = (e) => {
   if (!e) return false;
   return /^\S+@\S+\.\S+$/.test(String(e).trim());
 };
 
+// --------------------------------------------------
+// COMPONENT: OrganizationEdit
+// --------------------------------------------------
 const OrganizationEdit = () => {
+  // Router helpers
   const navigate = useNavigate();
   const { id } = useParams();
 
+  // --------------------------------------------------
+  // STATE: form fields
+  // --------------------------------------------------
+  // Organization basic fields
   const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -30,20 +45,28 @@ const OrganizationEdit = () => {
   const [website, setWebsite] = useState("");
   const [isActive, setIsActive] = useState(true);
 
+  // --------------------------------------------------
+  // STATE: lookups / UI flags
+  // --------------------------------------------------
+  // Industry select options and loading flag
   const [industryOptions, setIndustryOptions] = useState([{ label: "Select industry", value: "" }]);
   const [loadingIndustries, setLoadingIndustries] = useState(false);
 
+  // Loading / saving / error UI state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Keep raw industry info returned by API (could be id or name)
+  // Raw industry value returned by API (could be id or name)
   const [orgIndustryRaw, setOrgIndustryRaw] = useState(null);
 
-  // modal state for deactivation confirmation
+  // Modal and pending state for deactivation
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [pendingActiveValue, setPendingActiveValue] = useState(true);
 
+  // --------------------------------------------------
+  // EFFECT: load organization details on mount (by id)
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -94,7 +117,9 @@ const OrganizationEdit = () => {
     return () => { mounted = false; };
   }, [id]);
 
-  // load industry types
+  // --------------------------------------------------
+  // EFFECT: load industry types for the select control
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -126,6 +151,9 @@ const OrganizationEdit = () => {
     return () => { mounted = false; };
   }, []);
 
+  // --------------------------------------------------
+  // EFFECT: resolve raw industry value to a select option when available
+  // --------------------------------------------------
   // When industry options or the raw org industry value become available,
   // try to resolve and select the matching option.
   useEffect(() => {
@@ -144,6 +172,9 @@ const OrganizationEdit = () => {
     }
   }, [orgIndustryRaw, industryOptions, industryTypeId]);
 
+  // --------------------------------------------------
+  // HELPERS: Open website and active toggle handlers
+  // --------------------------------------------------
   const handleOpenWebsite = () => {
     if (!website || website.trim() === "") return;
     const href = website.startsWith("http://") || website.startsWith("https://") ? website : `https://${website}`;
@@ -170,6 +201,9 @@ const OrganizationEdit = () => {
     setShowDeactivateModal(false);
   };
 
+  // --------------------------------------------------
+  // SUBMIT: validate and save changes
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -179,6 +213,9 @@ const OrganizationEdit = () => {
     if (!emailIsValid(email)) return setError("Provide a valid email address.");
     if (!phone.trim()) return setError("Phone number is required.");
     if (!industryTypeId || industryTypeId === "") return setError("Select an industry type.");
+    // keep registration and establishment required like "New" form
+    if (!regNumber.trim()) return setError("Registration number is required.");
+    if (!establishmentDate) return setError("Establishment date is required.");
 
     setSaving(true);
 
@@ -217,6 +254,9 @@ const OrganizationEdit = () => {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader
@@ -232,15 +272,16 @@ const OrganizationEdit = () => {
             <InputField label="Organization Name" required value={orgName} onChange={setOrgName} placeholder="Organization name" />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Email" type="email" value={email} onChange={setEmail} placeholder="contact@org.example" />
+            <InputField label="Email" type="email" required value={email} onChange={setEmail} placeholder="contact@org.example" />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Phone Number" value={phone} onChange={setPhone} placeholder="+973-3XX-XXXX" />
+            <InputField label="Phone Number" required value={phone} onChange={setPhone} placeholder="+973-3XX-XXXX" />
           </div>
           <div className="col-12 col-md-6 text-start">
             <SelectField
               label="Industry Type"
+              required
               value={industryTypeId}
               onChange={setIndustryTypeId}
               options={industryOptions}
@@ -249,10 +290,10 @@ const OrganizationEdit = () => {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Registration Number" value={regNumber} onChange={setRegNumber} placeholder="Reg. number" />
+            <InputField label="Registration Number" required value={regNumber} onChange={setRegNumber} placeholder="Reg. number" />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <TimestampField label="Establishment Date" value={establishmentDate} onChange={setEstablishmentDate} />
+            <TimestampField label="Establishment Date" required value={establishmentDate} onChange={setEstablishmentDate} />
           </div>
 
           <div className="col-12 col-md-6 text-start">

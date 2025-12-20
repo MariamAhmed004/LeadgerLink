@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaUserPlus } from "react-icons/fa";
+import { FaUserPlus, FaEye, FaEyeSlash } from "react-icons/fa";
 import { HiUsers } from "react-icons/hi";
 import PageHeader from "../../components/Listing/PageHeader";
 import FormBody from "../../components/Form/FormBody";
@@ -9,6 +9,7 @@ import SelectField from "../../components/Form/SelectField";
 import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import { useAuth } from "../../Context/AuthContext";
+import InputWithButton from "../../components/Form/InputWithButton";
 
 /*
   UserNew.jsx (clean)
@@ -17,14 +18,25 @@ import { useAuth } from "../../Context/AuthContext";
     Stores: { storeId, storeName }
   - Simple client validation (email, password complexity, role/store rules).
   - Application Admin removed from role list.
+  - Added: show/hide password icon and make Organization + Role required.
 */
 
+/*
+  SUMMARY:
+  - Page for creating a new user. Loads organizations/stores as lookups,
+    applies role-based UI rules, validates input, and posts to /api/users.
+*/
+
+// --------------------------------------------------
+// VALIDATORS
+// --------------------------------------------------
 const emailIsValid = (e) => /^\S+@\S+\.\S+$/.test(String(e || "").trim());
 const passwordIsValid = (p) => {
   if (!p) return false;
   return p.length >= 8 && /[A-Z]/.test(p) && /[a-z]/.test(p) && /[0-9]/.test(p);
 };
 
+// Role options used when caller is application admin
 const ROLE_OPTIONS = [
   { label: "Select role", value: "" },
   { label: "Organization Admin", value: "Organization Admin" },
@@ -33,11 +45,17 @@ const ROLE_OPTIONS = [
   { label: "Store Employee", value: "Store Employee" }
 ];
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function UserNew() {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
-  // form fields (canonical names)
+  // --------------------------------------------------
+  // STATE: form fields
+  // --------------------------------------------------
+  // Canonical field state for the user being created
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -48,7 +66,12 @@ export default function UserNew() {
   const [initialPassword, setInitialPassword] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  // lookups / UI state
+  // Show/hide password flag for the initial password input
+  const [showPassword, setShowPassword] = useState(false);
+
+  // --------------------------------------------------
+  // STATE: lookups and UI flags
+  // --------------------------------------------------
   const [organizationOptions, setOrganizationOptions] = useState([{ label: "Select organization", value: "" }]);
   const [storeOptions, setStoreOptions] = useState([{ label: "Select store", value: "" }]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
@@ -56,7 +79,9 @@ export default function UserNew() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // role-based UI flags
+  // --------------------------------------------------
+  // ROLE-BASED FLAGS (derived from logged in user)
+  // --------------------------------------------------
   const roles = (loggedInUser?.roles || []).map(String);
   const isAppAdmin = roles.includes("Application Admin");
   const isOrgAdmin = roles.includes("Organization Admin");
@@ -65,7 +90,9 @@ export default function UserNew() {
   const userOrgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
   const userStoreId = loggedInUser?.storeId ?? loggedInUser?.StoreId ?? null;
 
-  // Preselect/lock fields based on role
+  // --------------------------------------------------
+  // EFFECT: preselect/lock fields based on caller role
+  // --------------------------------------------------
   useEffect(() => {
     // Org Admin/Accountant: lock org to user's org
     if ((isOrgAdmin || isAccountant) && userOrgId) {
@@ -79,7 +106,9 @@ export default function UserNew() {
     }
   }, [isOrgAdmin, isAccountant, isStoreManager, userOrgId, userStoreId]);
 
-  // load organizations
+  // --------------------------------------------------
+  // EFFECT: load organizations on mount
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -103,7 +132,9 @@ export default function UserNew() {
     return () => { mounted = false; };
   }, []);
 
-  // load stores when organization or role changes, if role needs a store
+  // --------------------------------------------------
+  // EFFECT: load stores when organization or role changes
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
@@ -139,7 +170,9 @@ export default function UserNew() {
     return () => { mounted = false; };
   }, [organizationId, role]);
 
-  // Adjust allowed role options based on caller role
+  // --------------------------------------------------
+  // ROLE: allowed role options for the role select control
+  // --------------------------------------------------
   const allowedRoleOptions = (() => {
     if (isAppAdmin) return ROLE_OPTIONS; // full list
     if (isOrgAdmin || isAccountant) {
@@ -158,6 +191,9 @@ export default function UserNew() {
     return [{ label: "Select role", value: "" }];
   })();
 
+  // --------------------------------------------------
+  // SUBMIT: validate inputs and POST to API
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -168,13 +204,15 @@ export default function UserNew() {
     if (!passwordIsValid(initialPassword)) return setError("Password must be at least 8 chars and include upper, lower and a digit.");
     if (role === "Application Admin") return setError("Cannot create Application Admin here.");
 
-    const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
-    if (roleRequiresStore && !storeId) return setError("Store selection is required for the selected role.");
-
+    // require role and organization (frontend validation)
+    if (!role) return setError("Role is required.");
     if (!organizationId) {
       setSaving(false);
       return setError("Organization selection is required.");
     }
+
+    const roleRequiresStore = role === "Store Manager" || role === "Store Employee";
+    if (roleRequiresStore && !storeId) return setError("Store selection is required for the selected role.");
 
     setSaving(true);
 
@@ -213,10 +251,16 @@ export default function UserNew() {
     }
   };
 
+  // --------------------------------------------------
+  // LAYOUT FLAGS: disable/lock controls
+  // --------------------------------------------------
   const storeDisabled = !(role === "Store Manager" || role === "Store Employee") || isStoreManager;
   const orgDisabled = (isOrgAdmin || isAccountant || isStoreManager) && !!userOrgId;
   const roleDisabled = isStoreManager; // fixed to Store Employee
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader
@@ -245,11 +289,11 @@ export default function UserNew() {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Organization" value={organizationId} onChange={setOrganizationId} options={organizationOptions} searchable={true} disabled={orgDisabled} />
+            <SelectField label="Organization" required value={organizationId} onChange={setOrganizationId} options={organizationOptions} searchable={true} disabled={orgDisabled} />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Role" value={role} onChange={setRole} options={allowedRoleOptions} searchable={false} disabled={roleDisabled} />
+            <SelectField label="Role" required value={role} onChange={setRole} options={allowedRoleOptions} searchable={false} disabled={roleDisabled} />
           </div>
 
           <div className="col-12 col-md-6 text-start">
@@ -265,7 +309,18 @@ export default function UserNew() {
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Initial Password" type="password" required value={initialPassword} onChange={setInitialPassword} placeholder="Temporary password" />
+            {/* Use InputWithButton to allow showing/hiding the initial password with eye icon */}
+            <InputWithButton
+              label="Initial Password"
+              type={showPassword ? "text" : "password"}
+              required
+              value={initialPassword}
+              onChange={setInitialPassword}
+              placeholder="Temporary password"
+              buttonLabel={showPassword ? <FaEyeSlash /> : <FaEye />}
+              buttonVariant="secondary"
+              onButtonClick={(ev) => { ev.preventDefault(); setShowPassword(s => !s); }}
+            />
           </div>
 
           <div className="col-12 col-md-4 text-start d-flex align-items-center">

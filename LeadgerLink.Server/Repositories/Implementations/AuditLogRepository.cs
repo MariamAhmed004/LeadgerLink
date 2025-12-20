@@ -25,13 +25,24 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(a => a.ActionType)
                 .AsQueryable();
 
+            // If an actionTypeId was provided, apply the filter and also attempt to resolve its name
+            string? resolvedActionTypeName = null;
             if (actionTypeId.HasValue)
             {
+                // apply actionTypeId filter
                 q = q.Where(a => a.ActionTypeId == actionTypeId.Value);
+
+                // try to resolve name for special-case handling (e.g., "Login")
+                resolvedActionTypeName = await _context.ActionTypes
+                    .Where(at => at.ActionTypeId == actionTypeId.Value)
+                    .Select(at => at.ActionTypeName)
+                    .FirstOrDefaultAsync();
             }
             else if (!string.IsNullOrWhiteSpace(actionTypeName))
             {
+                // apply actionTypeName filter when provided
                 q = q.Where(a => a.ActionType != null && a.ActionType.ActionTypeName == actionTypeName);
+                resolvedActionTypeName = actionTypeName;
             }
 
             if (organizationId.HasValue)
@@ -51,6 +62,17 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 q = q.Where(a => a.Timestamp <= toDate);
             }
 
+            // Special case: when counting "login" actions, return distinct count of users involved (unique UserId)
+            if (!string.IsNullOrWhiteSpace(resolvedActionTypeName) && string.Equals(resolvedActionTypeName.Trim(), "login", StringComparison.OrdinalIgnoreCase))
+            {
+                return await q
+                    .Where(a => a.UserId != null)
+                    .Select(a => a.UserId)
+                    .Distinct()
+                    .CountAsync();
+            }
+
+            // Default: count matching audit log entries
             return await q.CountAsync();
         }
 
