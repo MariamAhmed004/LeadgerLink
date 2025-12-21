@@ -187,7 +187,27 @@ export default function Reports() {
               url = `/api/reports/employee-sales-performance/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
               filename = `employee-sales-performance-${orgId}-${year}-${month}.xlsx`;
           }
-      } else  {
+      } else if (reportId === "inventory_utilization") {
+          if (!orgId) throw new Error("Organization id not available for Inventory Utilization report.");
+          if (format === "PDF") {
+              url = `/api/reports/inventory-utilization/pdf?organizationId=${encodeURIComponent(String(orgId))}`;
+              filename = `inventory-utilization-${orgId}.pdf`;
+          } else {
+              url = `/api/reports/inventory-utilization/excel?organizationId=${encodeURIComponent(String(orgId))}`;
+              filename = `inventory-utilization-${orgId}.xlsx`;
+          }
+      } else if (reportId === "sales_per_store_month") {
+          if (!orgId) throw new Error("Organization id not available for Sales per Store / Month report.");
+          const now = new Date();
+          const year = now.getUTCFullYear();
+          if (format === "PDF") {
+              url = `/api/reports/sales-per-store-year/pdf?organizationId=${encodeURIComponent(String(orgId))}&year=${year}`;
+              filename = `sales-per-store-${orgId}-${year}.pdf`;
+          } else {
+              url = `/api/reports/sales-per-store-year/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}`;
+              filename = `sales-per-store-${orgId}-${year}.xlsx`;
+          }
+} else  {
         // Fallback to generic generator
         const qs = new URLSearchParams({ reportId, format: format }).toString();
         const extra = new URLSearchParams();

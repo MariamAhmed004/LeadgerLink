@@ -651,6 +651,83 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+        // GET api/reports/inventory-utilization/excel?organizationId=123
+        [HttpGet("inventory-utilization/excel")]
+        public async Task<IActionResult> GetInventoryUtilizationExcel([FromQuery] int organizationId)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateInventoryUtilizationReportExcelAsync(organizationId);
+                var fileName = $"inventory-utilization-{organizationId}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Inventory Utilization Excel for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate Inventory Utilization Excel.");
+            }
+        }
 
+        // GET api/reports/inventory-utilization/pdf?organizationId=123
+        [HttpGet("inventory-utilization/pdf")]
+        public async Task<IActionResult> GetInventoryUtilizationPdf([FromQuery] int organizationId)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateInventoryUtilizationReportPdfAsync(organizationId);
+                var fileName = $"inventory-utilization-{organizationId}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Inventory Utilization PDF for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate Inventory Utilization PDF.");
+            }
+        }
+
+
+        // Add these two endpoints among other organization-level admin report routes (paste near monthly-sales endpoints).
+
+        // GET api/reports/sales-per-store-year/excel?organizationId=123&year=2025
+        [HttpGet("sales-per-store-year/excel")]
+        public async Task<IActionResult> GetSalesPerStoreYearExcel([FromQuery] int organizationId, [FromQuery] int year)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0) return BadRequest("Valid year is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateStoresMonthlySalesReportExcelAsync(organizationId, year);
+                var fileName = $"sales-per-store-{organizationId}-{year}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Stores Monthly Sales Excel for org {OrgId} year {Year}", organizationId, year);
+                return StatusCode(500, "Failed to generate Stores Monthly Sales Excel.");
+            }
+        }
+
+        // GET api/reports/sales-per-store-year/pdf?organizationId=123&year=2025
+        [HttpGet("sales-per-store-year/pdf")]
+        public async Task<IActionResult> GetSalesPerStoreYearPdf([FromQuery] int organizationId, [FromQuery] int year)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0) return BadRequest("Valid year is required.");
+            try
+            {
+                var bytes = await _reportRepository.GenerateStoresMonthlySalesReportPdfAsync(organizationId, year);
+                var fileName = $"sales-per-store-{organizationId}-{year}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Stores Monthly Sales PDF for org {OrgId} year {Year}", organizationId, year);
+                return StatusCode(500, "Failed to generate Stores Monthly Sales PDF.");
+            }
+        }
     }
 }
