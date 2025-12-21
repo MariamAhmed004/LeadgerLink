@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { FaExchangeAlt, FaArrowDown, FaArrowUp, FaPlus } from 'react-icons/fa';
 import { useAuth } from '../../Context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import PageHeader from '../../components/Listing/PageHeader';
 import FilterSection from '../../components/Listing/FilterSection';
@@ -21,6 +21,7 @@ import InfoModal from '../../components/Ui/InfoModal';
 export default function InventoryTransfersList() {
   const { loggedInUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // --------------------------------------------------
   // ROLE FLAGS
@@ -88,6 +89,9 @@ export default function InventoryTransfersList() {
 
   // modal visibility state used for delivery confirmation
   const [showModal, setShowModal] = useState(false);
+  // transient success alert shown on page
+  const [successAlert, setSuccessAlert] = useState('');
+  const [toastInfo, setToastInfo] = useState(null); // { title, message, notified }
 
   // --------------------------------------------------
   // CONSTANTS: flow options
@@ -304,15 +308,25 @@ export default function InventoryTransfersList() {
                     method: 'POST',
                     credentials: 'include',
                   })
-                    .then((res) => {
-                      if (!res.ok) throw new Error('Failed to set transfer as delivered');
-                      // Reload data or update state
-                      window.location.reload();
-                    })
-                    .catch((err) => {
-                      console.error(err);
-                      alert('Failed to set transfer as delivered');
-                    });
+                        // Replace the existing .then((res) => { ... }) block inside the Confirm button onClick with this:
+                        .then((res) => {
+                            if (!res.ok) throw new Error('Failed to set transfer as delivered');
+
+                            // Show inline success alert under header and a header-mounted toast describing who was notified.
+                            setSuccessAlert('Transfer marked as delivered.');
+                            setToastInfo({
+                                title: 'Transfer Delivered',
+                                message: 'Transfer marked as delivered.',
+                                notified: 'Store managers'
+                            });
+
+                            // Clear inline alert then clear toast and refresh so user sees the messages briefly.
+                            setTimeout(() => setSuccessAlert(''), 1800);
+                            setTimeout(() => {
+                                setToastInfo(null);
+                                window.location.reload();
+                            }, 2200);
+                        })
                 }}
               >
                 Confirm
@@ -342,6 +356,36 @@ export default function InventoryTransfersList() {
   });
 
   // --------------------------------------------------
+  // EFFECT: handle location state on mount (for success toast)
+  // --------------------------------------------------
+    useEffect(() => {
+        try {
+            const st = location?.state?.toast;
+            if (st && (st.title || st.message)) {
+                // Inline success alert under header
+                setSuccessAlert(st.message || st.title || 'Operation completed.');
+                // Toast box under header showing who was notified (prefer explicit 'notified' field, fall back to message)
+                setToastInfo({
+                    title: st.title || 'Notification',
+                    message: st.message || '',
+                    notified: st.notified || st.message || ''
+                });
+
+                // Clear navigation state so it doesn't reappear on refresh
+                navigate(location.pathname, { replace: true, state: null });
+
+                // Lifetimes: keep inline alert shorter than toast
+                setTimeout(() => setSuccessAlert(''), 4200);
+                setTimeout(() => setToastInfo(null), 6200);
+            }
+        } catch {
+            // ignore
+        }
+    }, [location, navigate]);
+   
+
+
+  // --------------------------------------------------
   // RENDER
   // --------------------------------------------------
   return (
@@ -355,7 +399,12 @@ export default function InventoryTransfersList() {
         ]}
         // Show "New Transfer Request" action only for non-employees and non-admins
         actions={(isEmployee || isOrgAdmin) ? [] : [{ icon: <FaPlus />, title: 'New Transfer Request', route: '/inventory/transfers/new' }]}
-      />
+          />
+          {successAlert && (
+              <div className="alert alert-success my-2" role="alert">
+                  {successAlert}
+              </div>
+          )}
 
       <FilterSection
         searchValue={searchTerm}
@@ -363,7 +412,8 @@ export default function InventoryTransfersList() {
         searchPlaceholder="Search by date, store, status, driver..."
         entriesValue={entriesPerPage}
         onEntriesChange={setEntriesPerPage}
-      >
+          >
+              
         <div className="col-md-3">
           <FilterSelect
             label="Transfer Flow"
@@ -406,6 +456,70 @@ export default function InventoryTransfersList() {
         entriesPerPage={entriesPerPage}
         totalEntries={totalFiltered}
       />
+          
+          {toastInfo && (
+              <div
+                  style={{
+                      position: 'fixed',
+                      bottom: '1rem',
+                      right: '1rem',
+                      zIndex: 1080,
+                      maxWidth: '360px',
+                      width: 'min(95%, 360px)',
+                      padding: 0,
+                      pointerEvents: 'auto'
+                  }}
+              >
+                  <div
+                      className="toast show"
+                      role="alert"
+                      aria-live="assertive"
+                      aria-atomic="true"
+                      style={{
+                          background: '#ffffff',
+                          borderRadius: 8,
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                          border: '1px solid rgba(0,0,0,0.06)',
+                          overflow: 'hidden'
+                      }}
+                  >
+                      <div
+                          className="toast-header"
+                          style={{
+                              background: '#f8f9fa',
+                              borderBottom: '1px solid rgba(0,0,0,0.04)',
+                              padding: '0.5rem 0.75rem',
+                              alignItems: 'center'
+                          }}
+                      >
+                          <strong className="me-auto" style={{ fontSize: '0.95rem' }}>{toastInfo.title}</strong>
+                          <small className="text-muted" style={{ marginRight: '0.5rem' }}>Now</small>
+                          <button
+                              type="button"
+                              className="btn-close"
+                              aria-label="Close"
+                              onClick={() => setToastInfo(null)}
+                              style={{ marginLeft: 0 }}
+                          />
+                      </div>
+
+                      <div
+                          className="toast-body"
+                          style={{
+                              padding: '0.75rem',
+                              color: '#212529',
+                              fontSize: '0.95rem'
+                          }}
+                      >
+                          <div>{toastInfo.message}</div>
+                          {toastInfo.notified && (
+                              <small className="text-muted d-block mt-2">Notified: {toastInfo.notified}</small>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          )}
+
     </div>
   );
 }

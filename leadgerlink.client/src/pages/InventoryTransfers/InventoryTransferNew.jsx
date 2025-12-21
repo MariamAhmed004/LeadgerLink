@@ -224,7 +224,16 @@ export default function InventoryTransferNew() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Failed to save transfer (${res.status})`);
       }
-      navigate('/inventory/transfers');
+      // navigate and pass toast payload for the list page to display
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Draft saved',
+                    message: 'Notifications have been sent to store employees.',
+                    notified: 'Store employees'
+                }
+            }
+        });
     } catch (err) {
       console.error('Save failed', err);
       alert(err?.message || 'Failed to save transfer');
@@ -264,7 +273,16 @@ export default function InventoryTransferNew() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Failed to send transfer (${res.status})`);
       }
-      navigate('/inventory/transfers');
+      // navigate and pass toast payload for the list page to display
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Request sent',
+                    message: 'Request sent successfully. The other store manager has been notified.',
+                    notified: 'Store managers'
+                }
+            }
+        });
     } catch (err) {
       console.error('Send failed', err);
       alert(err?.message || 'Failed to send transfer');
@@ -297,6 +315,7 @@ export default function InventoryTransferNew() {
       selectionIdProp: 'id',       // include it in selection objects
     },
   ];
+
 
   // --------------------------------------------------
   // RENDER

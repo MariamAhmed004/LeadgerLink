@@ -426,7 +426,15 @@ export default function InventoryTransferApprove() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate('/inventory/transfers');
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Request Approved',
+                    message: 'Transfer approved successfully. The other store manager has been notified.',
+                    notified: 'Store managers'
+                }
+            }
+        });
     } catch (err) {
       console.error('Approve failed', err);
       alert(err?.message || 'Failed to approve transfer');
@@ -451,7 +459,15 @@ export default function InventoryTransferApprove() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate('/inventory/transfers');
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Request Rejected',
+                    message: 'Transfer rejected successfully. The other store manager has been notified.',
+                    notified: 'Store managers'
+                }
+            }
+        });
     } catch (err) {
       console.error('Reject failed', err);
       alert(err?.message || 'Failed to reject transfer');

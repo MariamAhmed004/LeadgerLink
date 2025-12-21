@@ -283,7 +283,16 @@ export default function InventoryTransferSend() {
         throw new Error(txt || `Failed to update transfer items (${itemsRes.status})`);
       }
 
-      navigate('/inventory/transfers');
+      // Navigate back to list and pass toast payload so the list page displays toast + inline alert
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Request sent',
+                    message: 'Request sent successfully. The other store manager has been notified.',
+                    notified: 'Store manager(s)'
+                }
+            }
+        });
     } catch (err) {
       console.error('Send failed', err);
       setSendError(err?.message || 'Failed to send transfer');

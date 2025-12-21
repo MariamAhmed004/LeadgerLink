@@ -53,7 +53,7 @@ const StoreEmployeeHomePage = () => {
 
             // Filter to pending status (case-insensitive), take top 5
             const pending = (items || [])
-                .filter(t => (t.status ?? "").toString().toLowerCase() === "pending")
+                .filter(t => (t.status ?? "").toString().toLowerCase() === "draft")
                 .slice(0, 5);
 
             const rows = pending.map((t) => [
@@ -93,7 +93,7 @@ const StoreEmployeeHomePage = () => {
 
             {/* Pending Inventory Movements Table */}
             <HomePageTable
-                title="Pending Inventory Movements"
+                title="To Be Filled Inventory Movements"
                 columns={["Requester", "Requested From", "Status", "Transfer Date"]}
                 rows={pendingTransfers}
                 emptyMessage="No pending inventory movements."

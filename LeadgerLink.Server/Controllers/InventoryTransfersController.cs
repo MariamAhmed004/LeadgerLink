@@ -236,7 +236,15 @@ namespace LeadgerLink.Server.Controllers
 
             // Validate the DTO
             if (dto == null) return BadRequest("Missing payload.");
-            if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
+
+            // Fetch the transfer status
+            var statusValue = !string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft";
+
+            //if draft allow empty items
+            if (statusValue != "draft") { 
+                if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
+            }
+
 
             // Resolve the requester and source store IDs
             var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value;
@@ -247,8 +255,7 @@ namespace LeadgerLink.Server.Controllers
             var parsedDate = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
 
-            // Fetch the transfer status
-            var statusValue = !string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft";
+            
             var status = await _repository.GetTransferStatusByNameAsync(statusValue.ToLowerInvariant());
 
             await SetAuditContextUserId();

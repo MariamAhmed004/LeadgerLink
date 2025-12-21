@@ -666,24 +666,32 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     ?.Trim()
                     .ToLowerInvariant();
 
-                // Fetch navigation properties for FromStoreNavigation and ToStoreNavigation
-                transfer.FromStoreNavigation =  _context.Stores.Include(s => s.Users).FirstOrDefault(s => s.StoreId == transfer.FromStore);
+                // Fetch navigation properties for FromStoreNavigation and ToStoreNavigation (include Users)
+                transfer.FromStoreNavigation = await _context.Stores
+                    .Include(s => s.Users)
+                    .FirstOrDefaultAsync(s => s.StoreId == transfer.FromStore);
 
-                transfer.ToStoreNavigation = await _context.Stores.FindAsync(transfer.ToStore);
+                transfer.ToStoreNavigation = await _context.Stores
+                    .Include(s => s.Users)
+                    .FirstOrDefaultAsync(s => s.StoreId == transfer.ToStore);
 
-                if (status == "draft")
+            if (status == "draft")
+            {
+                //fetch users where store id matches ToStore
+                var users = await _context.Users
+                    .Where(u => u.StoreId == transfer.ToStore)
+                    .Select(u => u.UserId)
+                    .ToListAsync();
+
+                // Notify all users of the destination store (ToStore) so recipients are those who will receive the request.
+                if (users != null && users.Any())
                 {
-                    // Notify employees of the requesting store
-                    if (transfer.FromStoreNavigation?.Users != null)
-                    {
-                        var employeeIds = transfer.FromStoreNavigation.Users
-                            .Select(e => e.UserId)
-                            .ToList();
+                    var employeeIds = users;
 
-                        await SendTransferStatusNotificationAsync("Draft", employeeIds);
-                    }
+                    await SendTransferStatusNotificationAsync("Draft", employeeIds);
                 }
-                else if (status == "requested")
+            }
+            else if (status == "requested")
                 {
                     // Notify both store managers
                     var storeManagerIds = new List<int>();

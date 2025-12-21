@@ -263,7 +263,15 @@ export default function InventoryTransferFill() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Failed to update transfer items (${res.status})`);
       }
-      navigate('/inventory/transfers');
+        navigate('/inventory/transfers', {
+            state: {
+                toast: {
+                    title: 'Changes Saved for The Transfer',
+                    message: 'The store manager can now view the items you added.',
+                    notified: '-'
+                }
+            }
+        });
     } catch (err) {
       console.error('Failed to update transfer items', err);
       alert(err.message || 'Failed to update transfer');
