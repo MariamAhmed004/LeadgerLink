@@ -82,5 +82,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Monthly Sales report (organization-level): generated file outputs
         Task<byte[]> GenerateMonthlySalesReportPdfAsync(int organizationId, int year, int month);
         Task<byte[]> GenerateMonthlySalesReportExcelAsync(int organizationId, int year, int month);
+
+        Task<byte[]> GenerateStorePerformanceReportPdfAsync(int organizationId, int year, int month);
+        Task<byte[]> GenerateStorePerformanceReportExcelAsync(int organizationId, int year, int month);
     }
 }//end IReportRepository

@@ -25,7 +25,7 @@ const REPORTS_CONFIG = [
   { id: "sales_by_recipe", name: "Sales Summary by Recipe", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Sales aggregated by recipe to help finance reconcile costs." },
   { id: "monthly_sales", name: "Monthly Sales", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Organization-level monthly sales summary." },
 
-  { id: "top_performing_store", name: "Top Performing Store", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Ranked list of stores by revenue/performance for the period." },
+  { id: "store_performance", name: "Store Performance", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level store performance for the month: sales counts, totals, inventory value and transfers; includes AI recommendations." },
   { id: "employee_sales_performance", name: "Employee Sales Performance", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Sales and KPI metrics per employee across the organization." },
   { id: "low_stock_alerts", name: "Low Stock Alerts", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Current low-stock items across stores to prioritize restocking." },
   { id: "inventory_utilization", name: "Inventory Utilization", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Utilization rates of inventory items across stores / time." },
@@ -162,6 +162,18 @@ export default function Reports() {
           } else {
               url = `/api/reports/monthly-sales/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
               filename = `monthly-sales-${orgId}-${year}-${month}.xlsx`;
+          }
+      } else if (reportId === "store_performance") {
+          if (!orgId) throw new Error("Organization id not available for Store Performance report.");
+          const now = new Date();
+          const year = now.getUTCFullYear();
+          const month = now.getUTCMonth() + 1;
+          if (format === "PDF") {
+            url = `/api/reports/store-performance/pdf?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+            filename = `store-performance-${orgId}-${year}-${month}.pdf`;
+          } else {
+            url = `/api/reports/store-performance/excel?organizationId=${encodeURIComponent(String(orgId))}&year=${year}&month=${month}`;
+            filename = `store-performance-${orgId}-${year}-${month}.xlsx`;
           }
       } else {
         // Fallback to generic generator

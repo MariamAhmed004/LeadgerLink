@@ -589,5 +589,24 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to generate Monthly Sales Excel.");
             }
         }
+
+        // GET /api/reports/store-performance/excel?organizationId=&year=&month=
+        [HttpGet("store-performance/excel")]
+        public async Task<IActionResult> StorePerformanceExcel(int organizationId, int year, int month)
+        {
+            var bytes = await _reportRepository.GenerateStorePerformanceReportExcelAsync(organizationId, year, month);
+            var filename = $"store-performance-{organizationId}-{year}-{month}.xlsx";
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename);
+        }
+
+        // GET /api/reports/store-performance/pdf?organizationId=&year=&month=
+        [HttpGet("store-performance/pdf")]
+        public async Task<IActionResult> StorePerformancePdf(int organizationId, int year, int month)
+        {
+            var bytes = await _reportRepository.GenerateStorePerformanceReportPdfAsync(organizationId, year, month);
+            var filename = $"store-performance-{organizationId}-{year}-{month}.pdf";
+            return File(bytes, "application/pdf", filename);
+        }
+
     }
 }

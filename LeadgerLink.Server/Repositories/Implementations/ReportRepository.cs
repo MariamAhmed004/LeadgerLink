@@ -1,16 +1,18 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+using ClosedXML.Excel;
+using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
-using System.Text;
-using System.IO;
-using PdfSharpCore.Pdf;
+using LeadgerLink.Server.Services;
+using Microsoft.EntityFrameworkCore;
 using PdfSharpCore.Drawing;
-using LeadgerLink.Server.Dtos;
+using PdfSharpCore.Pdf;
+using System;
 using System.Collections.Generic;
-using ClosedXML.Excel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using PdfSharpCore.Drawing.Layout;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {
@@ -18,11 +20,14 @@ namespace LeadgerLink.Server.Repositories.Implementations
     {
         private readonly LedgerLinkDbContext _context;
         private readonly IInventoryItemRepository _inventoryRepo;
+        private readonly GeminiChatService _geminiService;
 
-        public ReportRepository(LedgerLinkDbContext context, IInventoryItemRepository inventoryRepo)
+
+        public ReportRepository(LedgerLinkDbContext context, IInventoryItemRepository inventoryRepo, GeminiChatService geminiChatService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _inventoryRepo = inventoryRepo ?? throw new ArgumentNullException(nameof(inventoryRepo));
+            _geminiService = geminiChatService ?? throw new ArgumentNullException(nameof(geminiChatService));
         }
 
         // Cost of goods sold for a store in a given year/month.
@@ -606,8 +611,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
 
         private static IXLWorksheet AddStyledTable(IXLWorkbook wb, string sheetName, string title,
-            string[] headers, IEnumerable<string[]> rows, Action<IXLRange>? extraStyle = null,
-            double[]? columnWidths = null)
+    string[] headers, IEnumerable<string[]> rows, Action<IXLRange>? extraStyle = null,
+    double[]? columnWidths = null)
         {
             var ws = wb.Worksheets.Add(sheetName);
             int r = 1;
@@ -650,6 +655,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
             dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             dataRange.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
 
+            // Enable text wrap for data cells so long text (e.g. AI recommendations) wraps
+            dataRange.Style.Alignment.WrapText = true;
+
             // Column widths
             if (columnWidths != null && columnWidths.Length == headers.Length)
             {
@@ -669,7 +677,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
 
         private static int AddStyledTableAt(IXLWorksheet ws, int startRow, string title,
-            string[] headers, IList<string[]> rows, double[]? columnWidths = null, Action<IXLRange>? extraStyle = null)
+    string[] headers, IList<string[]> rows, double[]? columnWidths = null, Action<IXLRange>? extraStyle = null)
         {
             var r = startRow;
 
@@ -707,6 +715,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
             usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             usedRange.Style.Alignment.SetVertical(XLAlignmentVerticalValues.Center);
+
+            // Enable wrap text for the whole used range so long cells (AI recommendations) wrap
+            usedRange.Style.Alignment.WrapText = true;
 
             // Column widths per section
             if (columnWidths != null && columnWidths.Length == headers.Length)
@@ -1985,5 +1996,305 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             return ms.ToArray();
         }
 
+
+        // --- new: Store Performance Excel report ---
+        public async Task<byte[]> GenerateStorePerformanceReportExcelAsync(int organizationId, int year, int month)
+        {
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+
+            // Organization totals
+            var orgSalesCount = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .CountAsync();
+            var orgSalesTotal = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Store Performance");
+            int row = 1;
+
+            // Summary block
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Sales Count", "Total Paid (BHD)" };
+            var summaryRows = new List<string[]> {
+        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgSalesCount.ToString(), orgSalesTotal.ToString("F3") }
+    };
+            row = AddStyledTableAt(ws, row, "Store Performance Report", summaryHeaders, summaryRows, new[] { 30d, 24d, 18d, 18d, 22d });
+
+            // Per-store breakdown
+            var storeHeaders = new[] { "Store", "Sales Count", "Total Paid (BHD)", "Inventory Value (BHD)", "Incoming Transfers", "Outgoing Transfers" };
+            foreach (var st in stores)
+            {
+                var storeCount = await _context.Sales
+                    .Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                    .CountAsync();
+                var storeTotal = await _context.Sales
+                    .Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                    .SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+
+                decimal storeValue = 0m;
+                try { storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(st.StoreId); }
+                catch { storeValue = await _context.InventoryItems.Where(ii => ii.StoreId == st.StoreId).SumAsync(ii => (decimal?)(ii.Quantity * ii.CostPerUnit)) ?? 0m; }
+
+                var transfers = await GetInventoryTransferCountsAsync(st.StoreId, periodStart, periodEnd);
+
+                var storeRows = new List<string[]> {
+            new[] {
+                st.StoreName ?? $"Store {st.StoreId}",
+                storeCount.ToString(),
+                storeTotal.ToString("F3"),
+                storeValue.ToString("F3"),
+                transfers.Incoming.ToString(),
+                transfers.Outgoing.ToString()
+            }
+        };
+
+                row = AddStyledTableAt(ws, row, $"Store: {st.StoreName ?? $"Store {st.StoreId}"}", storeHeaders, storeRows, new[] { 30d, 14d, 18d, 18d, 14d, 14d });
+            }
+
+            // AI recommendations (single cell)
+            string recommendations;
+            try
+            {
+                var promptBuilder = new StringBuilder();
+                promptBuilder.AppendLine($"You are an operations analyst. Provide 4-5 short actionable recommendations (each 1-2 sentences) for improving store performance based on the following Store Performance summary for {orgName} for {periodStart:yyyy-MM}:");
+                promptBuilder.AppendLine();
+                promptBuilder.AppendLine($"Organization totals: Sales Count = {orgSalesCount}, Total Paid = BHD {orgSalesTotal:F3}.");
+                promptBuilder.AppendLine("Per-store summary (StoreName | SalesCount | TotalPaid):");
+                foreach (var st in stores)
+                {
+                    var sCount = await _context.Sales.Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd).CountAsync();
+                    var sTotal = await _context.Sales.Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd).SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+                    promptBuilder.AppendLine($"{st.StoreName ?? $"Store {st.StoreId}"} | {sCount} | BHD {sTotal:F3}");
+                }
+                promptBuilder.AppendLine();
+                promptBuilder.AppendLine("Give concise recommendations: which stores to monitor closely, inventory or transfer concerns, staffing or promotion tips.");
+                var prompt = promptBuilder.ToString();
+                recommendations = await _geminiService.SendMessageAsync(prompt);
+                if (string.IsNullOrWhiteSpace(recommendations)) recommendations = "No recommendations returned.";
+            }
+            catch
+            {
+                recommendations = "No recommendations available (AI service error).";
+            }
+
+            // Add recommendations as a small table
+            var recHeaders = new[] { "AI Recommendations" };
+            var recRows = new List<string[]> { new[] { recommendations } };
+            row = AddStyledTableAt(ws, row, "AI Recommendations", recHeaders, recRows, new[] { 100d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+
+
+        // --- new: Store Performance PDF report ---
+        public async Task<byte[]> GenerateStorePerformanceReportPdfAsync(int organizationId, int year, int month)
+        {
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+
+            // Organization totals
+            var orgSalesCount = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .CountAsync();
+            var orgSalesTotal = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+
+            var stores = await _context.Stores.Where(s => s.OrgId == organizationId).ToListAsync();
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header / summary
+                DrawSectionHeader(gfx, "Store Performance Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization Sales Count: {orgSalesCount}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization Total Paid: BHD {orgSalesTotal:F3}", textFont, x, ref y, contentWidth);
+
+                y += 8;
+
+                // Per-store table header
+                DrawSectionHeader(gfx, "Per-Store Breakdown", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.28, contentWidth * 0.14, contentWidth * 0.18, contentWidth * 0.18, contentWidth * 0.12, contentWidth * 0.10 };
+                DrawTableHeader(gfx, new[] { "Store", "Sales Count", "Total Paid (BHD)", "Inventory Value (BHD)", "Incoming", "Outgoing" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var st in stores)
+                {
+                    var storeCount = await _context.Sales
+                        .Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                        .CountAsync();
+                    var storeTotal = await _context.Sales
+                        .Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                        .SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+
+                    decimal storeValue = 0m;
+                    try { storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(st.StoreId); }
+                    catch { storeValue = await _context.InventoryItems.Where(ii => ii.StoreId == st.StoreId).SumAsync(ii => (decimal?)(ii.Quantity * ii.CostPerUnit)) ?? 0m; }
+
+                    var transfers = await GetInventoryTransferCountsAsync(st.StoreId, periodStart, periodEnd);
+
+                    DrawTableRow(gfx, new[] {
+                st.StoreName ?? $"Store {st.StoreId}",
+                storeCount.ToString(),
+                storeTotal.ToString("F3"),
+                storeValue.ToString("F3"),
+                transfers.Incoming.ToString(),
+                transfers.Outgoing.ToString()
+            }, textFont, x, ref y, widths, gridPen);
+
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Store", "Sales Count", "Total Paid (BHD)", "Inventory Value (BHD)", "Incoming", "Outgoing" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                y += 8;
+
+                // AI recommendations
+                string recommendations;
+                try
+                {
+                    var promptBuilder = new StringBuilder();
+                    promptBuilder.AppendLine($"You are an operations analyst. Provide 4-5 short actionable recommendations (each 1-2 sentences) for improving store performance for {orgName} for {periodStart:yyyy-MM}.");
+                    promptBuilder.AppendLine();
+                    promptBuilder.AppendLine($"Organization totals: Sales Count = {orgSalesCount}, Total Paid = BHD {orgSalesTotal:F3}.");
+                    promptBuilder.AppendLine("Per-store summary:");
+                    foreach (var st in stores)
+                    {
+                        var sCount = await _context.Sales.Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd).CountAsync();
+                        var sTotal = await _context.Sales.Where(s => s.StoreId == st.StoreId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd).SumAsync(s => (decimal?)s.TotalAmount) ?? 0m;
+                        promptBuilder.AppendLine($"{st.StoreName ?? $"Store {st.StoreId}"} | {sCount} | BHD {sTotal:F3}");
+                    }
+                    promptBuilder.AppendLine();
+                    promptBuilder.AppendLine("Give concise recommendations: which stores to monitor closely, inventory or transfer concerns, staffing or promotion tips.");
+                    var prompt = promptBuilder.ToString();
+                    recommendations = await _geminiService.SendMessageAsync(prompt);
+                    if (string.IsNullOrWhiteSpace(recommendations)) recommendations = "No recommendations returned.";
+                }
+                catch
+                {
+                    recommendations = "No recommendations available (AI service error).";
+                }
+
+
+                // Ensure space for recommendations block
+                var availableHeight = page.Height.Point - y - 36;
+                var recHeaderDrawn = false;
+                if (availableHeight < 80) // threshold for a reasonable recommendations block
+                {
+                    page = document.AddPage();
+                    page.Size = PdfSharpCore.PageSize.A4;
+                    page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                    gfx.Dispose();
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = 36;
+                    DrawSectionHeader(gfx, "AI Recommendations", headerFont, x, ref y, contentWidth, headerBg);
+                    recHeaderDrawn = true;
+                    availableHeight = page.Height.Point - y - 36;
+                }
+
+                // Always draw the header if it wasn't drawn above
+                if (!recHeaderDrawn)
+                {
+                    DrawSectionHeader(gfx, "AI Recommendations", headerFont, x, ref y, contentWidth, headerBg);
+                    availableHeight = page.Height.Point - y - 36;
+                }
+
+                var recRect = new XRect(x, y, contentWidth, Math.Max(8, availableHeight));                
+
+                DrawWrappedText(gfx, recommendations, textFont, XBrushes.Black, x, y, contentWidth);
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
+        private double DrawWrappedText(XGraphics gfx, string text, XFont font, XBrush brush,
+                               double x, double y, double maxWidth, double lineSpacing = 2)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return y;
+
+            // Split into explicit lines first (respect \r\n and \n)
+            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            double currentY = y;
+
+            foreach (var rawLine in lines)
+            {
+                var words = rawLine.Split(' ');
+                var line = new StringBuilder();
+
+                foreach (var word in words)
+                {
+                    string testLine = line.Length == 0 ? word : line + " " + word;
+                    var size = gfx.MeasureString(testLine, font);
+
+                    if (size.Width > maxWidth)
+                    {
+                        // Draw current line
+                        gfx.DrawString(line.ToString(), font, brush,
+                            new XRect(x, currentY, maxWidth, font.Height), XStringFormats.TopLeft);
+
+                        // Move down
+                        currentY += font.Height + lineSpacing;
+
+                        // Start new line
+                        line.Clear();
+                        line.Append(word);
+                    }
+                    else
+                    {
+                        line.Clear();
+                        line.Append(testLine);
+                    }
+                }
+
+                // Draw last line of this paragraph
+                if (line.Length > 0)
+                {
+                    gfx.DrawString(line.ToString(), font, brush,
+                        new XRect(x, currentY, maxWidth, font.Height), XStringFormats.TopLeft);
+                    currentY += font.Height + lineSpacing;
+                }
+                else
+                {
+                    // Even if the line was empty, respect the break
+                    currentY += font.Height + lineSpacing;
+                }
+            }
+
+            return currentY; // return the final Y so you can continue layout below
+        }
     }
 }
