@@ -2,18 +2,40 @@ import React, { useState, useEffect } from "react";
 import "./Login.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import { TiArrowBack } from "react-icons/ti";
+import { FaHome } from "react-icons/fa";
 
+/*
+  ForgotPassword.jsx
+  Summary:
+  - Handles the two-step password reset flow: request a reset link (step 1)
+    and perform the password reset when the token is provided (step 2).
+  - Loads token/email from query string to auto-enter step 2 when available.
+*/
+
+// --------------------------------------------------
+// STATE DECLARATIONS
+// --------------------------------------------------
 export default function ForgotPassword() {
+    // form values
     const [email, setEmail] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+
+    // UI feedback
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
-    const [step, setStep] = useState(1); // Step 1: Request token, Step 2: Reset password
+
+    // step control: 1 = request token, 2 = reset password
+    const [step, setStep] = useState(1);
+
+    // router helpers
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Parse URL query parameters on page load
+    // --------------------------------------------------
+    // EFFECTS
+    // --------------------------------------------------
+    // Parse URL query parameters on mount to auto-enter reset step
     useEffect(() => {
         const queryParams = new URLSearchParams(location.search);
         const emailFromUrl = queryParams.get("email");
@@ -21,10 +43,14 @@ export default function ForgotPassword() {
 
         if (emailFromUrl && tokenFromUrl) {
             setEmail(emailFromUrl);
-            setStep(2); // Automatically switch to Step 2
+            setStep(2); // Automatically switch to Step 2 when token present
         }
     }, [location]);
 
+    // --------------------------------------------------
+    // HANDLERS: API calls and form submission
+    // --------------------------------------------------
+    // Request a password reset token (step 1)
     const handleRequestToken = async (e) => {
         e.preventDefault();
         setError("");
@@ -57,6 +83,7 @@ export default function ForgotPassword() {
         }
     };
 
+    // Perform password reset using token from query string (step 2)
     const handleResetPassword = async (e) => {
         e.preventDefault();
         setError("");
@@ -97,11 +124,33 @@ export default function ForgotPassword() {
         }
     };
 
+    // --------------------------------------------------
+    // RENDER
+    // --------------------------------------------------
     return (
         <div className="login-page d-flex flex-wrap text-start" style={{ minHeight: "100vh" }}>
             {/* Left: Form Section */}
             <div className="colored-section p-5 d-flex align-items-center justify-content-center flex-grow-1">
                 <div className="login-form-section p-4" style={{ width: "100%", maxWidth: 520 }}>
+                    {/* Home button */}
+                    <button
+                        type="button"
+                        aria-label="Home"
+                        onClick={() => navigate("/")}
+                        style={{
+                            position: "absolute",
+                            top: "1rem",
+                            right: "4.5rem",
+                            border: "none",
+                            background: "transparent",
+                            cursor: "pointer",
+                            padding: 0,
+                        }}
+                        title="Home"
+                    >
+                        <FaHome size={28} className="mt-2 me-2 text-primary" />
+                    </button>
+
                     {/* Back icon */}
                     <button
                         type="button"

@@ -9,26 +9,54 @@ import FormActions from "../../components/Form/FormActions";
 import TextArea from "../../components/Form/TextArea";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  ProductEdit.jsx
+  Summary:
+  - Edit form for a product. Loads product DTO and VAT categories, allows updating
+    name, VAT, price and description, then saves changes to the server.
+*/
+
+// --------------------------------------------------
+// COMPONENT / STATE
+// --------------------------------------------------
 const ProductEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
+  // --------------------------------------------------
+  // UI flags
+  // --------------------------------------------------
+  // Loading state while fetching product
   const [loading, setLoading] = useState(true);
+  // Saving state while persisting changes
   const [saving, setSaving] = useState(false);
+  // Error message for user feedback
   const [error, setError] = useState("");
+  // Show warning when selling price below cost
   const [showPriceWarning, setShowPriceWarning] = useState(false);
 
+  // --------------------------------------------------
+  // FORM FIELDS
+  // --------------------------------------------------
+  // Editable product fields
   const [productName, setProductName] = useState("");
   const [vatCategoryId, setVatCategoryId] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [costPrice, setCostPrice] = useState("");
   const [description, setDescription] = useState("");
+
+  // VAT lookup options for select control
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT Applicable", value: "" }]);
+
+  // Links to related recipe or inventory item
   const [recipeId, setRecipeId] = useState(null);
   const [inventoryItemId, setInventoryItemId] = useState(null);
   const [storeId, setStoreId] = useState(null);
 
+  // --------------------------------------------------
+  // EFFECT: load product and VAT categories
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -36,6 +64,7 @@ const ProductEdit = () => {
       setError("");
       try {
         if (!id) throw new Error("Missing product id");
+        // Fetch product DTO
         const pRes = await fetch(`/api/products/${encodeURIComponent(id)}`, { credentials: "include" });
         if (!pRes.ok) {
           const txt = await pRes.text().catch(() => null);
@@ -43,6 +72,8 @@ const ProductEdit = () => {
         }
         const pJson = await pRes.json();
         if (!mounted) return;
+
+        // Populate form fields from response
         setProductName(pJson.productName ?? "");
         setVatCategoryId(pJson.vatCategoryId ? String(pJson.vatCategoryId) : "");
         setSellingPrice(pJson.sellingPrice != null ? String(Number(pJson.sellingPrice).toFixed(3)) : "");
@@ -51,7 +82,8 @@ const ProductEdit = () => {
         setRecipeId(pJson.recipeId ?? null);
         setInventoryItemId(pJson.inventoryItemId ?? null);
         setStoreId(pJson.storeId ?? null);
-        // load VAT categories from correct endpoint
+
+        // Load VAT categories separately (non-blocking to product render)
         try {
           const vRes = await fetch('/api/products/vatcategories', { credentials: 'include' });
           if (vRes.ok) {
@@ -59,10 +91,11 @@ const ProductEdit = () => {
             if (!mounted) return;
             const opts = [{ label: "Select VAT Applicable", value: "" }, ...(Array.isArray(vJson) ? vJson.map(v => ({ label: v.vatCategoryName, value: String(v.vatCategoryId) })) : [])];
             setVatOptions(opts);
-            // Set initial VAT category if present
+            // Ensure vatCategoryId reflects server value
             if (pJson.vatCategoryId) setVatCategoryId(String(pJson.vatCategoryId));
           }
         } catch (e) {
+          // Non-fatal: VAT options are optional
           console.warn('Failed to load VAT categories', e);
         }
       } catch (err) {
@@ -76,6 +109,9 @@ const ProductEdit = () => {
     return () => { mounted = false; };
   }, [id]);
 
+  // --------------------------------------------------
+  // EFFECT: show price warning when selling < cost
+  // --------------------------------------------------
   useEffect(() => {
     if (sellingPrice && costPrice && !isNaN(Number(sellingPrice)) && !isNaN(Number(costPrice))) {
       setShowPriceWarning(Number(sellingPrice) < Number(costPrice));
@@ -84,6 +120,9 @@ const ProductEdit = () => {
     }
   }, [sellingPrice, costPrice]);
 
+  // --------------------------------------------------
+  // SUBMIT: validate and PUT updates
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -107,6 +146,7 @@ const ProductEdit = () => {
         apiUrl += `?storeId=${encodeURIComponent(storeId)}`;
       }
 
+      // Persist changes
       const res = await fetch(apiUrl, {
         method: 'PUT',
         credentials: 'include',
@@ -117,6 +157,7 @@ const ProductEdit = () => {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Failed to save product (${res.status})`);
       }
+      // Navigate back to products list with a transient success state
       navigate('/products', { state: { updated: true, updatedName: `Product ${id}` } });
     } catch (err) {
       console.error(err);
@@ -126,7 +167,9 @@ const ProductEdit = () => {
     }
   };
 
-  // Header actions: Related item/recipe button
+  // --------------------------------------------------
+  // HEADER ACTIONS: related recipe/item button
+  // --------------------------------------------------
   const relatedButton = (() => {
     if (recipeId) {
       return {
@@ -146,6 +189,9 @@ const ProductEdit = () => {
 
   const headerActions = relatedButton ? [relatedButton] : [];
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

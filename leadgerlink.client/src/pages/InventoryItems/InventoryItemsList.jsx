@@ -10,38 +10,63 @@ import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext";
 import SelectField from "../../components/Form/SelectField";
 
+// --------------------------------------------------
+// InventoryItemsListPage
+// Summary:
+// - Lists inventory items for the current store or organization.
+// - Supports client-side filtering (stock level, supplier, category, search),
+//   pagination and bulk upload via an InfoModal.
+// --------------------------------------------------
 // InventoryItemsListPage Component - wired to backend list endpoint
 const InventoryItemsListPage = () => {
-  // Modal state
+  // --------------------------------------------------
+  // MODAL STATE
+  // --------------------------------------------------
+  // Controls visibility of the bulk upload modal
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
 
-  // Filter state
+  // --------------------------------------------------
+  // FILTER STATE
+  // --------------------------------------------------
+  // Selected stock level filter (client-side color mapping)
   const [stockLevel, setStockLevel] = useState('');
+  // Supplier and category filters
   const [supplier, setSupplier] = useState('');
   const [category, setCategory] = useState('');
+  // Free-text search term
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Pagination / entries state
+  // --------------------------------------------------
+  // PAGINATION / ENTRIES
+  // --------------------------------------------------
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Data state
+  // --------------------------------------------------
+  // DATA STATE
+  // --------------------------------------------------
+  // Loaded items and lookup options
   const [items, setItems] = useState([]);
   const [supplierOptions, setSupplierOptions] = useState([{ label: 'All Suppliers', value: '' }]);
   const [categoryOptions, setCategoryOptions] = useState([{ label: 'All Categories', value: '' }]);
   const [totalCount, setTotalCount] = useState(0);
+  // Loading and error UI
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Auth context and role-based flag
   const { loggedInUser } = useAuth();
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin");
 
-  // State for file and store selection
+  // --------------------------------------------------
+  // FILE UPLOAD / STORE SELECTION STATE
+  // --------------------------------------------------
+  // File selected for upload and store selection for org admins
   const [file, setFile] = useState(null);
   const [storeId, setStoreId] = useState(isOrgAdmin ? "" : loggedInUser?.storeId ?? "");
   const [stores, setStores] = useState([]);
 
-  // InfoModal state for upload errors and success
+  // InfoModal payload for upload results / errors
   const [infoModal, setInfoModal] = useState({
     show: false,
     title: '',
@@ -49,7 +74,9 @@ const InventoryItemsListPage = () => {
     onClose: null,
   });
 
-  // Stock level options (values must match server expectations)
+  // --------------------------------------------------
+  // CONSTANTS: stock level options and mapping notes
+  // --------------------------------------------------
   // Server expects stockLevel query param values that can be normalized to:
   // "instock", "lowstock", "outofstock" (case-insensitive).
   const STOCK_LEVEL_OPTIONS = [
@@ -59,8 +86,9 @@ const InventoryItemsListPage = () => {
     { label: 'Out of Stock', value: 'outOfStock' },
   ];
 
-  // fetch list from server (keep as-is but without sending stockLevel for server-side filtering,
-  // since we are going to filter by color client-side consistently)
+  // --------------------------------------------------
+  // EFFECT: load inventory items and lookups from server
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -94,11 +122,11 @@ const InventoryItemsListPage = () => {
         const json = await res.json();
         if (!mounted) return;
 
+        // set items and a provisional total count
         setItems(json.items || []);
-        // totalCount will be recomputed after client-side filter
         setTotalCount((json.items || []).length);
 
-        // optional: refresh supplier/category options from response
+        // optional: update supplier/category select options if provided by server
         if (json.suppliers) {
           const supOpts = [{ label: 'All Suppliers', value: '' }];
           (json.suppliers || []).forEach(s => supOpts.push({ label: s.name ?? s.supplierName ?? `Supplier ${s.id}`, value: String(s.id ?? s.supplierId) }));
@@ -122,41 +150,48 @@ const InventoryItemsListPage = () => {
     // supplier/category affect server call; stockLevel does not (client-side)
   }, [supplier, category, isOrgAdmin, loggedInUser]);
 
-  // Reset page to 1 when filters change to avoid out-of-range paging
+  // --------------------------------------------------
+  // EFFECT: reset paging when filters change
+  // --------------------------------------------------
   useEffect(() => {
     setCurrentPage(1);
   }, [stockLevel, supplier, category, entriesPerPage, searchTerm]);
 
-    // Load stores for organization admin
-    useEffect(() => {
-        if (!isOrgAdmin) return;
-        const loadStores = async () => {
-            try {
-                const orgId = loggedInUser?.orgId ?? null;
-                if (!orgId) {
-                    setStores([]);
-                    return;
-                }
-                const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
-                if (res.ok) {
-                    const data = await res.json();
-                    setStores(
-                        data.map((store) => ({
-                            id: store.storeId ?? store.id, // Ensure the correct ID field is used
-                            name: store.storeName ?? store.name ?? `Store ${store.storeId ?? store.id}`, // Ensure the correct name field is used
-                        }))
-                    );
-                } else {
-                    setStores([]);
-                }
-            } catch {
-                setStores([]);
-            }
-        };
-        loadStores();
-    }, [isOrgAdmin, loggedInUser]);
+  // --------------------------------------------------
+  // EFFECT: load stores for org admins
+  // --------------------------------------------------
+  useEffect(() => {
+    if (!isOrgAdmin) return;
+    const loadStores = async () => {
+      try {
+        const orgId = loggedInUser?.orgId ?? null;
+        if (!orgId) {
+          setStores([]);
+          return;
+        }
+        const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setStores(
+            data.map((store) => ({
+              id: store.storeId ?? store.id, // Ensure the correct ID field is used
+              name: store.storeName ?? store.name ?? `Store ${store.storeId ?? store.id}`, // Ensure the correct name field is used
+            }))
+          );
+        } else {
+          setStores([]);
+        }
+      } catch {
+        setStores([]);
+      }
+    };
+    loadStores();
+  }, [isOrgAdmin, loggedInUser]);
 
-  // Helper
+  // --------------------------------------------------
+  // HELPERS: color mapping for stock levels
+  // --------------------------------------------------
+  // Determine color for a row based on quantity and minimumQuantity
   const getStockColor = (quantity, minimumQuantity) => {
     const qty = Number(quantity ?? 0);
     const min = minimumQuantity == null ? null : Number(minimumQuantity);
@@ -175,7 +210,9 @@ const InventoryItemsListPage = () => {
     stockLevel === 'outOfStock' ? 'red' :
     '';
 
-  // Apply client-side filtering (including search)
+  // --------------------------------------------------
+  // DATA PROCESSING: client-side filtering and paging
+  // --------------------------------------------------
   const filtered = (items || []).filter(it => {
     if (selectedColor && getStockColor(it.quantity, it.minimumQuantity) !== selectedColor) return false;
     if (supplier && String(it.supplierId ?? '') !== String(supplier)) return false;
@@ -198,7 +235,9 @@ const InventoryItemsListPage = () => {
   const start = (safePage - 1) * entriesPerPage;
   const pagedItems = filtered.slice(start, start + entriesPerPage);
 
-  // Table rows from paged
+  // --------------------------------------------------
+  // TABLE ROWS / COLUMNS
+  // --------------------------------------------------
   const tableRows = pagedItems.map((it) => {
     const color = getStockColor(it.quantity, it.minimumQuantity);
     const baseRow = [
@@ -224,12 +263,14 @@ const InventoryItemsListPage = () => {
     return baseRow;
   });
 
-  // Table columns
+
   const columns = isOrgAdmin
     ? ['Stock Level', 'Store', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity']
     : ['Stock Level', 'Item Name', 'Category', 'Supplier', 'Unit', 'Quantity'];
 
-  // Function to download the template
+  // --------------------------------------------------
+  // TEMPLATE DOWNLOAD / UPLOAD HANDLERS
+  // --------------------------------------------------
   const handleDownloadTemplate = async () => {
     try {
       const response = await fetch('/api/inventoryitems/template', {
@@ -255,7 +296,7 @@ const InventoryItemsListPage = () => {
   };
 
   // Handle file upload
-    const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleUpload = async () => {
     if (!file || (isOrgAdmin && !storeId)) {
@@ -309,9 +350,11 @@ const InventoryItemsListPage = () => {
     }
   };
 
-    const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
+  const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
 
-  // Render
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

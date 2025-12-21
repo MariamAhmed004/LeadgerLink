@@ -13,63 +13,95 @@ import InfoModal from '../../components/Ui/InfoModal';
 import TitledGroup from '../../components/Form/TitledGroup';
 import { useAuth } from '../../Context/AuthContext';
 
+/*
+  InventoryTransferApprove.jsx
+  Summary:
+  - Page for reviewing and approving/rejecting inventory transfer requests.
+  - Loads transfer details, requested items and local send-side options (recipes/items).
+  - Lets the approver select items to send, choose a driver and confirm approval or rejection.
+*/
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function InventoryTransferApprove() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
+  // store id of the current logged-in user's store (used to load send-side data)
   const userStoreId = loggedInUser?.storeId ?? loggedInUser?.StoreId ?? null;
 
-  // form state
+  // --------------------------------------------------
+  // STATE: form fields
+  // --------------------------------------------------
+  // basic form fields (requester / from store / date)
   const [requester, setRequester] = useState('');
   const [fromStore, setFromStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  // driver details and optional new driver data
   const [driver, setDriver] = useState('');
   const [driverEmail, setDriverEmail] = useState('');
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverEmail, setNewDriverEmail] = useState('');
   const [notes, setNotes] = useState('');
 
+  // --------------------------------------------------
+  // STATE: lookups and loading flags
+  // --------------------------------------------------
+  // store lookup options used for requester and request-from display
   const [storeOptions, setStoreOptions] = useState([{ label: 'Loading stores...', value: '' }]);
   const [loadingStores, setLoadingStores] = useState(false);
   const [storesError, setStoresError] = useState('');
 
+  // drivers for the selected fromStore
   const [drivers, setDrivers] = useState([]); // full driver objects { driverId, driverName, driverEmail, storeId }
   const [driverOptions, setDriverOptions] = useState([{ label: 'Select Driver', value: '' }]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
 
+  // modals for confirm approve/reject
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
 
-  // transfer detail state
+  // --------------------------------------------------
+  // STATE: transfer details and requested items
+  // --------------------------------------------------
+  // transfer DTO and loading flag
   const [transferDetail, setTransferDetail] = useState(null);
   const [loadingTransfer, setLoadingTransfer] = useState(false);
 
-  // requested items state (populated from transfer items where isRequested is true)
+  // requested items split into recipes and others for display
   const [requestedRecipes, setRequestedRecipes] = useState([]);
   const [requestedOthers, setRequestedOthers] = useState([]);
 
-  // send (current store) data
+  // --------------------------------------------------
+  // STATE: send-side (current store) data to choose from
+  // --------------------------------------------------
   const [sendRecipes, setSendRecipes] = useState([]);
   const [sendOthers, setSendOthers] = useState([]);
   const [loadingSendData, setLoadingSendData] = useState(false);
 
-  // selection state for send tabbed menu (used for validation)
+  // selection state for send TabbedMenu (used for validation before approve)
   const [sendSelection, setSendSelection] = useState([]);
   const [selectionError, setSelectionError] = useState('');
 
-  // Tab definitions
+  // --------------------------------------------------
+  // TAB DEFINITIONS
+  // --------------------------------------------------
+  // requested tabs show items requested by the other store
   const requestedTabs = [
     { label: 'Recipes', items: requestedRecipes, cardComponent: (it) => <RequestedMenuTabCard data={it} /> },
     { label: 'Others', items: requestedOthers, cardComponent: (it) => <RequestedMenuTabCard data={it} /> },
   ];
 
-  // change the sendTabs declaration to include idKey/selectionIdProp
+  // send tabs include idKey/selectionIdProp used by TabbedMenu/selection mapping
   const sendTabs = [
     { label: 'Recipes', items: sendRecipes, cardComponent: (it) => <MenuTabCard data={it} />, idKey: 'recipeId', selectionIdProp: 'recipeId' },
     { label: 'Others',  items: sendOthers,  cardComponent: (it) => <MenuTabCard data={it} />, idKey: 'inventoryItemId', selectionIdProp: 'inventoryItemId' },
   ];
 
-  // Load stores for current organization and populate requester / request-from select options
+  // --------------------------------------------------
+  // EFFECT: load stores for select options
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -101,10 +133,13 @@ export default function InventoryTransferApprove() {
     return () => { mounted = false; };
   }, []);
 
-  // Map transfer's store names to store option ids once both are available
+  // --------------------------------------------------
+  // EFFECT: bind transfer store names to option ids and populate basic form fields
+  // --------------------------------------------------
   useEffect(() => {
     if (!transferDetail || !storeOptions || storeOptions.length === 0) return;
 
+    // map store names in transfer DTO to the option values
     const toName = transferDetail.toStoreName || '';
     const fromName = transferDetail.fromStoreName || '';
 
@@ -121,12 +156,14 @@ export default function InventoryTransferApprove() {
       if (!isNaN(d.getTime())) setDate(d.toISOString().slice(0, 10));
     }
 
-    // notes and driver email
+    // also populate notes and driver email if present
     setNotes(transferDetail.notes ?? '');
     setDriverEmail(transferDetail.driverEmail ?? '');
   }, [transferDetail, storeOptions]);
 
-  // Load inventory transfer details and populate requested tabs
+  // --------------------------------------------------
+  // EFFECT: load transfer details and prepare requested items
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadTransfer = async () => {
@@ -142,17 +179,16 @@ export default function InventoryTransferApprove() {
         if (!mounted) return;
         setTransferDetail(json);
 
-        // prepare requested items (filter isRequested === true)
+        // collect items where isRequested === true
         const items = Array.isArray(json.items) ? json.items : [];
         const requested = items.filter(it => it.isRequested === true || it.isRequested === 1);
 
-        // Build arrays by type; fetch details where needed
+        // build promises to fetch recipe/inventory item details when needed
         const recPromises = requested
           .filter(it => it.recipeId)
           .map(async (it) => {
             const qty = it.quantity ?? 0;
             try {
-              // fetch recipe detail by id (use dedicated endpoint)
               const rres = await fetch(`/api/recipes/${encodeURIComponent(it.recipeId)}/with-ingredients`, { credentials: 'include' });
               if (rres.ok) {
                 const rjson = await rres.json();
@@ -190,6 +226,7 @@ export default function InventoryTransferApprove() {
         const others = await Promise.all(invPromises);
 
         if (mounted) {
+          // set requested tabs data
           setRequestedRecipes(recs);
           setRequestedOthers(others);
         }
@@ -204,7 +241,9 @@ export default function InventoryTransferApprove() {
     return () => { mounted = false; };
   }, [id]);
 
-  // Load drivers when the "fromStore" (request-from) changes.
+  // --------------------------------------------------
+  // EFFECT: load drivers when fromStore changes
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadDrivers = async () => {
@@ -240,14 +279,16 @@ export default function InventoryTransferApprove() {
     return () => { mounted = false; };
   }, [fromStore]);
 
-  // Load send-side data (recipes + inventory items) for current logged-in user's store
+  // --------------------------------------------------
+  // EFFECT: load send-side data (recipes + inventory items) for current user's store
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadSendData = async () => {
       if (!userStoreId) return;
       setLoadingSendData(true);
       try {
-        // Use recipes controller endpoint that returns recipes for current authenticated user's store
+        // fetch recipes for current store (non-fatal)
         let recipes = [];
         try {
           const rres = await fetch('/api/recipes/for-current-store', { credentials: 'include' });
@@ -259,9 +300,8 @@ export default function InventoryTransferApprove() {
           console.warn('Recipes fetch failed', ex);
         }
 
-        // Map recipes -> Tab card shape using server DTO fields from GetForCurrentStore()
+        // map recipes into Tab card shape
         const mappedRecipes = (Array.isArray(recipes) ? recipes : []).map((r) => {
-          // server returns: recipeId, recipeName, description, imageUrl, sellingPrice, available, relatedProductId
           const name = r.recipeName ?? '';
           const description = r.description ?? r.instructions ?? '';
           const image = r.imageUrl ?? r.imageDataUrl ?? r.image ?? null;
@@ -270,7 +310,7 @@ export default function InventoryTransferApprove() {
           return { name, description, imageUrl: image, quantity: qty, price, recipeId: r.recipeId ?? null };
         });
 
-        // Inventory items for current store (list-for-current-store supports storeId query)
+        // fetch inventory items for current store
         let items = [];
         try {
           const ires = await fetch(`/api/inventoryitems/list-for-current-store?page=1&pageSize=1000&storeId=${encodeURIComponent(userStoreId)}`, { credentials: 'include' });
@@ -282,7 +322,7 @@ export default function InventoryTransferApprove() {
           console.warn('Inventory items fetch failed', ex);
         }
 
-        // Map inventory items -> Tab card shape. Use ImageUrl and attempt to read selling price if available via relatedProductId
+        // map inventory items to Tab card shape, try to fetch related product prices when available
         const mappedItems = await Promise.all((Array.isArray(items) ? items : []).map(async (it) => {
           const idVal = it.inventoryItemId ?? it.inventory_item_id ?? it.id ?? null;
           const name = it.inventoryItemName ?? it.inventory_item_name ?? it.name ?? '';
@@ -318,7 +358,9 @@ export default function InventoryTransferApprove() {
     return () => { mounted = false; };
   }, [userStoreId]);
 
-  // Update displayed driver email when driver selection changes
+  // --------------------------------------------------
+  // EFFECT: update driver email display when selection changes
+  // --------------------------------------------------
   useEffect(() => {
     if (!driver) {
       setDriverEmail('');
@@ -328,15 +370,18 @@ export default function InventoryTransferApprove() {
     setDriverEmail(sel?.driverEmail || '');
   }, [driver, drivers]);
 
-  // TabbedMenu onSelectionChange for send tabs
+  // --------------------------------------------------
+  // CALLBACKS: selection handlers and validation
+  // --------------------------------------------------
+  // TabbedMenu selection for send tabs
   const onSendSelectionChange = (sel) => {
     setSendSelection(Array.isArray(sel) ? sel : []);
     if ((sel || []).length > 0) setSelectionError('');
   };
 
+  // Approve click: validate at least one item selected then open modal
   const handleApprove = (e) => {
     e?.preventDefault?.();
-    // Validate at least one item selected to send
     if (!sendSelection || sendSelection.length === 0) {
       setSelectionError('Select at least one item to send before approving.');
       return;
@@ -345,6 +390,7 @@ export default function InventoryTransferApprove() {
     setShowApproveModal(true);
   };
 
+  // Confirm approval: build server payload and POST to approve endpoint
   const confirmApprove = async () => {
     setShowApproveModal(false);
 
@@ -383,11 +429,11 @@ export default function InventoryTransferApprove() {
       navigate('/inventory/transfers');
     } catch (err) {
       console.error('Approve failed', err);
-      // show minimal feedback
       alert(err?.message || 'Failed to approve transfer');
     }
   };
 
+  // Reject handlers: open modal then call reject endpoint with notes
   const handleReject = (e) => {
     e?.preventDefault?.();
     setShowRejectModal(true);
@@ -412,6 +458,9 @@ export default function InventoryTransferApprove() {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

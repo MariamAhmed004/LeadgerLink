@@ -3,15 +3,37 @@ import "./Login.css";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../../services/api"; // your backend login service
 import { useAuth } from "../../Context/AuthContext"; // context we built earlier
+import { FaHome } from "react-icons/fa";
 
+/*
+  Login.jsx
+  Summary:
+  - Renders the login / subscribe UI and handles authentication.
+  - Calls backend login service, fetches current user info and updates AuthContext,
+    then redirects to a role-based home route.
+*/
+
+// --------------------------------------------------
+// STATE DECLARATIONS
+// --------------------------------------------------
 export default function Login() {
+  // form inputs
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // UI feedback for errors
   const [error, setError] = useState("");
+  // local tab state to toggle between login and subscribe panels
   const [tab, setTab] = useState("login"); // "login" or "subscribe"
+
+  // router navigation helper
   const navigate = useNavigate();
+  // auth context setter to store logged-in user after successful login
   const { setLoggedInUser } = useAuth(); // update context after login
 
+  // --------------------------------------------------
+  // HANDLERS
+  // --------------------------------------------------
+  // Submit handler: perform login, fetch user, update context and redirect
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -46,16 +68,32 @@ export default function Login() {
 
       navigate(homeRoute);
     } catch (err) {
+      // Surface error message to the user
       setError(err.message || "Login failed. Please try again.");
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="login-page d-flex flex-wrap text-start" style={{ minHeight: "100vh" }}>
       {/* Left: Form Section - center contents both horizontally and vertically */}
       <div className="colored-section p-5 d-flex align-items-center justify-content-center flex-grow-1">
         {/* Constrain the form width so it centers nicely */}
         <div className="login-form-section p-4" style={{ width: "100%", maxWidth: 520 }}>
+          {/* Home button in top-right of the card */}
+          <div className="d-flex justify-content-end mb-3">
+            <button
+              type="button"
+              className="btn btn-outline-secondary p-2"
+              onClick={() => navigate('/')}
+              aria-label="Home"
+            >
+              <FaHome />
+            </button>
+          </div>
+
           {/* Tabs (centered, larger, bolder, no borders) */}
           <div className="d-flex mb-4 gap-4 fw-bold fs-4 justify-content-center mb-5">
             <button

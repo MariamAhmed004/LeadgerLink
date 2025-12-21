@@ -4,6 +4,17 @@ import { FaArrowLeft, FaEdit } from "react-icons/fa";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
 import { MdOutlineInventory } from "react-icons/md";
 
+/*
+  InventoryItemView.jsx
+  Summary:
+  - Displays details for a single inventory item. Fetches the item by id from
+    GET /api/inventoryitems/{id}, formats values for display and renders a
+    DetailViewWithImage component including metadata and actions.
+*/
+
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
 const formatMoney = (v) => {
   if (v == null) return "";
   try {
@@ -23,14 +34,26 @@ const formatDateTime = (val) => {
   }
 };
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function InventoryItemView() {
+  // route/nav helpers
   const { id } = useParams();
   const navigate = useNavigate();
 
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+  // loaded item DTO
   const [item, setItem] = useState(null);
+  // loading / error flags for fetch
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // --------------------------------------------------
+  // EFFECT: fetch item on mount / id change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -56,10 +79,18 @@ export default function InventoryItemView() {
     return () => { mounted = false; };
   }, [id]);
 
+  // --------------------------------------------------
+  // DATA PROCESSING: derive display values and stock level
+  // --------------------------------------------------
+  // resilient id and name extraction from DTO
   const idVal = item?.inventoryItemId ?? id;
   const nameVal = item?.inventoryItemName ?? "";
+
+  // numeric quantities normalized for display/logic
   const qty = item?.quantity != null ? Number(item.quantity) : null;
   const minQty = item?.minimumQuantity != null ? Number(item.minimumQuantity) : null;
+
+  // compute stock level label using available quantity and minimum threshold
   const stockLevel = item?.stockLevel ?? (
     qty == null
       ? ""
@@ -70,6 +101,9 @@ export default function InventoryItemView() {
       : "In Stock"
   );
 
+  // --------------------------------------------------
+  // HEADER / METADATA PREPARATION
+  // --------------------------------------------------
   const headerProps = {
     icon: <MdOutlineInventory size={55} />,
     title: "Inventory Item",
@@ -77,6 +111,9 @@ export default function InventoryItemView() {
     actions: []
   };
 
+  // --------------------------------------------------
+  // RENDER: loading / error / not found handling
+  // --------------------------------------------------
   if (loading) {
     return (
       <div className="container py-5">
@@ -109,6 +146,10 @@ export default function InventoryItemView() {
     );
   }
 
+  // --------------------------------------------------
+  // DETAIL / METADATA / ACTIONS
+  // --------------------------------------------------
+  // rows for primary detail area
   const detailRows = [
     { label: "Item Name", value: item.inventoryItemName ?? "" },
     { label: "Category", value: item.categoryName ?? "" },
@@ -129,6 +170,7 @@ export default function InventoryItemView() {
     },
   ];
 
+  // metadata shown next to the image
   const metadataUnderImage = {
     title: "Summary",
     rows: [
@@ -138,16 +180,21 @@ export default function InventoryItemView() {
     ]
   };
 
+  // image object passed to the template
   const image = {
     url: item.imageDataUrl || "",
     alt: nameVal || `Item ${idVal}`
   };
 
+  // action buttons: back and edit
   const actions = [
     { icon: <FaArrowLeft />, title: "Back to Items", onClick: () => navigate("/inventory") },
     { icon: <FaEdit />, title: "Edit Item", route: `/inventory-items/edit/${idVal}` }
   ];
 
+  // --------------------------------------------------
+  // FINAL RENDER: detail view with image and metadata
+  // --------------------------------------------------
   return (
     <DetailViewWithImage
       headerProps={headerProps}

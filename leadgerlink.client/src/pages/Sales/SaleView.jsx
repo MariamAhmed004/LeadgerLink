@@ -4,6 +4,18 @@ import { FaFileInvoice, FaArrowLeft, FaPrint, FaPencilAlt } from "react-icons/fa
 import DetailViewWithMetadata from "../Templates/DetailViewWithMetadata";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  SaleView.jsx
+  Summary:
+  - Displays a detailed view of a single sale including amounts, items and metadata.
+  - Loads sale DTO from the API and shows actions (back, print, edit) based on role.
+*/
+
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
+
+// Format numeric values as BHD with 3 decimals
 const formatMoney = (v) => {
   if (v == null) return "";
   try {
@@ -13,6 +25,7 @@ const formatMoney = (v) => {
   }
 };
 
+// Format ISO/Date-like values to local string, safe against invalid inputs
 const formatDateTime = (val) => {
   if (!val) return "";
   try {
@@ -23,21 +36,34 @@ const formatDateTime = (val) => {
   }
 };
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const SaleView = () => {
+  // route + navigation helpers
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+  // sale DTO loaded from API
   const [sale, setSale] = useState(null);
+  // loading and error UI flags
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // --------------------------------------------------
+  // EFFECT: load sale on mount / id change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError("");
       try {
+        // fetch sale detail by id
         const res = await fetch(`/api/sales/${id}`, { credentials: "include" });
         if (!res.ok) {
           const txt = await res.text().catch(() => null);
@@ -59,6 +85,10 @@ const SaleView = () => {
     };
   }, [id]);
 
+  // --------------------------------------------------
+  // DERIVED VALUES: map possible DTO shapes to expected fields
+  // --------------------------------------------------
+  // Support multiple possible field namings returned by API
   const saleId = sale?.saleId ?? sale?.id ?? id;
   const timestamp = sale?.timestamp ?? sale?.createdAt ?? null;
   const totalAmount = sale?.totalAmount ?? sale?.amount ?? null;
@@ -70,18 +100,27 @@ const SaleView = () => {
   const updatedAt = sale?.updatedAt ?? sale?.modifiedAt ?? null;
   const items = Array.isArray(sale?.saleItems) ? sale.saleItems : [];
 
+  // --------------------------------------------------
+  // AUTH: role-based permissions
+  // --------------------------------------------------
   // Allow edit if user is Store Manager OR Organization Admin
   const isStoreManager = (loggedInUser?.roles || []).some(r => r === "Store Manager" || r === "Organization Admin");
 
+  // --------------------------------------------------
+  // HEADER / DETAIL / METADATA PREPARATION
+  // --------------------------------------------------
   const headerProps = {
+    // Icon and title for header
     icon: <FaFileInvoice size={28} />,
     title: sale ? `Sale #${saleId}` : "Sale",
+    // Subtitle shows date and total when available
     descriptionLines: sale
       ? [formatDateTime(timestamp), `Total: ${formatMoney(totalAmount)}`]
       : ["Sale details"],
     actions: [],
   };
 
+  // Main detail rows shown in the primary panel
   const detailRows = sale
     ? [
         { label: "Payment Method", value: paymentMethodName || "" },
@@ -92,6 +131,7 @@ const SaleView = () => {
       ]
     : [];
 
+  // Metadata rows such as who created and timestamps
   const metadataRows = sale
     ? [
         { label: "Created By", value: createdByName || "" },
@@ -100,6 +140,9 @@ const SaleView = () => {
       ]
     : [];
 
+  // --------------------------------------------------
+  // ACTIONS: footer buttons (Back, Print, optionally Edit)
+  // --------------------------------------------------
   const footerActions = [
     {
       icon: <FaArrowLeft />,
@@ -122,6 +165,9 @@ const SaleView = () => {
       : []),
   ];
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <DetailViewWithMetadata
       headerProps={headerProps}

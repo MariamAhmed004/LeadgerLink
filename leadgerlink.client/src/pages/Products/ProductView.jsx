@@ -6,17 +6,27 @@ import { BiSolidPackage } from "react-icons/bi";
 
 /*
   ProductView (data-backed)
-  - Fetches product detail via repository endpoint
-  - Moves "Is recipe" and "Item of product" into metadataUnderImage
-  - Detail table shows cost/VAT/price/description
+  Summary:
+  - Fetches and displays details for a single product using GET /api/products/{id}.
+  - Shows main detail rows (cost, VAT, price, description), image and metadata
+    indicating whether the product is a recipe and its linked item.
 */
 
+// --------------------------------------------------
+// STATE / HOOKS
+// --------------------------------------------------
 const ProductView = () => {
   const { id } = useParams();
+  // loading flag while fetching
   const [loading, setLoading] = useState(true);
+  // error message shown on failure
   const [error, setError] = useState("");
+  // fetched product DTO
   const [product, setProduct] = useState(null);
 
+  // --------------------------------------------------
+  // EFFECT: load product by id
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -51,16 +61,23 @@ const ProductView = () => {
     return () => { mounted = false; };
   }, [id]);
 
+  // --------------------------------------------------
+  // PREPARE VIEW PROPS
+  // --------------------------------------------------
   const headerProps = {
       icon: <BiSolidPackage size={55} />,
     title: product ? `Product ${product.productId}` : "View Product",
     descriptionLines: []
   };
 
+  // edit action (routes to edit page when product loaded)
   const actions = [
     { icon: <FaPencilAlt />, title: 'Edit Product', route: product ? `/products/edit/${product.productId}` : `/products` }
   ];
 
+  // --------------------------------------------------
+  // RENDER: loading / error / not found handling
+  // --------------------------------------------------
   if (loading) {
     return <DetailViewWithImage headerProps={headerProps} detail={{ title: 'Loading...', rows: [] }} metadataUnderImage={{ title: '', rows: [] }} actions={actions} />;
   }
@@ -73,13 +90,17 @@ const ProductView = () => {
     return <DetailViewWithImage headerProps={headerProps} detail={{ title: 'Not found', rows: [] }} metadataUnderImage={{ title: '', rows: [] }} actions={actions} />;
   }
 
+  // --------------------------------------------------
+  // DATA PROCESSING: derive links and labels
+  // --------------------------------------------------
   // Determine whether product points to recipe or inventory item
   const isRecipe = product.isRecipe === true;
 
-  // link for item of product
+  // link for item of product (recipe or inventory item)
   const itemLink = isRecipe && product.recipeId ? `/recipes/${product.recipeId}` : (!isRecipe && product.inventoryItemId ? `/inventory-items/${product.inventoryItemId}` : null);
   const itemLabel = isRecipe ? (product.recipeName || `Recipe #${product.recipeId}`) : (product.inventoryItemName || `Item #${product.inventoryItemId}`);
 
+  // main detail rows for the primary panel
   const detail = {
     title: `ID ${product.productId}: ${product.productName}`,
     rows: [
@@ -95,6 +116,7 @@ const ProductView = () => {
         alt: product.productName || `recipe ${product.productId}`
     };
 
+  // metadata shown under the image (is recipe, item link)
   const metadataUnderImage = {
     title: 'Product Info',
     rows: [

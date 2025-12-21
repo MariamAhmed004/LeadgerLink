@@ -7,34 +7,60 @@ import PaginationSection from '../../components/Listing/PaginationSection';
 import { BiSolidPackage } from "react-icons/bi";
 import { useAuth } from '../../Context/AuthContext'; // Import the AuthContext to get the logged-in user
 
+/*
+  ProductsList.jsx
+  Summary:
+  - Lists products for the current store or organization with client-side filtering and paging.
+  - Supports filtering by source (InventoryItem/Recipe) and text search across name/source/price.
+*/
+
 export default function ProductsList() {
+  // --------------------------------------------------
+  // CONTEXT / ROLE FLAGS
+  // --------------------------------------------------
   const { loggedInUser } = useAuth(); // Get the logged-in user
+  // roles array for role-based behavior
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin");
+  // organization id if available (used when calling org endpoints)
   const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
 
+  // --------------------------------------------------
+  // STATE: filters, paging, data and UI
+  // --------------------------------------------------
+  // Source filter (InventoryItem / Recipe)
   const [sourceFilter, setSourceFilter] = useState('');
+  // Pagination controls
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Search term for client-side search
   const [searchTerm, setSearchTerm] = useState('');
+  // Loaded products array
   const [products, setProducts] = useState([]);
+  // Loading / error indicators
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // --------------------------------------------------
+  // CONSTANTS: source options
+  // --------------------------------------------------
   const SOURCE_OPTIONS = [
     { label: 'All Sources', value: '' },
     { label: 'Inventory Item', value: 'InventoryItem' },
     { label: 'Recipe', value: 'Recipe' },
   ];
 
-  // Fetch products for the current store or organization
+  // --------------------------------------------------
+  // EFFECT: load products from server (store or organization)
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError('');
       try {
+        // Choose endpoint depending on whether current user is organization admin
         const endpoint = isOrgAdmin && orgId
           ? `/api/products/for-organization/${orgId}` // Use the organization endpoint if the user is an org admin
           : '/api/products/for-current-store'; // Default to the current store endpoint
@@ -46,6 +72,7 @@ export default function ProductsList() {
         }
         const json = await res.json();
         if (!mounted) return;
+        // store fetched products (JSON shape expected to be an array)
         setProducts(json || []);
       } catch (err) {
         console.error(err);
@@ -59,18 +86,20 @@ export default function ProductsList() {
     return () => { mounted = false; };
   }, [isOrgAdmin, orgId]);
 
-  // Client-side filtering + paging
+  // --------------------------------------------------
+  // DATA PROCESSING: client-side filtering and paging
+  // --------------------------------------------------
+  // normalized search string for case-insensitive match
   const normalizedSearch = String(searchTerm || '').trim().toLowerCase();
   const filtered = products.filter((p) => {
-    // Source filter
+    // Source filter (if provided)
     if (sourceFilter && String(sourceFilter).trim() !== '') {
       if (String(p.source) !== String(sourceFilter)) return false;
     }
-    // Text search filter across name and source
+    // Text search across product name, source and price string
     if (normalizedSearch) {
       const name = String(p.productName ?? '').toLowerCase();
       const source = String(p.source ?? '').toLowerCase();
-      // Optionally include price string
       const price = p.sellingPrice != null ? `bhd ${Number(p.sellingPrice).toFixed(3)}`.toLowerCase() : '';
       if (!(name.includes(normalizedSearch) || source.includes(normalizedSearch) || price.includes(normalizedSearch))) {
         return false;
@@ -79,18 +108,22 @@ export default function ProductsList() {
     return true;
   });
 
+  // paging calculations
   const total = filtered.length;
   const page = Math.max(1, currentPage);
   const start = (page - 1) * entriesPerPage;
   const paged = filtered.slice(start, start + entriesPerPage);
 
-  // Dynamically set columns based on user role
+  // --------------------------------------------------
+  // TABLE PREPARATION: columns and rows
+  // --------------------------------------------------
+  // Base columns; add store column for org admins
   const columns = ['Available', 'Product Name', 'Source', 'Selling Price'];
   if (isOrgAdmin) {
     columns.push('Store Name'); // Add "Store Name" column for organization admins
   }
 
-  // Map to table rows
+  // Map products to table rows (JSX cells allowed)
   const tableRows = paged.map((p) => {
     const available = !!p.isAvailable;
     const colorClass = available ? 'stock-green' : 'stock-red';
@@ -110,7 +143,7 @@ export default function ProductsList() {
       p.sellingPrice != null ? `BHD ${Number(p.sellingPrice).toFixed(3)}` : ''
     ];
 
-    // Add store name to the row if the user is an organization admin
+    // include store name column for org admins
     if (isOrgAdmin) {
       row.push(p.storeName ?? ''); // Add "Store Name" column value
     }
@@ -118,6 +151,9 @@ export default function ProductsList() {
     return row;
   });
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

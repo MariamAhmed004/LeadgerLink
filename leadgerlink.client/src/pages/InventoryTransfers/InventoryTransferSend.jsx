@@ -10,26 +10,54 @@ import MenuTabCard from '../../components/Form/MenuTabCard';
 import TextArea from '../../components/Form/TextArea';
 import InfoModal from '../../components/Ui/InfoModal';
 
+/*
+  InventoryTransferSend.jsx
+  Summary:
+  - Review and send an existing inventory transfer request.
+  - Loads transfer details and available recipes/inventory, allows the sender to
+    adjust quantities and metadata, then sends the request by updating the transfer.
+*/
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function InventoryTransferSend() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  // --------------------------------------------------
+  // STATE: form fields and UI flags
+  // --------------------------------------------------
+  // requester and source store ids (strings for SelectField binding)
   const [requester, setRequester] = useState('');
   const [fromStore, setFromStore] = useState('');
+  // date and notes editable before sending
   const [date, setDate] = useState(new Date().toISOString().slice(0,10));
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // --------------------------------------------------
+  // STATE: lookups, tabs and selection
+  // --------------------------------------------------
+  // store select options
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
 
+  // selected items (from TabbedMenu) and tab data
   const [selection, setSelection] = useState([]);
   const [recipeItems, setRecipeItems] = useState([]);
   const [otherItems, setOtherItems] = useState([]);
+
+  // maps of requested quantities (populated from transfer detail)
   const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({});
   const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({});
+
+  // confirmation modal and error for send flow
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sendError, setSendError] = useState('');
 
+  // --------------------------------------------------
+  // EFFECT: load stores for selects
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadStores = async () => {
@@ -46,7 +74,9 @@ export default function InventoryTransferSend() {
     return () => { mounted = false; };
   }, []);
 
-  // Load transfer details and preselect items like Fill page
+  // --------------------------------------------------
+  // EFFECT: load transfer details and preselect requested quantities
+  // --------------------------------------------------
   useEffect(() => {
     let isMounted = true;
     async function loadTransfer() {
@@ -56,6 +86,7 @@ export default function InventoryTransferSend() {
         const data = await res.json();
         if (!isMounted) return;
 
+        // prefer id fields when available for select binding
         const requesterId = data?.requesterStoreId ?? data?.requesterId ?? null;
         const fromStoreId = data?.fromStoreId ?? data?.requestedFromStoreId ?? null;
         setRequester(requesterId != null ? String(requesterId) : '');
@@ -63,6 +94,7 @@ export default function InventoryTransferSend() {
         setDate(data?.date ? new Date(data.date).toISOString().slice(0, 10) : date);
         setNotes(data?.notes ?? '');
 
+        // build maps of requested quantities so tab items can show initialSelectedQty
         const itemsArr = Array.isArray(data?.items) ? data.items : [];
         const reqByRecipe = {};
         const reqByInv = {};
@@ -75,7 +107,7 @@ export default function InventoryTransferSend() {
           if (iid != null) reqByInv[String(iid)] = qty;
         });
 
-        // set maps — actual tab item arrays will be built using these maps
+        // store the maps for tab initialization
         setRequestedQtyByRecipe(reqByRecipe);
         setRequestedQtyByInventory(reqByInv);
       } catch { /* noop */ }
@@ -84,7 +116,9 @@ export default function InventoryTransferSend() {
     return () => { isMounted = false; };
   }, [id]);
 
-  // Fetch recipes and inventory items for tabs
+  // --------------------------------------------------
+  // EFFECT: load tab data (recipes + inventory items) and apply initial quantities
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -95,6 +129,7 @@ export default function InventoryTransferSend() {
           fetch('/api/inventoryitems/list-for-current-store?page=1&pageSize=1000', { credentials: 'include' }).catch(() => null),
         ]);
 
+        // map recipes and include initialSelectedQty from requestedQtyByRecipe
         if (mounted && recipesRes && recipesRes.ok) {
           const rlist = await recipesRes.json();
           const recipesArr = Array.isArray(rlist) ? rlist : [];
@@ -115,6 +150,7 @@ export default function InventoryTransferSend() {
           setRecipeItems([]);
         }
 
+        // map inventory items for Others tab and include initialSelectedQty
         if (mounted && itemsRes && itemsRes.ok) {
           const json = await itemsRes.json();
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
@@ -142,6 +178,9 @@ export default function InventoryTransferSend() {
     return () => { mounted = false; };
   }, [requestedQtyByRecipe, requestedQtyByInventory]);
 
+  // --------------------------------------------------
+  // TAB DEFINITIONS for TabbedMenu
+  // --------------------------------------------------
   const tabs = [
     {
       label: 'Recipes',
@@ -159,6 +198,9 @@ export default function InventoryTransferSend() {
     },
   ];
 
+  // --------------------------------------------------
+  // CALLBACKS: selection and simple field handlers
+  // --------------------------------------------------
   const handleSelectionChange = (sel) => {
     setSelection(sel);
   };
@@ -173,6 +215,9 @@ export default function InventoryTransferSend() {
     setDate(String(v ?? new Date().toISOString().slice(0,10)));
   };
 
+  // --------------------------------------------------
+  // HELPERS: build items payload from selection
+  // --------------------------------------------------
   const buildItemsPayload = () => {
     return (selection || [])
       .filter(s => Number(s.quantity) > 0)
@@ -190,6 +235,9 @@ export default function InventoryTransferSend() {
       .filter(Boolean);
   };
 
+  // --------------------------------------------------
+  // SEND: confirm send flow and update transfer metadata + items
+  // --------------------------------------------------
   const handleSend = async (e) => {
     e?.preventDefault?.();
     setSendError('');
@@ -242,6 +290,9 @@ export default function InventoryTransferSend() {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

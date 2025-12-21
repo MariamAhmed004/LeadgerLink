@@ -10,39 +10,66 @@ import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 import InfoModal from '../../components/Ui/InfoModal';
 
+// --------------------------------------------------
+// InventoryTransfersList
+// Summary:
+// - Lists inventory transfer requests for the current store.
+// - Supports filtering by flow (in/out), status and search, client-side paging,
+//   and provides role-based action buttons (send/fill/approve/deliver).
+// --------------------------------------------------
 // Inventory Transfers list
 export default function InventoryTransfersList() {
   const { loggedInUser } = useAuth();
   const navigate = useNavigate();
 
+  // --------------------------------------------------
+  // ROLE FLAGS
+  // --------------------------------------------------
+  // quick checks for role-specific UI
   const isEmployee = (loggedInUser?.roles || []).includes("Store Employee");
   const isStoreManager = (loggedInUser?.roles || []).includes("Store Manager");
 
-  // Filters
+  // --------------------------------------------------
+  // FILTER STATE
+  // --------------------------------------------------
+  // selected transfer flow (in/out) filter
   const [transferFlow, setTransferFlow] = useState('');
+  // selected transfer status filter
   const [transferStatus, setTransferStatus] = useState('');
   const [transferStatusOptions, setTransferStatusOptions] = useState([{ label: 'All', value: '' }]);
+  // free-text search input
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Pagination state
+  // --------------------------------------------------
+  // PAGINATION STATE
+  // --------------------------------------------------
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Data state
+  // --------------------------------------------------
+  // DATA STATE
+  // --------------------------------------------------
+  // raw rows loaded from server (unpaged)
   const [rowsData, setRowsData] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+  const [error, setError] = useState('');
 
-    // Add this at the top level of the component
-    const [showModal, setShowModal] = useState(false);
+  // modal visibility state used for delivery confirmation
+  const [showModal, setShowModal] = useState(false);
 
+  // --------------------------------------------------
+  // CONSTANTS: flow options
+  // --------------------------------------------------
   const transferFlowOptions = [
     { label: 'All', value: '' },
     { label: 'In', value: 'in' },
     { label: 'Out', value: 'out' },
   ];
 
+  // --------------------------------------------------
+  // EFFECT: load available transfer statuses for filter
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadStatuses = async () => {
@@ -62,12 +89,16 @@ export default function InventoryTransfersList() {
     return () => { mounted = false; };
   }, []);
 
+  // --------------------------------------------------
+  // EFFECT: load transfers list (unpaged) from server
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       setLoading(true);
       setError('');
       try {
+        // build querystring from active filters (server gives full list for client-side filtering)
         const qs = new URLSearchParams();
         if (transferFlow) qs.append('flow', transferFlow);
         if (transferStatus) qs.append('status', transferStatus);
@@ -86,6 +117,7 @@ export default function InventoryTransfersList() {
         const json = await res.json();
         if (!mounted) return;
 
+        // store the returned items for client-side processing
         setRowsData(json.items || []);
         setTotalCount((json.items || []).length);
       } catch (err) {
@@ -100,21 +132,28 @@ export default function InventoryTransfersList() {
     return () => { mounted = false; };
   }, [transferFlow, transferStatus]);
 
-  // Reset page on filter/search changes
+  // --------------------------------------------------
+  // EFFECT: reset page when filters or search change
+  // --------------------------------------------------
   useEffect(() => {
     setCurrentPage(1);
   }, [transferFlow, transferStatus, entriesPerPage, searchTerm]);
 
-  // Client-side filtering including search
+  // --------------------------------------------------
+  // DATA PROCESSING: client-side filtering and paging
+  // --------------------------------------------------
   const filtered = (rowsData || []).filter(t => {
+    // flow filtering (normalize to lowercase)
     if (transferFlow) {
       const dir = String(t.inOut || '').toLowerCase();
       if (transferFlow === 'in' && dir !== 'in') return false;
       if (transferFlow === 'out' && dir !== 'out') return false;
     }
+    // status filtering (case-insensitive)
     if (transferStatus) {
       if (String(t.status || '').toLowerCase() !== String(transferStatus).toLowerCase()) return false;
     }
+    // free-text search across useful fields
     if (searchTerm && searchTerm.trim() !== '') {
       const s = searchTerm.trim().toLowerCase();
       const dateStr = t.requestedAt ? new Date(t.requestedAt).toLocaleString().toLowerCase() : '';
@@ -127,33 +166,39 @@ export default function InventoryTransfersList() {
     return true;
   });
 
-  // Client-side paging
+  // paging calculations on filtered result
   const totalFiltered = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / entriesPerPage));
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
   const start = (safePage - 1) * entriesPerPage;
   const paged = filtered.slice(start, start + entriesPerPage);
 
+  // --------------------------------------------------
+  // RENDER PREPARATION: build table rows with role-aware actions
+  // --------------------------------------------------
   const tableRows = paged.map((t) => {
+    // In/Out icon cell (green down / red up)
     const inOutCell = (t.inOut || '').toString().toLowerCase() === 'in'
       ? <span className="text-success" title="In"><FaArrowDown size={18} /></span>
       : (t.inOut || '').toString().toLowerCase() === 'out'
         ? <span className="text-danger" title="Out"><FaArrowUp size={18} /></span>
         : (t.inOut ?? 'N/A');
 
-    // Determine transfer id
+    // Determine transfer id robustly from possible fields
     const id = t.transferId ?? t.id ?? t.inventoryTransferId ?? "";
 
-    // Status rendering with role + direction specific CTA buttons
+    // Prepare status cell with conditional CTA buttons depending on role and direction
     const statusLower = String(t.status ?? '').toLowerCase();
     const inOutLower = String(t.inOut ?? '').toLowerCase();
 
     let statusCell = t.status ?? '';
 
-    // If requester is current user's store, role is Store Manager, and status is Draft -> show Proceed button
+    // Identify whether current store is the requester (approximation)
     const currentStoreId = Number(loggedInUser?.storeId || 0);
     const requesterStoreName = String(t.storeInvolved || '');
     const isRequester = inOutLower === 'out' ? false : true; // when viewing from current store, 'In' means current store is ToStore
+
+    // Proceed button for requester store manager when draft
     const canProceed = isStoreManager && statusLower === 'draft' && isRequester && id;
 
     if (canProceed) {
@@ -168,7 +213,7 @@ export default function InventoryTransfersList() {
         </button>
       );
     } 
-    // Store Manager: if transfer is OUT and requested -> show approve button
+    // Approve action for store manager when OUT transfer is requested
     else if (isStoreManager && inOutLower === 'out' && statusLower === 'requested' && id) {
       statusCell = (
         <button
@@ -181,7 +226,7 @@ export default function InventoryTransfersList() {
         </button>
       );
     }
-    // Store Employee: if transfer is IN and DRAFT -> show fill button
+    // Fill action for store employee when IN transfer is draft
     else if (isEmployee && inOutLower === 'in' && statusLower === 'draft' && id) {
       statusCell = (
         <button
@@ -194,7 +239,7 @@ export default function InventoryTransfersList() {
         </button>
       );
     }
-    // Store Manager: if transfer is IN, status is approved, and user is requester -> show "Set to Delivered" button
+    // Deliver action for store manager when IN and approved; shows a modal to confirm
     else if (isStoreManager && inOutLower === 'in' && statusLower === 'approved' && isRequester && id) {
       statusCell = (
         <>
@@ -250,6 +295,7 @@ export default function InventoryTransfersList() {
       statusCell = t.status ?? '';
     }
 
+    // Return the row cells in the order expected by EntityTable
     return [
       inOutCell,
       t.requestedAt ? new Date(t.requestedAt).toLocaleString() : '',
@@ -259,6 +305,9 @@ export default function InventoryTransfersList() {
     ];
   });
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

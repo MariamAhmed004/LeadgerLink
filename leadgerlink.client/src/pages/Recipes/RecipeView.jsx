@@ -5,18 +5,28 @@ import DetailViewWithImage from "../Templates/DetailViewWithImage";
 import { FaBookBookmark } from "react-icons/fa6";
 
 /*
-  Recipe view
-  - Fetches recipe detail including ingredients and product relation
-  - Shows "Is on sale" and related product id when available (linked to product view)
-  - Keeps actions out of headerProps and passes them via the actions prop
+  RecipeView
+  Summary:
+  - Fetches and displays details for a single recipe including its ingredients
+    and related product information. Renders a detail pane with image, metadata
+    and actions (edit/back).
 */
 
+// --------------------------------------------------
+// STATE / HOOKS
+// --------------------------------------------------
 const RecipeView = () => {
   const { id } = useParams();
+  // loading indicator while fetch runs
   const [loading, setLoading] = useState(true);
+  // error string shown when fetch fails
   const [error, setError] = useState("");
+  // recipe DTO returned by API
   const [recipe, setRecipe] = useState(null);
 
+  // --------------------------------------------------
+  // EFFECT: load recipe with ingredients on mount / id change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -41,6 +51,7 @@ const RecipeView = () => {
 
         const json = await res.json();
         if (!mounted) return;
+        // Save fetched recipe DTO to state
         setRecipe(json);
       } catch (ex) {
         console.error("Failed to load recipe", ex);
@@ -56,15 +67,17 @@ const RecipeView = () => {
     };
   }, [id]);
 
-  // Note: actions are intentionally NOT set on headerProps; they are provided
-  // separately to DetailViewWithImage as requested.
+  // --------------------------------------------------
+  // PREPARE HEADER / ACTIONS
+  // --------------------------------------------------
+  // Note: actions intentionally passed separately to the template
   const headerProps = {
     icon: <FaBookBookmark size={35} />,
     title: recipe ? `Recipe ${recipe.recipeId}` : "View Recipe",
     descriptionLines: [],
   };
 
-  // Page actions (Edit / Back) are passed to the DetailView component via 'actions'
+  // Page actions shown in the detail view (Edit + Back)
   const actions = [
     {
       icon: <FaPencilAlt />,
@@ -74,6 +87,9 @@ const RecipeView = () => {
     { icon: null, title: "Back to recipes", route: "/recipes" },
   ];
 
+  // --------------------------------------------------
+  // RENDER: loading / error / not found handling
+  // --------------------------------------------------
   if (loading) {
     const detail = { title: "Loading...", rows: [] };
     return (
@@ -116,6 +132,10 @@ const RecipeView = () => {
     );
   }
 
+  // --------------------------------------------------
+  // DATA PROCESSING: build ingredients list and related product link
+  // --------------------------------------------------
+  // Render ingredients as an inline unordered list or a fallback message
   const ingredientsJsx =
     recipe.ingredients && recipe.ingredients.length ? (
       <ul className="text-start ps-3" style={{ margin: 0, listStylePosition: "inside" }}>
@@ -130,6 +150,7 @@ const RecipeView = () => {
       "No ingredients"
     );
 
+  // Link to related product if present
   const relatedProductValue = recipe.relatedProductId ? (
     // link to Product detail view using the product id returned from the API
     <Link to={`/products/${recipe.relatedProductId}`}>
@@ -139,6 +160,7 @@ const RecipeView = () => {
     "N/A"
   );
 
+  // Main detail rows for the recipe
   const detail = {
     title: `ID ${recipe.recipeId}: ${recipe.recipeName}`,
     rows: [
@@ -149,6 +171,7 @@ const RecipeView = () => {
     ],
   };
 
+  // Metadata block under the image (timestamps and creator)
   const metadata = {
     title: "About This Recipe",
     rows: [
@@ -166,13 +189,17 @@ const RecipeView = () => {
           : "",
       },
     ],
-    };
+  };
 
-    const image = {
-        url: recipe.image || "",
-        alt: recipe.recipeName || `recipe ${recipe.recipeId}`
-    };
+  // Image object used by the template
+  const image = {
+    url: recipe.image || "",
+    alt: recipe.recipeName || `recipe ${recipe.recipeId}`,
+  };
 
+  // --------------------------------------------------
+  // FINAL RENDER: detail view with image and metadata
+  // --------------------------------------------------
   return (
     <DetailViewWithImage
       headerProps={headerProps}

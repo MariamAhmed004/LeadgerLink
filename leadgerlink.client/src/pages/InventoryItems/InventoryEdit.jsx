@@ -12,37 +12,61 @@ import TitledGroup from "../../components/Form/TitledGroup";
 import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext"; // Import the AuthContext hook
 
+/*
+  InventoryEdit.jsx
+  Summary:
+  - Edit page for a single inventory item. Loads item + lookups, allows editing
+    core fields, supplier details and optional product-on-sale settings, then
+    submits updates to the server (JSON or multipart when image present).
+*/
+
+// --------------------------------------------------
+// COMPONENT / STATE
+// --------------------------------------------------
 const InventoryItemEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth(); // Access the logged-in user from the context
 
-  // Primary fields
+  // --------------------------------------------------
+  // PRIMARY FIELDS
+  // --------------------------------------------------
+  // Editable item name and description
   const [itemName, setItemName] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [shortDescription, setShortDescription] = useState("");
 
-  // Existing image preview from server
+  // Existing image preview URL returned by the server
   const [existingImageUrl, setExistingImageUrl] = useState("");
 
-  // Suppliers
+  // --------------------------------------------------
+  // SUPPLIERS
+  // --------------------------------------------------
+  // Assigned supplier id and supplier lookup list
   const [supplierId, setSupplierId] = useState("");
   const [suppliers, setSuppliers] = useState([]);
+  // Editable supplier fields (pre-filled when a supplier is chosen)
   const [editSupplierName, setEditSupplierName] = useState("");
   const [editSupplierContact, setEditSupplierContact] = useState("");
 
-  // Category / Unit
+  // --------------------------------------------------
+  // CATEGORY / UNIT
+  // --------------------------------------------------
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState([]);
   const [unitId, setUnitId] = useState("");
   const [units, setUnits] = useState([]);
 
-  // Quantity & cost & threshold
+  // --------------------------------------------------
+  // QUANTITY / COST / THRESHOLD
+  // --------------------------------------------------
   const [quantity, setQuantity] = useState("");
   const [costPerUnit, setCostPerUnit] = useState("");
   const [threshold, setThreshold] = useState("");
 
-  // Product details
+  // --------------------------------------------------
+  // PRODUCT DETAILS (UI-only)
+  // --------------------------------------------------
   const [isOnSale, setIsOnSale] = useState(false);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
@@ -52,22 +76,30 @@ const InventoryItemEdit = () => {
   const [vatList, setVatList] = useState([]);
   const [costPrice, setCostPrice] = useState(0);
 
-  // Fetched store id from inventory details (used when user is Organization Admin)
+  // --------------------------------------------------
+  // CONTEXT / METADATA
+  // --------------------------------------------------
+  // Store id captured from the item details (for org admin requests)
   const [fetchedStoreId, setFetchedStoreId] = useState("");
 
+  // Loading / saving / error UI
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Add a separate flag to reflect server state
+  // Track whether the item was originally on sale (server state)
   const [originalOnSale, setOriginalOnSale] = useState(false);
 
-  // Helpers
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+  // minimum text length helper
   const isTextValid = (v) => {
     if (v == null) return false;
     return String(v).trim().length >= 3;
   };
 
+  // parse numeric inputs that may be empty or contain commas
   const parseNonNegativeNumber = (v) => {
     if (v === null || v === undefined || v === "") return null;
     const n = Number(String(v).replace(/,/g, ""));
@@ -75,6 +107,9 @@ const InventoryItemEdit = () => {
     return n;
   };
 
+  // --------------------------------------------------
+  // LOOKUPS / IMAGE LOADERS
+  // --------------------------------------------------
   const loadLookups = async () => {
     try {
       const supRes = await fetch("/api/suppliers", { credentials: "include" }).catch(() => null);
@@ -97,6 +132,7 @@ const InventoryItemEdit = () => {
     } catch { /* empty */ }
   };
 
+  // Attempt to detect whether an image exists for this item and set preview URL
   const loadExistingImage = async (itemId) => {
     if (!itemId) { setExistingImageUrl(""); return; }
     try {
@@ -110,6 +146,9 @@ const InventoryItemEdit = () => {
     }
   };
 
+  // --------------------------------------------------
+  // LOAD ITEM
+  // --------------------------------------------------
   const loadItem = async () => {
     setLoading(true);
     setError(null);
@@ -121,6 +160,7 @@ const InventoryItemEdit = () => {
       }
       const it = await res.json();
 
+      // populate form fields from returned DTO
       setItemName(it.inventoryItemName || it.name || "");
       setShortDescription(it.description || "");
       setSupplierId(it.supplierId ? String(it.supplierId) : "");
@@ -139,7 +179,8 @@ const InventoryItemEdit = () => {
 
       // product
       setOriginalOnSale(Boolean(it.isOnSale || (it.relatedProductsCount > 0)));
-      setIsOnSale(false); // allow user to opt-in to set on sale without changing UI mode
+      // don't flip UI into on-sale mode automatically; allow explicit user control
+      setIsOnSale(false);
       setSellingPrice(it.sellingPrice != null ? String(it.sellingPrice) : "");
       setVatCategoryId(it.vatCategoryId != null ? String(it.vatCategoryId) : "");
       setProductDescription(it.productDescription || "");
@@ -160,8 +201,10 @@ const InventoryItemEdit = () => {
   useEffect(() => { loadLookups(); }, []);
   useEffect(() => { if (id) loadItem(); }, [id]);
 
+  // --------------------------------------------------
+  // EFFECT: when supplier selection changes, update editable supplier fields
+  // --------------------------------------------------
   useEffect(() => {
-    // When supplier selection changes, load that supplier into editable fields
     if (!supplierId) {
       setEditSupplierName("");
       setEditSupplierContact("");
@@ -174,6 +217,9 @@ const InventoryItemEdit = () => {
     }
   }, [supplierId, suppliers]);
 
+  // --------------------------------------------------
+  // VALIDATION / PAYLOAD BUILDING
+  // --------------------------------------------------
   const validate = () => {
     const errors = [];
     if (!isTextValid(itemName)) errors.push("Item Name must be at least 3 characters.");
@@ -222,6 +268,9 @@ const InventoryItemEdit = () => {
     return { ...base, isOnSale: false };
   };
 
+  // --------------------------------------------------
+  // SUBMIT: send updates (JSON or multipart)
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -278,9 +327,12 @@ const InventoryItemEdit = () => {
     });
   };
 
+  // --------------------------------------------------
+  // RENDER HELPERS
+  // --------------------------------------------------
   const mapOptions = (items, labelKey, valueKey) => (items || []).map((i) => ({ label: i[labelKey] ?? i.name ?? i.unitName ?? String(i), value: String(i[valueKey] ?? i.id ?? i.unitId ?? "") }));
 
-    const productActions = originalOnSale ? (
+  const productActions = originalOnSale ? (
     <div className="d-flex align-items-center gap-2">
       {/* Use product id when known in future; for now redirect to product list/edit accordingly */}
       <a className="btn btn-dark btn-sm" href={`/products`}>Edit Product</a>
@@ -288,6 +340,9 @@ const InventoryItemEdit = () => {
     </div>
   ) : null;
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader icon={<MdOutlineInventory size={55} />} title="Edit Inventory Item" descriptionLines={["Edit item details, image and assignments.", "Change assigned supplier via select, or edit the current supplier details below."]} actions={[]} />

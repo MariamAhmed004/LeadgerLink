@@ -8,25 +8,45 @@ import InputField from '../../components/Form/InputField';
 import FieldWrapper from '../../components/Form/FieldWrapper';
 import FormActions from '../../components/Form/FormActions';
 
-// RestockItemsPage - uses shared form components; UI + lookups only (no submit)
+// --------------------------------------------------
+// RestockItemsPage
+// Summary:
+// - UI page to restock inventory items for the current store.
+// - Loads inventory items into a selector, allows entering an added quantity,
+//   performs a POST to restock, and updates the local list optimistically.
+// --------------------------------------------------
 export default function RestockItemsPage() {
   const navigate = useNavigate();
 
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+  // list of inventory items returned from the API
   const [items, setItems] = useState([]);
+  // select options built from items
   const [itemOptions, setItemOptions] = useState([{ label: 'Select an item', value: '' }]);
+  // selected item id and resolved selected item object
   const [selectedItemId, setSelectedItemId] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // input quantity to add for the selected item
   const [inputQuantity, setInputQuantity] = useState('');
+  // loading / error / info UI flags
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState(''); // FIX: define info state
 
-  // Helper to build select options
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+  // Helper to build select options from a list using provided keys
   const mapOptions = (list, labelKey, valueKey) =>
     (list || []).map((i) => ({ label: i[labelKey] ?? i.inventoryItemName ?? i.name ?? String(i), value: String(i[valueKey] ?? i.inventoryItemId ?? i.id ?? '') }));
 
-  // Load inventory items (for the selector). Request a large page size so we get most items.
+  // --------------------------------------------------
+  // EFFECT: load inventory items for selector
+  // --------------------------------------------------
+  // Request a large page size so we get most items.
   useEffect(() => {
     let mounted = true;
     const loadItems = async () => {
@@ -43,9 +63,11 @@ export default function RestockItemsPage() {
         const json = await res.json();
         if (!mounted) return;
 
+        // normalize items list from response
         const list = Array.isArray(json.items) ? json.items : [];
         setItems(list);
 
+        // build select options (keep default first entry)
         const opts = [{ label: 'Select an item', value: '' }, ...mapOptions(list, 'inventoryItemName', 'inventoryItemId')];
         setItemOptions(opts);
       } catch (err) {
@@ -60,28 +82,40 @@ export default function RestockItemsPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Update selectedItem when selectedItemId changes
+  // --------------------------------------------------
+  // EFFECT: update selectedItem when selection changes
+  // --------------------------------------------------
   useEffect(() => {
     if (!selectedItemId) {
+      // clear selection-related UI when no item chosen
       setSelectedItem(null);
       setInputQuantity('');
       setInfo('');
       return;
     }
+    // find the selected item in the loaded items list
     const found = items.find(it => String(it.inventoryItemId ?? it.id ?? '') === String(selectedItemId));
     setSelectedItem(found || null);
     setInputQuantity('');
     setInfo('');
   }, [selectedItemId, items]);
 
+  // --------------------------------------------------
+  // DATA PROCESSING: quantity calculations
+  // --------------------------------------------------
+  // previous/current quantity for selected item
   const prevQuantity = selectedItem?.quantity ?? 0;
+  // parse the user input quantity safely (allow empty string => 0)
   const parsedInputQty = (() => {
     const v = inputQuantity === '' ? 0 : Number(String(inputQuantity).replace(/,/g, ''));
     return Number.isFinite(v) ? v : 0;
   })();
+  // total after restock (display only)
   const totalQuantity = (Number(prevQuantity ?? 0) || 0) + parsedInputQty;
 
-  // submit handler (UI-only for now)
+  // --------------------------------------------------
+  // SUBMIT: perform restock POST (UI-only) and optimistic update
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -109,7 +143,7 @@ export default function RestockItemsPage() {
       const resp = await res.json().catch(() => ({}));
       const newQty = resp?.quantity ?? totalQuantity;
 
-      // Optimistically update local state
+      // Optimistically update local state so UI reflects the change immediately
       setItems(prev =>
         prev.map(it =>
           String(it.inventoryItemId) === String(selectedItem.inventoryItemId)
@@ -126,6 +160,9 @@ export default function RestockItemsPage() {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

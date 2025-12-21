@@ -16,51 +16,78 @@ import { useAuth } from "../../Context/AuthContext";
 
 /*
   RecipeNew.jsx
-  - UI + logic for adding a recipe.
-  - Loads VAT categories and inventory items (ingredients) for the current store.
-  - Ingredients cards display: image, description (from inventory item), price (from cost per unit), and available quantity
-  - On submit: sends recipe with ingredients; if set for sale, includes product fields (VAT, description)
+  Summary:
+  - Form page for creating a new recipe. Loads VAT categories and inventory items
+    (ingredients), allows selecting ingredients and optional product settings,
+    then submits the recipe (JSON or multipart if an image is attached).
 */
 
+// --------------------------------------------------
+// CONSTANTS
+// --------------------------------------------------
 const PLACEHOLDER_IMG = "/images/placeholder.png"; // fallback if ingredient image not found
 
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const RecipeNew = () => {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
+  // role flags
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin");
   const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
 
-  // Store selection (for org admin)
+  // --------------------------------------------------
+  // STATE: store selection (org admin)
+  // --------------------------------------------------
+  // selected store for organization admins
   const [storeId, setStoreId] = useState("");
   const [stores, setStores] = useState([]);
 
+  // --------------------------------------------------
+  // STATE: recipe core fields
+  // --------------------------------------------------
+  // recipe metadata
   const [recipeName, setRecipeName] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [instructions, setInstructions] = useState("");
 
+  // --------------------------------------------------
+  // STATE: ingredients & selection
+  // --------------------------------------------------
   // ingredients source (inventory items) and selection state
   const [ingredients, setIngredients] = useState([]); // [{id,name,desc,qtyAvailable,imageUrl,costPerUnit,quantity,isSelected}]
   const [selectedItems, setSelectedItems] = useState([]);
 
-  // product sale fields
+  // --------------------------------------------------
+  // STATE: product sale fields
+  // --------------------------------------------------
   const [isForSale, setIsForSale] = useState(false);
   const [vatId, setVatId] = useState("");
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT", value: "" }]);
-  const [vatList, setVatList] = useState([]); // store full vat objects including rate
+  // full VAT objects (used for rates)
+  const [vatList, setVatList] = useState([]);
   const [saleDescription, setSaleDescription] = useState("");
 
-  // pricing
-  const [costPrice, setCostPrice] = useState(0); // computed, readonly
-  const [sellingPrice, setSellingPrice] = useState(0); // editable
+  // --------------------------------------------------
+  // STATE: pricing and UI flags
+  // --------------------------------------------------
+  // computed cost based on selected ingredients
+  const [costPrice, setCostPrice] = useState(0);
+  // selling price editable by user
+  const [sellingPrice, setSellingPrice] = useState(0);
   const [sellingPriceTouched, setSellingPriceTouched] = useState(false);
 
+  // loading / saving / error
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(false);
 
-  // load lookups: VAT categories and inventory items (ingredients)
+  // --------------------------------------------------
+  // EFFECT: load lookups (VAT categories and inventory items)
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -75,10 +102,9 @@ const RecipeNew = () => {
           ).catch(() => null),
         ]);
 
-        // VAT options
+        // VAT options (keep full list for computing rates)
         if (mounted && vatRes && vatRes.ok) {
           const v = await vatRes.json();
-          // keep full list for rates
           setVatList(Array.isArray(v) ? v : []);
           const opts = [{ label: "Select VAT", value: "" }, ...(Array.isArray(v)
             ? v.map(x => {
@@ -92,7 +118,7 @@ const RecipeNew = () => {
           setVatOptions(opts);
         }
 
-        // Ingredients / inventory items
+        // Ingredients / inventory items mapping for ingredient cards
         if (mounted && itemsRes && itemsRes.ok) {
           const json = await itemsRes.json();
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
@@ -130,7 +156,9 @@ const RecipeNew = () => {
     return () => { mounted = false; };
   }, [retry, storeId, isOrgAdmin]);
 
-  // Compute cost price whenever selectedItems or ingredients change
+  // --------------------------------------------------
+  // EFFECT: compute costPrice and default sellingPrice
+  // --------------------------------------------------
   useEffect(() => {
     const computeCost = () => {
       let total = 0;
@@ -146,9 +174,10 @@ const RecipeNew = () => {
     };
 
     const newCost = computeCost();
+    // update derived cost price
     setCostPrice(newCost);
 
-    // if selling price not touched, initialize sellingPrice = cost + vat (if applied)
+    // if selling price not touched by user, initialize to include VAT
     if (!sellingPriceTouched) {
       const vatObj = vatList.find(v => String(v.vatCategoryId) === String(vatId));
       const rate = vatObj ? Number(vatObj.vatRate ?? 0) : 0;
@@ -157,35 +186,40 @@ const RecipeNew = () => {
     }
   }, [selectedItems, ingredients, vatId, vatList, sellingPriceTouched]);
 
-  // Toggle selection for an ingredient card
+  // --------------------------------------------------
+  // SELECTION HELPERS
+  // --------------------------------------------------
+  // Toggle selection for an ingredient card (checked state)
   const toggleSelectItem = (itemId) => {
     setSelectedItems(prev => prev.map(p => p.id === itemId ? { ...p, isSelected: !p.isSelected } : p));
   };
 
-  // Update quantity for selected item
-    const updateItemQuantity = (id, quantity) => {
-        setSelectedItems((prev) =>
-            prev.map((x) =>
-                x.id === id ? { ...x, quantity, isSelected: quantity > 0 } : x
-            )
-        );
-    };
+  // Update quantity for a selected item and mark isSelected when qty > 0
+  const updateItemQuantity = (id, quantity) => {
+    setSelectedItems((prev) =>
+      prev.map((x) =>
+        x.id === id ? { ...x, quantity, isSelected: quantity > 0 } : x
+      )
+    );
+  };
 
-  // Build tabs for TabbedMenu (single tab "Ingredients")
+  // --------------------------------------------------
+  // TABS CONFIG: ingredients tab for TabbedMenu
+  // --------------------------------------------------
   const tabs = [
     {
       label: "Ingredients",
       items: ingredients.map((it, idx) => ({
-        // display fields
+        // display fields used by MenuTabCard
         name: it.name,
         description: it.desc || "",
         price: it.price,
-        // quantity prop is AVAILABLE stock shown by the card; card manages selected quantity internally
+        // available quantity displayed by the card
         quantity: Number(it.qtyAvailable || 0),
         isSelected: (selectedItems.find(s => Number(s.id) === Number(it.id))?.isSelected) || false,
         imageUrl: it.imageUrl || "",
         extraTop: (<div className="small text-muted">Available: {Number(it.qtyAvailable || 0)}</div>),
-        // include index so TabbedMenu can map back
+        // include index so TabbedMenu can map back when selection events are emitted
         inventoryId: it.id,
       })),
       cardComponent: (item) => (
@@ -196,10 +230,10 @@ const RecipeNew = () => {
     }
   ];
 
-  // Drive selectedItems from TabbedMenu central selection
-  // TabbedMenu emits: [{ tabLabel, index, productId, name, price, quantity }]
-  // Normalize to [{ id, isSelected, quantity }]
-  // Use `ingredients` id mapping to be safe if productId is missing.
+  // --------------------------------------------------
+  // SELECTION SYNC: normalize TabbedMenu selection to selectedItems
+  // --------------------------------------------------
+  // TabbedMenu emits entries like: [{ tabLabel, index, productId, name, price, quantity }]
   const handleSelectionChange = (sel) => {
     const next = (sel || [])
       .map(s => {
@@ -217,7 +251,9 @@ const RecipeNew = () => {
     setSelectedItems(next);
   };
 
-  // Validation: require at least one ingredient with quantity > 0
+  // --------------------------------------------------
+  // VALIDATION / PAYLOAD BUILDING
+  // --------------------------------------------------
   const validate = () => {
     const errs = [];
     if (!String(recipeName).trim()) errs.push("Recipe name is required.");
@@ -231,7 +267,7 @@ const RecipeNew = () => {
     return errs;
   };
 
-  // Payload: use selectedItems to form [{inventoryItemId, quantity}]
+  // Build payload expected by the API from selectedItems and form fields
   const buildPayload = () => {
     const ingredientsPayload = (selectedItems || [])
       .filter(s => s.isSelected && Number(s.quantity) > 0)
@@ -261,6 +297,9 @@ const RecipeNew = () => {
     return { ...base, isOnSale: false };
   };
 
+  // --------------------------------------------------
+  // SUBMIT HELPERS: JSON vs multipart
+  // --------------------------------------------------
   const submitJson = async (payload) => {
     return fetch("/api/recipes", {
       method: "POST",
@@ -277,6 +316,9 @@ const RecipeNew = () => {
     return fetch("/api/recipes", { method: "POST", credentials: "include", body: fd });
   };
 
+  // --------------------------------------------------
+  // SUBMIT: validate then post
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -300,14 +342,16 @@ const RecipeNew = () => {
     }
   };
 
-  // handle selling price edit by user
+  // --------------------------------------------------
+  // SELLING PRICE: user edits and warning logic
+  // --------------------------------------------------
   const onSellingPriceChange = (v) => {
     const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0;
     setSellingPrice(num);
     setSellingPriceTouched(true);
   };
 
-  // show warning when selling < cost
+  // debounce warning when selling < cost
   const [showWarning, setShowWarning] = useState(false);
 
   useEffect(() => {
@@ -321,7 +365,9 @@ const RecipeNew = () => {
     return () => { mounted = false; clearTimeout(t); };
   }, [sellingPrice, costPrice]);
 
-  // Load stores for org admin
+  // --------------------------------------------------
+  // EFFECT: load stores for org admin
+  // --------------------------------------------------
   useEffect(() => {
     if (!isOrgAdmin || !orgId) return;
     const loadStores = async () => {
@@ -340,12 +386,15 @@ const RecipeNew = () => {
     loadStores();
   }, [isOrgAdmin, orgId]);
 
-  // Helper for store options
+  // Helper for store select options
   const storeOptions = (stores || []).map(s => ({
     label: s.storeName ?? s.name ?? `Store ${s.id}`,
     value: String(s.storeId ?? s.id)
   }));
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

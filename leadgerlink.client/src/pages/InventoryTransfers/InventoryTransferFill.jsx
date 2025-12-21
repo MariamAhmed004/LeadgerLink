@@ -10,34 +10,55 @@ import MenuTabCard from '../../components/Form/MenuTabCard';
 import TextArea from '../../components/Form/TextArea';
 import FormActions from '../../components/Form/FormActions';
 
+/*
+  InventoryTransferFill.jsx
+  Summary:
+  - Page to fill items for an existing inventory transfer request.
+  - Loads transfer details and available recipes/inventory for the current store,
+    pre-populates requested quantities and lets the user select quantities to send.
+*/
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 export default function InventoryTransferFill() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // fields (disabled as per design)
+  // --------------------------------------------------
+  // STATE: form fields (read-only inputs) and lookups
+  // --------------------------------------------------
+  // store ids for requester and the source store (strings for select binding)
   const [requester, setRequester] = useState(''); // storeId as string
   const [fromStore, setFromStore] = useState(''); // storeId as string
+  // date/status/notes for display
   const [date, setDate] = useState('');
   const [status, setStatus] = useState('');
   const [notes, setNotes] = useState('');
 
+  // store select options used to display requester and request-from
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
 
-  // tabs data
+  // --------------------------------------------------
+  // STATE: tabs data and requested quantities
+  // --------------------------------------------------
+  // data shown in tabs (recipes and other inventory items)
   const [recipeItems, setRecipeItems] = useState([]);
   const [otherItems, setOtherItems] = useState([]);
 
-  // requested quantities map from transfer details
+  // requested quantities mapped by id so initialSelectedQty can be set
   const [requestedQtyByRecipe, setRequestedQtyByRecipe] = useState({}); // { [recipeId]: qty }
   const [requestedQtyByInventory, setRequestedQtyByInventory] = useState({}); // { [inventoryItemId]: qty }
 
-  // selection from TabbedMenu
+  // current selection emitted by TabbedMenu (array of selection entries)
   const [selection, setSelection] = useState([]);
 
   // Build Request From options excluding the requester store
   const requestFromOptions = (storeOptions || []).filter(o => String(o.value) !== String(requester));
 
-  // Load stores same as InventoryTransferNew
+  // --------------------------------------------------
+  // EFFECT: load stores for dropdowns
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadStores = async () => {
@@ -56,7 +77,9 @@ export default function InventoryTransferFill() {
     return () => { mounted = false; };
   }, []);
 
-  // Fetch recipes and inventory items for tabs same as InventoryTransferNew
+  // --------------------------------------------------
+  // EFFECT: load tab data (recipes + inventory items) and wire initial quantities
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -123,7 +146,9 @@ export default function InventoryTransferFill() {
     return () => { mounted = false; };
   }, [requestedQtyByRecipe, requestedQtyByInventory]);
 
-  // Load transfer details by id and bind to fields, including requested items quantities
+  // --------------------------------------------------
+  // EFFECT: load transfer details and populate requested quantity maps
+  // --------------------------------------------------
   useEffect(() => {
     let isMounted = true;
 
@@ -185,6 +210,9 @@ export default function InventoryTransferFill() {
     return () => { isMounted = false; };
   }, [id]);
 
+  // --------------------------------------------------
+  // TAB CONFIG for TabbedMenu used in render
+  // --------------------------------------------------
   const tabs = [
     {
       label: 'Recipes',
@@ -202,6 +230,9 @@ export default function InventoryTransferFill() {
     },
   ];
 
+  // --------------------------------------------------
+  // SUBMIT: save selected items back to transfer
+  // --------------------------------------------------
   const handleSave = async (e) => {
     e?.preventDefault?.();
 
@@ -239,10 +270,14 @@ export default function InventoryTransferFill() {
     }
   };
 
+  // selection callback from TabbedMenu
   const onSelectionChange = (sel) => {
     setSelection(sel);
   };
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

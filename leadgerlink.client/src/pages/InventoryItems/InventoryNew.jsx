@@ -12,6 +12,17 @@ import TitledGroup from "../../components/Form/TitledGroup";
 import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  InventoryNew.jsx
+  Summary:
+  - Form page to add a new inventory item. Loads lookups (stores, suppliers, categories, units, VAT)
+    and provides UI to enter item, supplier and pricing details. Submits JSON or multipart payload
+    depending on whether an image file is attached.
+*/
+
+// --------------------------------------------------
+// STATE / HOOKS
+// --------------------------------------------------
 const InventoryItemNew = () => {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
@@ -25,7 +36,7 @@ const InventoryItemNew = () => {
   // Primary fields
   const [itemName, setItemName] = useState("");
   const [imageFile, setImageFile] = useState(null);
-    const [shortDescription, setShortDescription] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
 
   // Suppliers
   const [supplierId, setSupplierId] = useState("");
@@ -58,12 +69,16 @@ const InventoryItemNew = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Helpers
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+  // Simple text validation helper
   const isTextValid = (v) => {
     if (v == null) return false;
     return String(v).trim().length >= 3;
   };
 
+  // Parse numeric input allowing empty to mean null
   const parseNonNegativeNumber = (v) => {
     if (v === null || v === undefined || v === "") return null;
     const n = Number(String(v).replace(/,/g, ""));
@@ -71,6 +86,9 @@ const InventoryItemNew = () => {
     return n;
   };
 
+  // --------------------------------------------------
+  // EFFECT: load lookups (suppliers, categories, units, vat)
+  // --------------------------------------------------
   const loadLookups = async () => {
     try {
       let suppliersUrl = "/api/suppliers";
@@ -117,13 +135,18 @@ const InventoryItemNew = () => {
 
   useEffect(() => { loadLookups(); }, [storeId, isOrgAdmin]);
 
+  // --------------------------------------------------
+  // EFFECT: supplier contact method derived from selected supplier
+  // --------------------------------------------------
   useEffect(() => {
     if (!supplierId) { setSelectedSupplierContactMethod(""); return; }
     const s = suppliers.find((x) => String(x.supplierId ?? x.id ?? x.SupplierId) === String(supplierId));
     setSelectedSupplierContactMethod(s ? (s.contactMethod ?? s.contact_method ?? s.ContactMethod ?? "") : "");
   }, [supplierId, suppliers]);
 
-  // compute costPrice from costPerUnit (per requirement: cost depends on price per unit)
+  // --------------------------------------------------
+  // EFFECT: compute costPrice and default sellingPrice when cost changes
+  // --------------------------------------------------
   useEffect(() => {
     const cpu = parseNonNegativeNumber(costPerUnit);
     setCostPrice(cpu == null || Number.isNaN(cpu) ? 0 : cpu);
@@ -138,7 +161,9 @@ const InventoryItemNew = () => {
     }
   }, [costPerUnit, vatCategoryId, vatList, sellingPriceTouched]);
 
-  // debounce warning to avoid flashing
+  // --------------------------------------------------
+  // EFFECT: debounce selling price warning to avoid flashing
+  // --------------------------------------------------
   const [showWarning, setShowWarning] = useState(false);
   useEffect(() => {
     let mounted = true;
@@ -147,6 +172,9 @@ const InventoryItemNew = () => {
     return () => { mounted = false; clearTimeout(t); };
   }, [sellingPrice, costPrice]);
 
+  // --------------------------------------------------
+  // VALIDATION / PAYLOAD BUILDING
+  // --------------------------------------------------
   const validate = () => {
     const errors = [];
 
@@ -218,6 +246,9 @@ const InventoryItemNew = () => {
     return { ...base, isOnSale: false };
   };
 
+  // --------------------------------------------------
+  // SUBMIT HELPERS: JSON vs multipart submissions
+  // --------------------------------------------------
   const submitJson = async (payload) => {
     return fetch("/api/inventoryitems", {
       method: "POST",
@@ -239,6 +270,9 @@ const InventoryItemNew = () => {
     });
   };
 
+  // --------------------------------------------------
+  // SUBMIT: validate and send
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -264,6 +298,9 @@ const InventoryItemNew = () => {
     }
   };
 
+  // --------------------------------------------------
+  // RENDER HELPERS
+  // --------------------------------------------------
   const mapOptions = (items, labelKey, valueKey) => (items || []).map((i) => ({ label: i[labelKey] ?? i.name ?? i.unitName ?? String(i), value: String(i[valueKey] ?? i.id ?? i.unitId ?? "") }));
 
   const supplierContactDisplay = selectedSupplierContactMethod || "";
@@ -271,26 +308,32 @@ const InventoryItemNew = () => {
   // Helper for store options
   const storeOptions = (stores || []).map(s => ({ label: s.storeName ?? s.name ?? `Store ${s.id}`, value: String(s.storeId ?? s.id) }));
 
+  // --------------------------------------------------
+  // EFFECT: load stores when org admin
+  // --------------------------------------------------
   useEffect(() => {
-  if (!isOrgAdmin) return;
-  const loadStores = async () => {
-    try {
-      const orgId = loggedInUser?.orgId ?? null;
-      if (!orgId) { setStores([]); return; }
-      const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setStores(data || []);
-      } else {
+    if (!isOrgAdmin) return;
+    const loadStores = async () => {
+      try {
+        const orgId = loggedInUser?.orgId ?? null;
+        if (!orgId) { setStores([]); return; }
+        const res = await fetch(`/api/stores/by-organization/${orgId}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          setStores(data || []);
+        } else {
+          setStores([]);
+        }
+      } catch {
         setStores([]);
       }
-    } catch {
-      setStores([]);
-    }
-  };
-  loadStores();
-}, [isOrgAdmin, loggedInUser]);
+    };
+    loadStores();
+  }, [isOrgAdmin, loggedInUser]);
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader icon={<MdOutlineInventory size={55} />} title="Add Inventory Item" descriptionLines={["Fill In the form to add a new item to the entry.", "You can add an image optionally", "If the supplier is added before you can select it from the list, if not add it", "You can set the item on sale and input the VAT Category"]} actions={[]} />

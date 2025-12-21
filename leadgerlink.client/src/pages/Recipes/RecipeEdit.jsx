@@ -14,26 +14,41 @@ import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  RecipeEdit.jsx
+  Summary:
+  - Edit an existing recipe. Loads recipe + ingredients and VAT lookups,
+    allows updating ingredients, pricing and sale-related info, then saves
+    changes to the server (multipart when an image is attached).
+*/
+
 const PLACEHOLDER_IMG = "/images/placeholder.png";
 
+// --------------------------------------------------
+// COMPONENT / STATE
+// --------------------------------------------------
 const RecipeEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
+  // UI flags
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Core recipe fields
   const [recipeName, setRecipeName] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [previewImage, setPreviewImage] = useState("");
   const [instructions, setInstructions] = useState("");
 
+  // Ingredients and selection state
   const [ingredients, setIngredients] = useState([]); // inventory items available
   const [selectedItems, setSelectedItems] = useState([]); // {id, quantity, isSelected}
   const [recipeCost, setRecipeCost] = useState(0);
 
+  // Sale / product fields
   const [isForSale, setIsForSale] = useState(false);
   const [vatId, setVatId] = useState("");
   const [vatOptions, setVatOptions] = useState([{ label: "Select VAT", value: "" }]);
@@ -47,6 +62,9 @@ const RecipeEdit = () => {
   // Capture storeId from fetched recipe details (used when user is Organization Admin)
   const [fetchedStoreId, setFetchedStoreId] = useState(null);
 
+  // --------------------------------------------------
+  // EFFECT: load recipe, ingredients and VAT lookups
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -64,6 +82,7 @@ const RecipeEdit = () => {
         const rJson = await rRes.json();
         if (!mounted) return;
 
+        // populate fields from recipe DTO
         setRecipeName(rJson.recipeName ?? "");
         setInstructions(rJson.description ?? "");
         setIsForSale(!!rJson.isOnSale);
@@ -71,8 +90,6 @@ const RecipeEdit = () => {
         setOriginalOnSale(!!rJson.isOnSale || !!rJson.relatedProductId);
         setSaleDescription(rJson.productDescription ?? "");
         setPreviewImage(rJson.image ?? "");
-
-        // Capture storeId from recipe details (do NOT take from user context)
         setFetchedStoreId(rJson.storeId ?? null);
 
         // Decide inventory items URL: include storeId query only when loggedInUser is Organization Admin
@@ -160,7 +177,9 @@ const RecipeEdit = () => {
     return () => { mounted = false; };
   }, [id, loggedInUser]);
 
-  // Build tabs for TabbedMenu
+  // --------------------------------------------------
+  // TABS: build tabs for TabbedMenu from ingredients
+  // --------------------------------------------------
   const tabs = [
     {
       label: 'Ingredients',
@@ -178,7 +197,9 @@ const RecipeEdit = () => {
     }
   ];
 
-  // handle selection change from TabbedMenu
+  // --------------------------------------------------
+  // SELECTION: handle selection change from TabbedMenu
+  // --------------------------------------------------
   const handleSelectionChange = (sel) => {
     const next = (sel || []).map(s => {
       const idFrom = Number(s.productId || s.id || 0);
@@ -192,6 +213,9 @@ const RecipeEdit = () => {
     setSelectedItems(next);
   };
 
+  // --------------------------------------------------
+  // VALIDATION / PAYLOAD
+  // --------------------------------------------------
   const validate = () => {
     const errs = [];
     if (!String(recipeName).trim()) errs.push('Recipe name is required.');
@@ -215,7 +239,9 @@ const RecipeEdit = () => {
     return { ...base, isOnSale: false };
   };
 
-  // helper to convert payload to formdata when image present
+  // --------------------------------------------------
+  // SUBMIT HELPERS
+  // --------------------------------------------------
   const submitMultipart = async (payload) => {
     const fd = new FormData();
     fd.append('payload', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'payload.json');
@@ -243,6 +269,9 @@ const RecipeEdit = () => {
     });
   };
 
+  // --------------------------------------------------
+  // SUBMIT: validate and PUT
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -265,7 +294,9 @@ const RecipeEdit = () => {
     }
   };
 
-  // recompute cost when selectedItems or ingredients change
+  // --------------------------------------------------
+  // DERIVED: recompute cost when selection changes
+  // --------------------------------------------------
   useEffect(() => {
     const total = (selectedItems || []).reduce((acc, s) => {
       if (!s || !s.isSelected) return acc;
@@ -277,7 +308,9 @@ const RecipeEdit = () => {
     setRecipeCost(total);
   }, [selectedItems, ingredients]);
 
-  // initialize selling price when cost/vat change and user hasn't edited selling price
+  // --------------------------------------------------
+  // DERIVED: initialize selling price when cost/vat change
+  // --------------------------------------------------
   useEffect(() => {
     if (sellingPriceTouched) return;
     const v = (vatList || []).find(x => String(x.vatCategoryId) === String(vatId));
@@ -286,6 +319,9 @@ const RecipeEdit = () => {
     setSellingPrice(sp);
   }, [recipeCost, vatId, vatList, sellingPriceTouched]);
 
+  // --------------------------------------------------
+  // SELLING PRICE HANDLERS & WARNINGS
+  // --------------------------------------------------
   const onSellingPriceChange = (v) => {
     const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0;
     setSellingPrice(num);

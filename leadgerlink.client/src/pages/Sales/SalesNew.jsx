@@ -14,10 +14,22 @@ import InfoModal from "../../components/Ui/InfoModal";
 import TextArea from "../../components/Form/TextArea";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  SalesNew.jsx
+  Summary:
+  - Page to create a new sale. Loads products, payment methods and (for org admins) stores.
+  - Lets the user pick products/recipes, set discount and payment, then submit a sale.
+  - Shows a summary modal after successful save.
+*/
+
+// --------------------------------------------------
+// STATE / CONSTANTS
+// --------------------------------------------------
 const SalesNew = () => {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
+  // sale header / basic fields
   const [createdById, setCreatedById] = useState("");
   const [timestamp, setTimestamp] = useState(new Date());
   const [paymentMethodId, setPaymentMethodId] = useState("");
@@ -32,7 +44,7 @@ const SalesNew = () => {
   const [stores, setStores] = useState([]);
   const [selectedStoreId, setSelectedStoreId] = useState("");
 
-  // summary modal
+  // summary modal state shown after saving
   const [showSummary, setShowSummary] = useState(false);
   const [saleSummary, setSaleSummary] = useState({
     saleId: null,
@@ -43,14 +55,14 @@ const SalesNew = () => {
     paymentMethodName: ""
   });
 
-  // products separated into tabs
+  // products separated into tabs (recipes vs products)
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
 
   // Add a loading state for products
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // derived amounts
+  // derived amounts / selection state
   const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity}]
   const computeTotalFromSelection = () =>
     selection.reduce((sum, it) => {
@@ -64,18 +76,23 @@ const SalesNew = () => {
 
   const totalAmount = computeTotalFromSelection();
 
-  // determine org admin
+  // determine org admin (role-based behavior)
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin") || roles.includes("Application Admin");
 
-  // Ensure createdById defaults to the authenticated user immediately
+  // --------------------------------------------------
+  // EFFECT: initialize createdBy from authenticated user
+  // --------------------------------------------------
   useEffect(() => {
+    // Ensure createdById defaults to the authenticated user immediately
     if (loggedInUser?.userId != null) {
       setCreatedById(String(loggedInUser.userId));
     }
   }, [loggedInUser]);
 
-  // Load stores for org admins (so selectedStoreId can be chosen)
+  // --------------------------------------------------
+  // EFFECT: load stores for org admins
+  // --------------------------------------------------
   useEffect(() => {
     if (!isOrgAdmin) return;
 
@@ -108,8 +125,9 @@ const SalesNew = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedInUser, isOrgAdmin]);
 
-  // Load users, payment methods and products.
-  // For org admins, products/users will be loaded for selectedStoreId when provided.
+  // --------------------------------------------------
+  // EFFECT: load users, payment methods and products
+  // --------------------------------------------------
   useEffect(() => {
     // For org admins we only run when a store is selected.
     if (isOrgAdmin && !selectedStoreId) {
@@ -185,6 +203,9 @@ const SalesNew = () => {
     load();
   }, [selectedStoreId, loggedInUser, isOrgAdmin]);
 
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
   const parseNum = (v) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
@@ -195,6 +216,9 @@ const SalesNew = () => {
   const discountDeduction = discountIsPercent ? (totalAmount * (discountValue / 100)) : discountValue;
   const amountPaid = Math.max(0, Number((totalAmount - discountDeduction).toFixed(3)));
 
+  // --------------------------------------------------
+  // SUBMIT: save sale
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -272,6 +296,9 @@ const SalesNew = () => {
     }
   };
 
+  // --------------------------------------------------
+  // UI: tabs configuration
+  // --------------------------------------------------
   const tabs = [
     {
       label: "Recipes",
@@ -285,6 +312,9 @@ const SalesNew = () => {
     },
   ];
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

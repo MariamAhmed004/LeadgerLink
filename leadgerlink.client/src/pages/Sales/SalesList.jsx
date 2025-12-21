@@ -8,15 +8,30 @@ import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  SalesList.jsx
+  Summary:
+  - Displays a paginated, filterable list of sales for the current user/store or organization.
+  - Loads sales and related users, supports filtering by creator, date and free-text search,
+    and navigates to sale details on timestamp click.
+*/
+
+// --------------------------------------------------
+// STATE / HOOKS
+// --------------------------------------------------
 const SalesListPage = () => {
   const { loggedInUser } = useAuth();
 
+  // filter fields
   const [createdBy, setCreatedBy] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // pagination
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // data sets
   const [sales, setSales] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +40,9 @@ const SalesListPage = () => {
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin") ;
 
+  // --------------------------------------------------
+  // EFFECT: load sales and users on auth change
+  // --------------------------------------------------
   useEffect(() => {
     // load sales and users for current user's store (server resolves store from auth if no storeId is provided)
     const load = async () => {
@@ -80,6 +98,9 @@ const SalesListPage = () => {
     load();
   }, [loggedInUser]);
 
+  // --------------------------------------------------
+  // HELPERS: build created-by select options
+  // --------------------------------------------------
   // build filter select options from users
   const createdByOptions = [
     { label: "All", value: "" },
@@ -89,7 +110,10 @@ const SalesListPage = () => {
     })),
   ];
 
-  // Filtered and paginated rows
+  // --------------------------------------------------
+  // DATA PROCESSING: filtering, pagination and rows
+  // --------------------------------------------------
+  // Apply client-side filters to the loaded sales
   const filteredSales = sales.filter((sale) => {
     // createdBy filter: empty = all, otherwise compare by user id
     const matchesCreatedBy =
@@ -113,6 +137,7 @@ const SalesListPage = () => {
     return matchesCreatedBy && matchesDate && matchesSearch;
   });
 
+  // slice for current page
   const paginatedSales = filteredSales.slice(
     (currentPage - 1) * entriesPerPage,
     currentPage * entriesPerPage
@@ -123,8 +148,9 @@ const SalesListPage = () => {
     ? ["Timestamp", "Created By", "Store", "Total Amount", "Payment Method"]
     : ["Timestamp", "Created By", "Total Amount", "Payment Method"];
 
-  // rows must be arrays of cell values (EntityTable will turn the requested column into a link)
+  // Rows must be arrays of cell values (EntityTable will turn the requested column into a link)
   const tableRows = paginatedSales.map((sale) => {
+    // timestamp formatting with fallback
     const timestampCell = (() => {
       try {
         const d = new Date(sale.timestamp);
@@ -134,21 +160,27 @@ const SalesListPage = () => {
       }
     })();
 
+    // base cells always include timestamp and creator
     const baseCells = [
       timestampCell,
       sale.createdByName ?? "",
     ];
 
+    // include store column for org admins
     if (isOrgAdmin) {
       baseCells.push(sale.storeName ?? "");
     }
 
+    // append amount and payment method
     baseCells.push(sale.amount != null ? `${Number(sale.amount).toFixed(3)} BHD` : "");
     baseCells.push(sale.paymentMethodName ?? "");
 
     return baseCells;
   });
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

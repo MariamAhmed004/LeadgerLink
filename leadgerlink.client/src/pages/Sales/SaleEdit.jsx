@@ -14,11 +14,22 @@ import InfoModal from "../../components/Ui/InfoModal";
 import TextArea from "../../components/Form/TextArea";
 import { useAuth } from "../../Context/AuthContext";
 
+/*
+  SaleEdit.jsx
+  Summary:
+  - Edit an existing sale: loads sale details, products and payment methods,
+    allows adjusting items, discount and payment, then updates the sale via PUT.
+*/
+
+// --------------------------------------------------
+// COMPONENT / STATE
+// --------------------------------------------------
 const SaleEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
 
+  // core editable fields
   const [timestamp, setTimestamp] = useState(new Date());
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -28,6 +39,7 @@ const SaleEdit = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // product lists / selection
   const [recipes, setRecipes] = useState([]);
   const [products, setProducts] = useState([]);
   const [selection, setSelection] = useState([]);
@@ -38,11 +50,16 @@ const SaleEdit = () => {
   // Capture storeId from fetched sale details (used when user is Organization Admin)
   const [fetchedStoreId, setFetchedStoreId] = useState("");
 
+  // --------------------------------------------------
+  // HELPERS: numeric parsing and derived amounts
+  // --------------------------------------------------
+  // Safe numeric parse helper
   const parseNum = (v) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
 
+  // total computed from current selection (price * quantity)
   const totalAmount = selection.reduce((sum, it) => {
     const priceNum = typeof it.price === "string" ? Number((it.price.match(/[0-9.]+/) || [0])[0]) : Number(it.price || 0);
     const qtyNum = Number(it.quantity || 0);
@@ -50,10 +67,14 @@ const SaleEdit = () => {
     return sum + priceNum * qtyNum;
   }, 0);
 
+  // compute discount and amountPaid (handles percent vs absolute)
   const discountValue = parseNum(appliedDiscount);
   const discountDeduction = discountIsPercent ? (totalAmount * (discountValue / 100)) : discountValue;
   const amountPaid = Math.max(0, Number((totalAmount - discountDeduction).toFixed(3)));
 
+  // --------------------------------------------------
+  // EFFECT: load sale, payment methods and products on mount
+  // --------------------------------------------------
   useEffect(() => {
     const load = async () => {
       setLoadingProducts(true);
@@ -66,7 +87,7 @@ const SaleEdit = () => {
         }
         const sale = await saleRes.json();
 
-        // set core fields
+        // populate core fields from returned sale DTO
         setTimestamp(sale.timestamp ? new Date(sale.timestamp) : new Date());
         setPaymentMethodId(sale.paymentMethodId ? String(sale.paymentMethodId) : "");
         setAppliedDiscount(sale.appliedDiscount != null ? String(Number(sale.appliedDiscount)) : "");
@@ -121,6 +142,7 @@ const SaleEdit = () => {
             if (isRecipe) rec.push(item); else oth.push(item);
           });
 
+          // populate recipe and product tabs
           setRecipes(rec);
           setProducts(oth);
         } else {
@@ -137,6 +159,9 @@ const SaleEdit = () => {
     load();
   }, [id, loggedInUser]);
 
+  // --------------------------------------------------
+  // SUBMIT: validate and PUT updates to API
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -192,11 +217,17 @@ const SaleEdit = () => {
     }
   };
 
+  // --------------------------------------------------
+  // TABS CONFIG
+  // --------------------------------------------------
   const tabs = [
     { label: "Recipes", items: recipes, cardComponent: (item) => <MenuTabCard data={item} /> },
     { label: "Products", items: products, cardComponent: (item) => <MenuTabCard data={item} /> },
   ];
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

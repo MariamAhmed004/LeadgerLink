@@ -12,29 +12,53 @@ import MenuTabCard from '../../components/Form/MenuTabCard';
 import InfoModal from '../../components/Ui/InfoModal';
 import TextArea from '../../components/Form/TextArea';
 
+/*
+  InventoryTransferNew.jsx
+  Summary:
+  - Form page to create a new inventory transfer request between stores.
+  - Loads stores, recipes and inventory items for selection and builds a payload
+    to save as draft or send the request (status determined by action buttons).
+*/
+
+// --------------------------------------------------
+// COMPONENT / CONTEXT
+// --------------------------------------------------
 export default function InventoryTransferNew() {
   const navigate = useNavigate();
   const { loggedInUser } = useAuth();
+  // organization admin flag used to control requester behaviour
   const isOrgAdmin = (loggedInUser?.roles || []).includes('Organization Admin');
 
+  // --------------------------------------------------
+  // STATE: core form fields
+  // --------------------------------------------------
+  // requester and from-store (store ids stored as strings for SelectField)
   const [requester, setRequester] = useState('');
   const [fromStore, setFromStore] = useState('');
+  // date defaulted to today, status controlled by actions, notes optional
   const [date, setDate] = useState(new Date().toISOString().slice(0,10));
   const [status, setStatus] = useState('Draft'); // internal status determined by actions
   const [notes, setNotes] = useState('');
 
+  // store options for selects
   const [storeOptions, setStoreOptions] = useState([{ label: 'Select store', value: '' }]);
 
+  // --------------------------------------------------
+  // STATE: selection and tabs data
+  // --------------------------------------------------
   // selection captured from TabbedMenu (for future submit)
   const [selection, setSelection] = useState([]); // [{tabLabel,index,productId,name,price,quantity,recipeId}]
 
-  // tabs data
+  // data shown in tabs
   const [recipeItems, setRecipeItems] = useState([]);
   const [otherItems, setOtherItems] = useState([]);
 
   // modal state for send confirmation/info
   const [showSendModal, setShowSendModal] = useState(false);
 
+  // --------------------------------------------------
+  // EFFECT: load stores for requester / request-from selects
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const loadStores = async () => {
@@ -43,9 +67,11 @@ export default function InventoryTransferNew() {
         if (!res.ok) return;
         const arr = await res.json();
         if (!mounted) return;
+        // map server stores to select options
         const opts = [{ label: 'Select store', value: '' }, ...(Array.isArray(arr) ? arr.map(s => ({ label: s.storeName, value: String(s.storeId) })) : [])];
         setStoreOptions(opts);
 
+        // pre-fill requester for non-admin users (their store)
         const userStoreId = loggedInUser?.storeId ? String(loggedInUser.storeId) : '';
         if (!isOrgAdmin) {
           setRequester(userStoreId);
@@ -57,21 +83,23 @@ export default function InventoryTransferNew() {
           if (userStoreId && String(fromStore) === userStoreId) setFromStore('');
         }
       } catch (err) {
-        // noop
+        // ignore store load failures (UI will show default)
       }
     };
     loadStores();
     return () => { mounted = false; };
   }, [loggedInUser, isOrgAdmin]);
 
-  // When requester changes, if Request From equals requester, clear Request From
+  // clear Request From when requester changes to avoid same-store requests
   useEffect(() => {
     if (requester && String(fromStore) === String(requester)) {
       setFromStore('');
     }
   }, [requester]);
 
-  // Fetch recipes and inventory items for tabs
+  // --------------------------------------------------
+  // EFFECT: load recipes and inventory items for TabbedMenu tabs
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -81,7 +109,7 @@ export default function InventoryTransferNew() {
           fetch('/api/inventoryitems/list-for-current-store?page=1&pageSize=1000', { credentials: 'include' }).catch(() => null),
         ]);
 
-        // Recipes tab items
+        // Recipes tab items: carry recipeId for payload building
         if (mounted && recipesRes && recipesRes.ok) {
           const rlist = await recipesRes.json();
           const recipesArr = Array.isArray(rlist) ? rlist : [];
@@ -100,7 +128,7 @@ export default function InventoryTransferNew() {
           setRecipeItems([]);
         }
 
-        // Others tab items from inventory
+        // Inventory tab items for 'Others'
         if (mounted && itemsRes && itemsRes.ok) {
           const json = await itemsRes.json();
           const list = Array.isArray(json.items) ? json.items : (Array.isArray(json) ? json : []);
@@ -125,6 +153,7 @@ export default function InventoryTransferNew() {
           setOtherItems([]);
         }
       } catch (err) {
+        // on failure clear both lists to keep UI consistent
         setRecipeItems([]);
         setOtherItems([]);
       }
@@ -133,13 +162,16 @@ export default function InventoryTransferNew() {
     return () => { mounted = false; };
   }, []);
 
-  // Build items payload using Tab label to distinguish recipe vs inventory items
+  // --------------------------------------------------
+  // HELPERS: build payload from TabbedMenu selection
+  // --------------------------------------------------
   const buildItemsPayload = () => {
     return (selection || [])
       .filter(s => Number(s.quantity) > 0)
       .map(s => {
         const qty = Number(s.quantity);
 
+        // Others tab: inventory items use `id` -> InventoryItemId in payload
         if (s.tabLabel === 'Others') {
           const invId = Number(s.id);
           if (!Number.isFinite(invId)) {
@@ -148,6 +180,7 @@ export default function InventoryTransferNew() {
           return { InventoryItemId: invId, Quantity: qty };
         }
 
+        // Recipes tab: use recipeId
         const rid = Number(s.recipeId);
         if (!Number.isFinite(rid)) {
           return null;
@@ -157,12 +190,14 @@ export default function InventoryTransferNew() {
       .filter(Boolean);
   };
 
-  // Defer selection updates to avoid setState during TabbedMenu render
+  // Defer selection state updates to avoid setState during TabbedMenu render
   const handleSelectionChange = (sel) => {
     Promise.resolve().then(() => setSelection(sel));
   };
 
-  // Save -> set Draft then navigate back (now posts to backend)
+  // --------------------------------------------------
+  // SUBMIT: save draft (POST with status 'draft')
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus('draft'); // Save posts status = "draft"
@@ -196,7 +231,9 @@ export default function InventoryTransferNew() {
     }
   };
 
-  // Send request flow -> show modal, confirm sets Pending then navigate
+  // --------------------------------------------------
+  // SEND flow: show confirmation modal then POST with status 'requested'
+  // --------------------------------------------------
   const handleSendClick = (e) => {
     e.preventDefault();
     setShowSendModal(true);
@@ -238,7 +275,9 @@ export default function InventoryTransferNew() {
     setShowSendModal(false);
   };
 
-  // Build Request From options excluding the requester store
+  // --------------------------------------------------
+  // UTIL: Request From options exclude the requester
+  // --------------------------------------------------
   const requestFromOptions = (storeOptions || []).filter(o => String(o.value) !== String(requester));
 
   // Provide explicit id hints so TabbedMenu emits recipeId for recipes and id for inventory items
@@ -259,6 +298,9 @@ export default function InventoryTransferNew() {
     },
   ];
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader

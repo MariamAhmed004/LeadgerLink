@@ -3,13 +3,33 @@ import { FaExchangeAlt } from "react-icons/fa";
 import { useParams, useNavigate } from "react-router-dom";
 import DetailViewWithMetadata from "../Templates/DetailViewWithMetadata";
 
+/*
+  InventoryTransferView.jsx
+  Summary:
+  - Displays a detailed view of a single inventory transfer, including items,
+    timestamps and metadata. Loads transfer DTO from the API and renders using
+    the DetailViewWithMetadata template.
+*/
+
+
+// --------------------------------------------------
+// COMPONENT
+// --------------------------------------------------
 const InventoryTransferView = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+  // Loading / error flags and the fetched transfer DTO
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [transfer, setTransfer] = useState(null);
 
+  // --------------------------------------------------
+  // EFFECT: load transfer on mount / id change
+  // --------------------------------------------------
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -49,7 +69,10 @@ const InventoryTransferView = () => {
     };
   }, [id]);
 
-  // helper to format datetimes safely
+  // --------------------------------------------------
+  // HELPERS: formatting and display utilities
+  // --------------------------------------------------
+  // Helper to format datetimes safely, falls back to raw string
   const fmt = (val) => {
     if (!val) return "";
     try {
@@ -60,12 +83,18 @@ const InventoryTransferView = () => {
     return String(val);
   };
 
+  // --------------------------------------------------
+  // HEADER PREPARATION
+  // --------------------------------------------------
   const headerProps = {
     icon: <FaExchangeAlt size={45} />,
     title: transfer ? `Transfer ${transfer.transferId}` : "View Transfer",
     descriptionLines: [],
   };
 
+  // --------------------------------------------------
+  // RENDER: loading / error / missing resource handling
+  // --------------------------------------------------
   if (loading) {
     const detail = { title: "Loading...", rows: [] };
     const metadata = { title: "", rows: [] };
@@ -105,7 +134,10 @@ const InventoryTransferView = () => {
     );
   }
 
-  // Build items list JSX with image fallback
+  // --------------------------------------------------
+  // DATA PROCESSING: build items list JSX
+  // --------------------------------------------------
+  // Build items list JSX with image fallback and name resolution
   const itemsJsx =
     transfer.items && transfer.items.length ? (
       <ul style={{ margin: 0, paddingLeft: "0", listStyle: "none" }}>
@@ -116,6 +148,7 @@ const InventoryTransferView = () => {
           const base64 = it.imageBase64 || it.inventoryItemImage || null;
           const src = explicitUrl || builtUrl || (base64 ? `data:image/jpeg;base64,${base64}` : null);
 
+          // determine display name using available fields
           const name = it.inventoryItemName
             ? `${it.inventoryItemName}`
             : it.recipeName
@@ -154,6 +187,9 @@ const InventoryTransferView = () => {
       "No items"
     );
 
+  // --------------------------------------------------
+  // DETAIL / METADATA / ACTIONS PREPARATION
+  // --------------------------------------------------
   const detail = {
     title: `ID ${transfer.transferId}: ${
       transfer.transferDate ? transfer.transferDate : ""
@@ -188,6 +224,9 @@ const InventoryTransferView = () => {
     { icon: null, title: "Back", route: "/inventory/transfers" },
   ];
 
+  // --------------------------------------------------
+  // FINAL RENDER
+  // --------------------------------------------------
   return (
     <DetailViewWithMetadata
       headerProps={headerProps}
