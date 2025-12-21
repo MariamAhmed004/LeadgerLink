@@ -185,5 +185,37 @@ namespace LeadgerLink.Server.Controllers
                 return StatusCode(500, "Failed to count notifications");
             }
         }
+
+
+        // GET api/notifications/unread-count
+        // Returns the count of unread notifications for the currently authenticated user.
+        [Authorize]
+        [HttpGet("unread-count")]
+        public async Task<IActionResult> GetUnreadCount()
+        {
+            // Ensure user is authenticated
+            if (!User.Identity?.IsAuthenticated ?? true) return Unauthorized();
+
+            // Resolve user email (fall back to Name if email claim not present)
+            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                        ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+            // Fetch domain user
+            var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+            if (domainUser == null) return Ok(0);
+
+            try
+            {
+                var count = await _repository.CountUnreadForUserAsync(domainUser.UserId);
+                return Ok(count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get unread notifications count for user {UserId}", domainUser.UserId);
+                return StatusCode(500, "Failed to get unread notifications count");
+            }
+        }
+
     }
 }

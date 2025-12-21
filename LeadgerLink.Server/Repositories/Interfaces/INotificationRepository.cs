@@ -37,5 +37,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
             int userId,
             string notificationTypeName,
             DateTime? createdAt = null);
+
+        Task<int> CountUnreadForUserAsync(int userId);
     }
 }

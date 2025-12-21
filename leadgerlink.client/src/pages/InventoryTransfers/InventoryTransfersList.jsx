@@ -27,7 +27,38 @@ export default function InventoryTransfersList() {
   // --------------------------------------------------
   // quick checks for role-specific UI
   const isEmployee = (loggedInUser?.roles || []).includes("Store Employee");
-  const isStoreManager = (loggedInUser?.roles || []).includes("Store Manager");
+    const isStoreManager = (loggedInUser?.roles || []).includes("Store Manager");
+    const isOrgAdmin = (loggedInUser?.roles || []).includes("Organization Admin");
+
+    // hide the In/Out column for organization admins
+    const showInOut = !isOrgAdmin;
+
+  // render status as colored badge/tag
+  const renderStatusTag = (status) => {
+    const s = String(status ?? '').toLowerCase();
+    let cls = 'bg-secondary text-white';
+    switch (s) {
+      case 'draft':
+        cls = 'bg-secondary text-white';
+        break;
+      case 'requested':
+        cls = 'bg-primary text-white';
+        break;
+      case 'approved':
+        cls = 'bg-success text-white';
+        break;
+      case 'delivered':
+        cls = 'bg-info text-white';
+        break;
+      case 'rejected':
+        cls = 'bg-danger text-white';
+        break;
+      default:
+        cls = 'bg-secondary text-white';
+        break;
+    }
+    return <span className={`badge ${cls}`}>{status ?? 'N/A'}</span>;
+  };
 
   // --------------------------------------------------
   // FILTER STATE
@@ -291,18 +322,23 @@ export default function InventoryTransfersList() {
         </>
       );
     } else {
-      // default: show plain status text (preserve original behavior)
-      statusCell = t.status ?? '';
+      // default: show colored tag for status
+      statusCell = renderStatusTag(t.status);
     }
 
-    // Return the row cells in the order expected by EntityTable
-    return [
-      inOutCell,
+    // Build base cells (excluding In/Out)
+    const baseCells = [
       t.requestedAt ? new Date(t.requestedAt).toLocaleString() : '',
       t.storeInvolved ?? '',
       statusCell,
       t.driverName ?? 'Not assigned'
     ];
+
+    // Prepend In/Out cell only when allowed
+    const finalRow = showInOut ? [inOutCell, ...baseCells] : baseCells;
+
+    // Return the row cells in the order expected by EntityTable
+    return finalRow;
   });
 
   // --------------------------------------------------
@@ -317,8 +353,8 @@ export default function InventoryTransfersList() {
           'Following are inventory transfer requests between organization stores:',
           'Click on the request date of the transfer to view its details',
         ]}
-        // Show "New Transfer Request" action only for non-employees
-        actions={isEmployee ? [] : [{ icon: <FaPlus />, title: 'New Transfer Request', route: '/inventory/transfers/new' } ]}
+        // Show "New Transfer Request" action only for non-employees and non-admins
+        actions={(isEmployee || isOrgAdmin) ? [] : [{ icon: <FaPlus />, title: 'New Transfer Request', route: '/inventory/transfers/new' }]}
       />
 
       <FilterSection
@@ -349,13 +385,9 @@ export default function InventoryTransfersList() {
 
       <EntityTable
         title="Transfers"
-        columns={[
-          'In/Out',
-          'Requested On',
-          'Store Involved',
-          'Status',
-          'Driver',
-        ]}
+        columns={ showInOut
+                  ? ['In/Out', 'Requested On', 'Store Involved', 'Status', 'Driver']
+                  : ['Requested On', 'Store Involved', 'Status', 'Driver'] }
         rows={tableRows}
         // Use "Requested On" column as the link column - rowLink builds route from the original data item
         linkColumnName="Requested On"

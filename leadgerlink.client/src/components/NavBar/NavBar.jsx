@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import './NavBar.css';
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../Context/AuthContext";
@@ -25,6 +25,44 @@ const NavBar = () => {
     const isStoreManager = loggedInUser?.roles?.includes("Store Manager");
     const isStoreEmployee = loggedInUser?.roles?.includes("Store Employee");
 
+    // unread notifications count for current user
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    useEffect(() => {
+        let mounted = true;
+        let intervalId = null;
+
+        const fetchUnread = async () => {
+            try {
+                // only fetch when user is authenticated
+                if (!loggedInUser?.isAuthenticated) {
+                    if (mounted) setUnreadCount(0);
+                    return;
+                }
+
+                const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
+                if (!res.ok) {
+                    if (mounted) setUnreadCount(0);
+                    return;
+                }
+
+                const count = await res.json();
+                if (mounted) setUnreadCount(typeof count === "number" ? count : Number(count) || 0);
+            } catch (err) {
+                if (mounted) setUnreadCount(0);
+            }
+        };
+
+        fetchUnread();
+
+        // refresh periodically while mounted (every 30s)
+        intervalId = setInterval(fetchUnread, 30000);
+
+        return () => {
+            mounted = false;
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [loggedInUser]);
 
     // Compute home route once based on highest-priority role
     const homeRoute =
@@ -34,8 +72,6 @@ const NavBar = () => {
                     isStoreManager ? "/store-manager" :
                         isStoreEmployee ? "/store-employee" :
                             "/";
-
-
 
     return (
         <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -208,12 +244,19 @@ const NavBar = () => {
                         {loggedInUser?.isAuthenticated && (
                             <li className="nav-item dropdown me-1">
                                 <button
-                                    className="btn btn-dark dropdown-toggle"
+                                    className="btn btn-dark dropdown-toggle position-relative"
                                     id="userDropdown"
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
+                                    type="button"
                                 >
                                     {loggedInUser.fullName ?? loggedInUser.userName}
+                                    {unreadCount > 0 && (
+                                      <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                        {unreadCount}
+                                        <span className="visually-hidden">unread notifications</span>
+                                      </span>
+                                    )}
                                 </button>
                                 <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                                     <li><Link to="/profile" className="dropdown-item">View Profile</Link></li>

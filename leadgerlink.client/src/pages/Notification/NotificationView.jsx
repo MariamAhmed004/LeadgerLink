@@ -205,13 +205,7 @@ export default function NotificationView() {
 
           <hr />
 
-          {!loading && !error && notification && (
-            <section className="small text-muted" style={{ textAlign: "left" }}>
-              <div>Notification ID: {notification.id}</div>
-              <div>Type: {notification.type || "—"}</div>
-              <div>Read: {notification.read ? "Yes" : "No"}</div>
-            </section>
-          )}
+     
         </div>
       </div>
     </main>

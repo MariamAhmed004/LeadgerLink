@@ -19,11 +19,11 @@ const REPORTS_CONFIG = [
   { id: "sales_summary", name: "Daily/Monthly Sales Summary", allowedRoles: ["Store Manager"], formats: ["PDF", "Excel"], description: "Sales aggregates by day or month for the selected store." },
   { id: "inventory_usage_trends", name: "Inventory Usage Trends", allowedRoles: ["Store Manager"], formats: ["PDF", "Excel"], description: "Usage trends for inventory items (consumption over time)." },
 
-  { id: "monthly_cogs", name: "Monthly COGS", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Cost of goods sold for the selected organization and month." },
-  { id: "gross_profit_and_margin", name: "Gross Profit & Profit Margin", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Gross profit and margin calculations for reporting period." },
-  { id: "inventory_valuation", name: "Inventory Valuation", allowedRoles: ["Organization Accountant"], formats: ["Excel"], description: "Inventory valuation report using configured costing method (Excel only)." },
-  { id: "sales_by_recipe", name: "Sales Summary by Recipe", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Sales aggregated by recipe to help finance reconcile costs." },
-  { id: "monthly_sales", name: "Monthly Sales", allowedRoles: ["Organization Accountant"], formats: ["Excel", "PDF"], description: "Organization-level monthly sales summary." },
+    { id: "monthly_cogs", name: "Monthly COGS", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Cost of goods sold for the selected organization and month." },
+    { id: "gross_profit_and_margin", name: "Gross Profit & Profit Margin", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Gross profit and margin calculations for reporting period." },
+    { id: "inventory_valuation", name: "Inventory Valuation", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel"], description: "Inventory valuation report using configured costing method (Excel only)." },
+    { id: "sales_by_recipe", name: "Sales Summary by Recipe", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Sales aggregated by recipe to help finance reconcile costs." },
+    { id: "monthly_sales", name: "Monthly Sales", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level monthly sales summary." },
 
   { id: "store_performance", name: "Store Performance", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level store performance for the month: sales counts, totals, inventory value and transfers; includes AI recommendations." },
   { id: "employee_sales_performance", name: "Employee Sales Performance", allowedRoles: ["Organization Admin"], formats: ["Excel", "PDF"], description: "Sales and KPI metrics per employee across the organization." },
