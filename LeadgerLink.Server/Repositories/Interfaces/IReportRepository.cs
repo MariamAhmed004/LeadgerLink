@@ -6,12 +6,13 @@
 //  Original author: mario
 ///////////////////////////////////////////////////////////
 
+using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Models;
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
-using LeadgerLink.Server.Dtos;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {
@@ -85,5 +86,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
 
         Task<byte[]> GenerateStorePerformanceReportPdfAsync(int organizationId, int year, int month);
         Task<byte[]> GenerateStorePerformanceReportExcelAsync(int organizationId, int year, int month);
+        // Employee Sales Performance(organization-level) : generated file outputs
+        Task<byte[]> GenerateEmployeeSalesPerformanceReportPdfAsync(int organizationId, int year, int month);
+        Task<byte[]> GenerateEmployeeSalesPerformanceReportExcelAsync(int organizationId, int year, int month);
     }
 }//end IReportRepository

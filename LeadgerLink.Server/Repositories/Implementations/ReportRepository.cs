@@ -2296,5 +2296,265 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
 
             return currentY; // return the final Y so you can continue layout below
         }
+
+        // Employee Sales Performance - Excel
+        public async Task<byte[]> GenerateEmployeeSalesPerformanceReportExcelAsync(int organizationId, int year, int month)
+        {
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+
+            // Sales grouped by user for the organization in period
+            var grouped = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .GroupBy(s => s.UserId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    SalesCount = g.Count(),
+                    Total = g.Sum(s => s.TotalAmount),
+                    FirstSale = g.Min(s => s.Timestamp),
+                    LastSale = g.Max(s => s.Timestamp)
+                })
+                .ToListAsync();
+
+            // extract non-null user ids without using .HasValue
+            var userIds = grouped.Select(g => g.UserId).OfType<int>().Distinct().ToList();
+            var users = await _context.Users
+                .Where(u => userIds.Contains(u.UserId))
+                .ToDictionaryAsync(u => u.UserId, u => $"{u.UserFirstname} {u.UserLastname}");
+
+            var orgTotal = grouped.Sum(g => g.Total);
+
+            using var wb = CreateWorkbook();
+            var ws = wb.Worksheets.Add("Employee Sales Performance");
+            int row = 1;
+
+            // Header / summary
+            var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization Total Paid (BHD)" };
+            var summaryRows = new List<string[]>
+            {
+                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotal.ToString("F3") }
+            };
+            row = AddStyledTableAt(ws, row, "Employee Sales Performance Report", summaryHeaders, summaryRows, new[] { 40d, 28d, 22d, 30d });
+
+            // Per-employee table
+            var headers = new[] { "Employee", "Sales Count", "Total Paid (BHD)", "First Sale (UTC)", "Last Sale (UTC)" };
+            var rows = grouped.Select(g =>
+            {
+                string displayName;
+                if (g.UserId is int uid && users.TryGetValue(uid, out var n))
+                    displayName = n;
+                else if (g.UserId is int uid2)
+                    displayName = $"User #{uid2}";
+                else
+                    displayName = "Unknown";
+
+                return new[]
+                {
+                    displayName,
+                    g.SalesCount.ToString(),
+                    g.Total.ToString("F3"),
+                    g.FirstSale.ToString("yyyy-MM-dd"),
+                    g.LastSale.ToString("yyyy-MM-dd")
+                };
+            }).ToList();
+
+            row = AddStyledTableAt(ws, row, "Per-Employee Breakdown", headers, rows, new[] { 35d, 15d, 20d, 15d, 15d });
+
+            // Prepare AI recommendations prompt
+            string recommendations;
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"You are an operations analyst. Provide 4-5 short, actionable recommendations (each 1-2 sentences) for improving employee performance monitoring and recognition at \"{orgName}\" for the period {periodStart:yyyy-MM}.");
+                sb.AppendLine();
+                sb.AppendLine($"Organization totals: Total Paid Sales = BHD {orgTotal:F3}.");
+                sb.AppendLine();
+                sb.AppendLine("Per-employee summary: Name | SalesCount | TotalPaid | FirstSale - LastSale");
+                foreach (var g in grouped)
+                {
+                    string name;
+                    if (g.UserId is int uid && users.TryGetValue(uid, out var n))
+                        name = n;
+                    else if (g.UserId is int uid2)
+                        name = $"User #{uid2}";
+                    else
+                        name = "Unknown";
+
+                    sb.AppendLine($"{name} | {g.SalesCount} | BHD {g.Total:F3} | {g.FirstSale:yyyy-MM-dd} - {g.LastSale:yyyy-MM-dd}");
+                }
+                sb.AppendLine();
+                sb.AppendLine("Give concise recommendations: which employees to monitor, reward or coach; quick staffing or schedule suggestions; training or incentive ideas.");
+                var prompt = sb.ToString();
+                recommendations = await _geminiService.SendMessageAsync(prompt);
+                if (string.IsNullOrWhiteSpace(recommendations)) recommendations = "No recommendations returned.";
+            }
+            catch
+            {
+                recommendations = "No recommendations available (AI service error).";
+            }
+
+            // Add recommendations as a single-cell table row
+            var recHeaders = new[] { "AI Recommendations" };
+            var recRows = new List<string[]> { new[] { recommendations } };
+            row = AddStyledTableAt(ws, row, "AI Recommendations", recHeaders, recRows, new[] { 100d });
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return ms.ToArray();
+        }
+
+        // Employee Sales Performance - PDF
+        public async Task<byte[]> GenerateEmployeeSalesPerformanceReportPdfAsync(int organizationId, int year, int month)
+        {
+            var periodStart = new DateTime(year, month, 1);
+            var periodEnd = periodStart.AddMonths(1).AddTicks(-1);
+
+            var org = await _context.Organizations.FindAsync(organizationId);
+            var orgName = org?.OrgName ?? $"Org {organizationId}";
+
+            var grouped = await _context.Sales
+                .Where(s => s.Store != null && s.Store.OrgId == organizationId && s.Timestamp >= periodStart && s.Timestamp <= periodEnd)
+                .GroupBy(s => s.UserId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    SalesCount = g.Count(),
+                    Total = g.Sum(s => s.TotalAmount),
+                    FirstSale = g.Min(s => s.Timestamp),
+                    LastSale = g.Max(s => s.Timestamp)
+                })
+                .ToListAsync();
+
+            var userIds = grouped.Select(g => g.UserId).OfType<int>().Distinct().ToList();
+            var users = await _context.Users.Where(u => userIds.Contains(u.UserId)).ToDictionaryAsync(u => u.UserId, u => $"{u.UserFirstname} {u.UserLastname}");
+
+            var orgTotal = grouped.Sum(g => g.Total);
+
+            using var ms = new MemoryStream();
+            using (var document = new PdfDocument())
+            {
+                var page = document.AddPage();
+                page.Size = PdfSharpCore.PageSize.A4;
+                page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                var gfx = XGraphics.FromPdfPage(page);
+
+                var (titleFont, headerFont, textFont, gridPen, headerBg) = CreatePdfStyle();
+                double x = 36;
+                double y = 36;
+                double contentWidth = page.Width.Point - (x * 2);
+
+                // Header / summary
+                DrawSectionHeader(gfx, "Employee Sales Performance Report", titleFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
+                DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Organization Total Paid: BHD {orgTotal:F3}", textFont, x, ref y, contentWidth);
+
+                y += 8;
+
+                // Per-employee table header
+                DrawSectionHeader(gfx, "Per-Employee Breakdown", headerFont, x, ref y, contentWidth, headerBg);
+                var widths = new[] { contentWidth * 0.36, contentWidth * 0.14, contentWidth * 0.18, contentWidth * 0.16, contentWidth * 0.16 };
+                DrawTableHeader(gfx, new[] { "Employee", "Sales Count", "Total Paid (BHD)", "First Sale", "Last Sale" }, headerFont, x, ref y, widths, headerBg, gridPen);
+
+                foreach (var g in grouped)
+                {
+                    string name;
+                    if (g.UserId is int uid && users.TryGetValue(uid, out var n))
+                        name = n;
+                    else if (g.UserId is int uid2)
+                        name = $"User #{uid2}";
+                    else
+                        name = "Unknown";
+
+                    DrawTableRow(gfx, new[] {
+                        name,
+                        g.SalesCount.ToString(),
+                        g.Total.ToString("F3"),
+                        g.FirstSale.ToString("yyyy-MM-dd"),
+                        g.LastSale.ToString("yyyy-MM-dd")
+                    }, textFont, x, ref y, widths, gridPen);
+
+                    if (y > page.Height.Point - 72)
+                    {
+                        page = document.AddPage();
+                        gfx.Dispose();
+                        gfx = XGraphics.FromPdfPage(page);
+                        y = 36;
+                        DrawTableHeader(gfx, new[] { "Employee", "Sales Count", "Total Paid (BHD)", "First Sale", "Last Sale" }, headerFont, x, ref y, widths, headerBg, gridPen);
+                    }
+                }
+
+                y += 8;
+
+                // AI recommendations prompt and result
+                string recommendations;
+                try
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine($"You are an operations analyst. Provide 4-5 short, actionable recommendations (each 1-2 sentences) for improving employee performance monitoring and recognition at \"{orgName}\" for {periodStart:yyyy-MM}.");
+                    sb.AppendLine();
+                    sb.AppendLine($"Organization totals: Total Paid Sales = BHD {orgTotal:F3}.");
+                    sb.AppendLine();
+                    sb.AppendLine("Per-employee summary: Name | SalesCount | TotalPaid | FirstSale - LastSale");
+                    foreach (var g in grouped)
+                    {
+                        string name;
+                        if (g.UserId is int uid && users.TryGetValue(uid, out var n))
+                            name = n;
+                        else if (g.UserId is int uid2)
+                            name = $"User #{uid2}";
+                        else
+                            name = "Unknown";
+
+                        sb.AppendLine($"{name} | {g.SalesCount} | BHD {g.Total:F3} | {g.FirstSale:yyyy-MM-dd} - {g.LastSale:yyyy-MM-dd}");
+                    }
+                    sb.AppendLine();
+                    sb.AppendLine("Give concise recommendations: which employees to monitor, reward or coach; quick staffing or schedule suggestions; training or incentive ideas.");
+                    var prompt = sb.ToString();
+                    recommendations = await _geminiService.SendMessageAsync(prompt);
+                    if (string.IsNullOrWhiteSpace(recommendations)) recommendations = "No recommendations returned.";
+                }
+                catch
+                {
+                    recommendations = "No recommendations available (AI service error).";
+                }
+
+                // Ensure space and draw header for recommendations
+                var availableHeight = page.Height.Point - y - 36;
+                var recHeaderDrawn = false;
+                if (availableHeight < 80)
+                {
+                    page = document.AddPage();
+                    page.Size = PdfSharpCore.PageSize.A4;
+                    page.Orientation = PdfSharpCore.PageOrientation.Portrait;
+                    gfx.Dispose();
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = 36;
+                    DrawSectionHeader(gfx, "AI Recommendations", headerFont, x, ref y, contentWidth, headerBg);
+                    recHeaderDrawn = true;
+                    availableHeight = page.Height.Point - y - 36;
+                }
+
+                if (!recHeaderDrawn)
+                {
+                    DrawSectionHeader(gfx, "AI Recommendations", headerFont, x, ref y, contentWidth, headerBg);
+                    availableHeight = page.Height.Point - y - 36;
+                }
+
+                // Draw recommendations with safe wrapper
+                DrawWrappedText(gfx, recommendations ?? string.Empty, textFont, XBrushes.Black, x, y, contentWidth);
+
+                document.Save(ms);
+                gfx.Dispose();
+            }
+
+            return ms.ToArray();
+        }
+
     }
 }

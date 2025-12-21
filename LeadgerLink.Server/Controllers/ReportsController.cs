@@ -608,5 +608,49 @@ namespace LeadgerLink.Server.Controllers
             return File(bytes, "application/pdf", filename);
         }
 
+        // Add these two controller actions to ReportsController (paste among other GET endpoints near other organization-level admin report routes)
+
+        // GET api/reports/employee-sales-performance/pdf?organizationId=123&year=2025&month=11
+        [HttpGet("employee-sales-performance/pdf")]
+        public async Task<IActionResult> GetEmployeeSalesPerformancePdf([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+
+            try
+            {
+                var bytes = await _reportRepository.GenerateEmployeeSalesPerformanceReportPdfAsync(organizationId, year, month);
+                var fileName = $"employee-sales-performance-{organizationId}-{year}-{month}.pdf";
+                return File(bytes ?? Array.Empty<byte>(), "application/pdf", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Employee Sales Performance PDF for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate Employee Sales Performance PDF.");
+            }
+        }
+
+        // GET api/reports/employee-sales-performance/excel?organizationId=123&year=2025&month=11
+        [HttpGet("employee-sales-performance/excel")]
+        public async Task<IActionResult> GetEmployeeSalesPerformanceExcel([FromQuery] int organizationId, [FromQuery] int year, [FromQuery] int month)
+        {
+            if (organizationId <= 0) return BadRequest("organizationId is required.");
+            if (year <= 0 || month < 1 || month > 12) return BadRequest("Valid year and month are required.");
+
+            try
+            {
+                var bytes = await _reportRepository.GenerateEmployeeSalesPerformanceReportExcelAsync(organizationId, year, month);
+                var fileName = $"employee-sales-performance-{organizationId}-{year}-{month}.xlsx";
+                var contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                return File(bytes ?? Array.Empty<byte>(), contentType, fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate Employee Sales Performance Excel for org {OrgId}", organizationId);
+                return StatusCode(500, "Failed to generate Employee Sales Performance Excel.");
+            }
+        }
+
+
     }
 }
