@@ -245,8 +245,18 @@ export default function InventoryTransferSend() {
   };
 
   const confirmSend = async () => {
-    setShowConfirmModal(false);
     setSendError('');
+
+    // Validation: require at least one selected item
+    const itemsToSend = buildItemsPayload();
+    if (!itemsToSend || itemsToSend.length === 0) {
+      setSendError('Please select at least one item to send.');
+      return;
+    }
+
+    // Close confirmation modal after validation passes
+    setShowConfirmModal(false);
+
     try {
       const meta = {
         requesterStoreId: requester ? Number(requester) : null,
@@ -269,13 +279,12 @@ export default function InventoryTransferSend() {
         throw new Error(txt || `Failed to send transfer (${metaRes.status})`);
       }
 
-      // update items (replace existing)
-      const items = buildItemsPayload();
+      // update items (replace existing) - use validated itemsToSend
       const itemsRes = await fetch(`/api/inventorytransfers/${encodeURIComponent(id)}/items`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(items)
+        body: JSON.stringify(itemsToSend)
       });
 
       if (!itemsRes.ok) {
@@ -284,15 +293,15 @@ export default function InventoryTransferSend() {
       }
 
       // Navigate back to list and pass toast payload so the list page displays toast + inline alert
-        navigate('/inventory/transfers', {
-            state: {
-                toast: {
-                    title: 'Request sent',
-                    message: 'Request sent successfully. The other store manager has been notified.',
-                    notified: 'Store manager(s)'
-                }
-            }
-        });
+      navigate('/inventory/transfers', {
+        state: {
+          toast: {
+            title: 'Request sent',
+            message: 'Request sent successfully. The other store manager has been notified.',
+            notified: 'Store manager(s)'
+          }
+        }
+      });
     } catch (err) {
       console.error('Send failed', err);
       setSendError(err?.message || 'Failed to send transfer');
