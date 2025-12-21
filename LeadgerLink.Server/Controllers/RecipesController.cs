@@ -175,14 +175,24 @@ namespace LeadgerLink.Server.Controllers
         {
             try
             {
-                // Fetch the recipe details from the repository
-                var dto = await _recipeRepository.GetDetailByIdAsync(recipeId);
+                //resolve user ID
+                var userId = await ResolveUserIdAsync();
 
-                // Return 404 if no recipe is found
-                if (dto == null) return NotFound();
+                if (!userId.HasValue)
+                    return Unauthorized();
+                else
+                {
 
-                // Return the result
-                return Ok(dto);
+                    // Fetch the recipe details from the repository
+                    var dto = await _recipeRepository.GetDetailByIdAsync(recipeId, userId.Value);
+
+                    // Return 404 if no recipe is found
+                    if (dto == null) return NotFound();
+
+                    // Return the result
+                    return Ok(dto);
+
+                }
             }
             catch (Exception ex)
             {
@@ -412,5 +422,8 @@ namespace LeadgerLink.Server.Controllers
             // Resolve the user ID and set it in the audit context
             _auditContext.UserId = await ResolveUserIdAsync();
         }
+
+
+
     }
 }

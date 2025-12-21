@@ -52,7 +52,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<int> CreateSaleAsync(CreateSaleDto dto, int storeId, int userId);
 
         // Get sale details by ID, including items and associated data.
-        Task<SaleDetailDto?> GetSaleByIdAsync(int saleId);
+        Task<SaleDetailDto?> GetSaleByIdAsync(int saleId, int loggedInUserId);
 
         // Update an existing sale with new details and items.
         Task<bool> UpdateSaleAsync(int saleId, CreateSaleDto dto);

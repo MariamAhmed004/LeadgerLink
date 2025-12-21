@@ -19,6 +19,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         // Reassigns the manager for a store, deactivating the old manager and activating the new one.
         Task ReassignManagerAsync(int storeId, int? oldManagerId, int? newManagerId);
         Task ReassignStoreManagerAsync(int newManagerId, int? previousStoreId, int? newStoreIdd);
+        Task<int?> GetOrganizationIdByStoreIdAsync(int storeId);
         
         }
 }

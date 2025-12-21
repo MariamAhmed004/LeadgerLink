@@ -322,14 +322,23 @@ namespace LeadgerLink.Server.Controllers
         {
             try
             {
-                // Delegate the query logic to the repository
-                var saleDetail = await _saleRepository.GetSaleByIdAsync(id);
+                //resolve user ID
+                var userId = await ResolveUserIdAsync();
 
-                // Return 404 if no sale is found
-                if (saleDetail == null) return NotFound();
+                if (!userId.HasValue)
+                    return Unauthorized();
+                else
+                {
 
-                // Return the result
-                return Ok(saleDetail);
+                    // Delegate the query logic to the repository
+                    var saleDetail = await _saleRepository.GetSaleByIdAsync(id, userId.Value);
+
+                    // Return 404 if no sale is found
+                    if (saleDetail == null) return NotFound();
+
+                    // Return the result
+                    return Ok(saleDetail);
+                }
             }
             catch (Exception ex)
             {

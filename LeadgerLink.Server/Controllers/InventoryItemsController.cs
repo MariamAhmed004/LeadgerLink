@@ -49,6 +49,9 @@ namespace LeadgerLink.Server.Controllers
         // Repository for VAT category operations
         private readonly IRepository<VatCategory> _vatCategoryRepo;
 
+        // Repository for store-specific queries
+        private readonly IStoreRepository _storeRepository;
+
         // Constructor to initialize dependencies
         public InventoryItemsController(
             LedgerLinkDbContext context,
@@ -59,7 +62,8 @@ namespace LeadgerLink.Server.Controllers
             IAuditLogger auditLogger,
             IAuditContext auditContext,
             IUserRepository userRepository,
-            IRepository<VatCategory> vatCategoryRepo)
+            IRepository<VatCategory> vatCategoryRepo,
+            IStoreRepository storeRepository)
         {
             _context = context;
             _inventoryRepo = inventoryRepo;
@@ -74,6 +78,7 @@ namespace LeadgerLink.Server.Controllers
             // Set audit level to organization level for all actions
             _auditContext.AuditLevel = 2;
             _auditContext.IsAuditEnabled = true;
+            _storeRepository = storeRepository;
         }
 
         // GET api/inventoryitems/lookups
@@ -121,6 +126,9 @@ namespace LeadgerLink.Server.Controllers
             var domainUser = await _userRepository.GetByIdAsync(userId.Value);
             if (domainUser == null) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
 
+            // Validate user's organization association
+            if (!domainUser.OrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
+
             // Determine store ID
             var isOrgAdmin = User.IsInRole("Organization Admin");
             int? resolvedStoreId = null;
@@ -133,8 +141,14 @@ namespace LeadgerLink.Server.Controllers
             {
                 resolvedStoreId = storeId ?? domainUser.StoreId;
                 if (!resolvedStoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
-            }
 
+                // Validate store organization ID
+                var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(resolvedStoreId.Value);
+                if (!storeOrgId.HasValue || storeOrgId.Value != domainUser.OrgId.Value)
+                {
+                    return Forbid("The store does not belong to the same organization as the user.");
+                }
+            }
             try
             {
                 // Normalize stock level
@@ -372,12 +386,41 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("{id:int}")]
         public async Task<ActionResult> GetById(int id)
         {
-            // Fetch inventory item details
-            var dto = await _inventoryRepo.GetDetailByIdAsync(id);
-            if (dto == null) return NotFound();
 
-            // Return inventory item details
-            return Ok(dto);
+            try
+            {
+                //resolve user ID
+                var userId = await ResolveUserIdAsync();
+
+                if (!userId.HasValue)
+                    return Unauthorized();
+                else
+                {
+
+                    //cast to int
+                    int userIdValue = userId.Value;
+
+                    // Fetch inventory item details
+                    var dto = await _inventoryRepo.GetDetailByIdAsync(id, userIdValue);
+                    if (dto == null) return NotFound();
+
+                    // Return inventory item details
+                    return Ok(dto);
+
+                }
+
+
+
+            }
+            catch (Exception ex)
+            {
+                // Log error and return 500 status
+                _logger.LogError(ex, "Failed to retrieve inventory item with ID {Id}", id);
+                await _auditLogger.LogExceptionAsync("Failed to retrieve inventory item", ex.StackTrace);
+                return StatusCode(500, "Failed to retrieve inventory item.");
+            }
+
+
         }
 
         // GET api/inventoryitems/{id}/image

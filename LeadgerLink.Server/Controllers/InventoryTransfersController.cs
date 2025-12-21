@@ -188,12 +188,21 @@ namespace LeadgerLink.Server.Controllers
         {
             try
             {
-                // Fetch the transfer details
-                var dto = await _repository.GetDetailByIdAsync(id);
-                if (dto == null) return NotFound();
+                //resolve user ID
+                var userId = await ResolveUserIdAsync();
 
-                // Return the result
-                return Ok(dto);
+                if (!userId.HasValue)
+                    return Unauthorized();
+                else
+                {
+
+                    // Fetch the transfer details
+                    var dto = await _repository.GetDetailByIdAsync(id, userId.Value);
+                    if (dto == null) return NotFound();
+
+                    // Return the result
+                    return Ok(dto);
+                }
             }
             catch (Exception ex)
             {
@@ -675,6 +684,8 @@ namespace LeadgerLink.Server.Controllers
             // Resolve the user ID and set it in the audit context
             _auditContext.UserId = await ResolveUserIdAsync();
         }
+
+
 
     }
 }

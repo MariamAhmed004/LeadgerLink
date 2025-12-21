@@ -128,41 +128,56 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
 
         // New: detailed product projection
-        public async Task<ProductDetailDto?> GetDetailByIdAsync(int productId)
+        public async Task<ProductDetailDto?> GetDetailByIdAsync(int productId, int loggedInUserId)
         {
-            var q = _context.Products
+            // Fetch the product with related data
+            var product = await _context.Products
                 .Where(p => p.ProductId == productId)
                 .Include(p => p.Recipe)
                 .Include(p => p.InventoryItem)
                 .Include(p => p.Store)
                 .Include(p => p.VatCategory)
-                .AsNoTracking();
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
 
-            var dto = await q.Select(p => new ProductDetailDto
+            if (product == null) return null;
+
+            // Validate that the product's store belongs to the same organization as the logged-in user
+            var isValid = await ValidateOrgAssociationAsync(
+                loggedInUserId: loggedInUserId,
+                storeIds: product.StoreId.HasValue ? new[] { product.StoreId.Value } : Enumerable.Empty<int>()
+            );
+
+            if (!isValid)
             {
-                ProductId = p.ProductId,
-                ProductName = p.ProductName,
-                SellingPrice = p.SellingPrice,
-                CostPrice = p.CostPrice,
-                StoreId = p.StoreId,
-                StoreName = p.Store != null ? p.Store.StoreName : null,
-                IsRecipe = p.RecipeId.HasValue,
-                RecipeId = p.RecipeId,
-                InventoryItemId = p.InventoryItemId,
-                RecipeName = p.Recipe != null ? p.Recipe.RecipeName : null,
-                InventoryItemName = p.InventoryItem != null ? p.InventoryItem.InventoryItemName : null,
-                Description = p.Description,
-                VatCategoryId = p.VatCategoryId,
-                VatCategoryName = p.VatCategory != null ? p.VatCategory.VatCategoryName : null,
-                ImageUrl = p.RecipeId.HasValue
-                    ? (p.Recipe != null && p.Recipe.Image != null && p.Recipe.Image.Length > 0
-                        ? $"data:image;base64,{Convert.ToBase64String(p.Recipe.Image)}"
-                        : null)
-                    : (p.InventoryItem != null && p.InventoryItem.InventoryItemImage != null && p.InventoryItem.InventoryItemImage.Length > 0
-                        ? $"data:image;base64,{Convert.ToBase64String(p.InventoryItem.InventoryItemImage)}"
-                        : null)
+                throw new UnauthorizedAccessException("The product's store does not belong to the same organization as the logged-in user.");
+            }
 
-            }).FirstOrDefaultAsync();
+            // Map the product to the ProductDetailDto
+            var dto = new ProductDetailDto
+            {
+                ProductId = product.ProductId,
+                ProductName = product.ProductName,
+                SellingPrice = product.SellingPrice,
+                CostPrice = product.CostPrice,
+                StoreId = product.StoreId,
+                StoreName = product.Store != null ? product.Store.StoreName : null,
+                IsRecipe = product.RecipeId.HasValue,
+                RecipeId = product.RecipeId,
+                InventoryItemId = product.InventoryItemId,
+                RecipeName = product.Recipe != null ? product.Recipe.RecipeName : null,
+                InventoryItemName = product.InventoryItem != null ? product.InventoryItem.InventoryItemName : null,
+                Description = product.Description,
+                VatCategoryId = product.VatCategoryId,
+                VatCategoryName = product.VatCategory != null ? product.VatCategory.VatCategoryName : null,
+                ImageUrl = product.RecipeId.HasValue
+                    ? (product.Recipe != null && product.Recipe.Image != null && product.Recipe.Image.Length > 0
+                        ? $"data:image;base64,{Convert.ToBase64String(product.Recipe.Image)}"
+                        : null)
+                    : (product.InventoryItem != null && product.InventoryItem.InventoryItemImage != null && product.InventoryItem.InventoryItemImage.Length > 0
+                        ? $"data:image;base64,{Convert.ToBase64String(product.InventoryItem.InventoryItemImage)}"
+                        : null)
+            };
 
             return dto;
         }
@@ -307,5 +322,58 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
     return (inventoryItems, recipes);
 }
+
+        public async Task<bool> ValidateOrgAssociationAsync(
+int loggedInUserId,
+IEnumerable<int>? storeIds = null,
+IEnumerable<int>? userIds = null)
+        {
+            // Fetch the organization ID of the logged-in user
+            var loggedInUserOrgId = await _context.Users
+                .Where(u => u.UserId == loggedInUserId)
+                .Select(u => u.OrgId)
+                .FirstOrDefaultAsync();
+
+            if (!loggedInUserOrgId.HasValue)
+            {
+                throw new UnauthorizedAccessException("Unable to resolve the logged-in user's organization.");
+            }
+
+            // Validate store IDs
+            if (storeIds != null && storeIds.Any())
+            {
+                var storeOrgIds = await _context.Stores
+                    .Where(s => storeIds.Contains(s.StoreId))
+                    .Select(s => s.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any store's OrgId does not match the logged-in user's OrgId, return false
+                if (storeOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // Validate user IDs
+            if (userIds != null && userIds.Any())
+            {
+                var userOrgIds = await _context.Users
+                    .Where(u => userIds.Contains(u.UserId))
+                    .Select(u => u.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any user's OrgId does not match the logged-in user's OrgId, return false
+                if (userOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // If all validations pass, return true
+            return true;
+        }
+
     }
 }

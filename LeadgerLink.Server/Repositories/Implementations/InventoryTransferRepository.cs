@@ -213,9 +213,10 @@ namespace LeadgerLink.Server.Repositories.Implementations
             return statuses;
         }
 
-        public async Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId)
+        public async Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId, int loggedInUserId)
         {
-            var q = _context.InventoryTransfers
+            // Fetch the inventory transfer with related data
+            var transfer = await _context.InventoryTransfers
                 .Include(t => t.FromStoreNavigation)
                 .Include(t => t.ToStoreNavigation)
                 .Include(t => t.InventoryTransferStatus)
@@ -227,23 +228,41 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(t => t.TransferItems)
                     .ThenInclude(it => it.Recipe)
                 .AsNoTracking()
-                .Where(t => t.InventoryTransferId == inventoryTransferId);
+                .FirstOrDefaultAsync(t => t.InventoryTransferId == inventoryTransferId);
 
-            var result = await q.Select(t => new InventoryTransferDetailDto
+            if (transfer == null) return null;
+
+            // Validate that the FromStore and ToStore belong to the same organization as the logged-in user
+            var storeIds = new List<int>();
+            if (transfer.FromStoreNavigation != null) storeIds.Add(transfer.FromStoreNavigation.StoreId);
+            if (transfer.ToStoreNavigation != null) storeIds.Add(transfer.ToStoreNavigation.StoreId);
+
+            var isValid = await ValidateOrgAssociationAsync(
+                loggedInUserId: loggedInUserId,
+                storeIds: storeIds
+            );
+
+            if (!isValid)
             {
-                TransferId = t.InventoryTransferId,
-                FromStoreName = t.FromStoreNavigation != null ? t.FromStoreNavigation.StoreName : null,
-                ToStoreName = t.ToStoreNavigation != null ? t.ToStoreNavigation.StoreName : null,
-                TransferDate = t.TransferDate,
-                Status = t.InventoryTransferStatus != null ? t.InventoryTransferStatus.TransferStatus : null,
-                RequestedAt = t.RequestedAt,
-                RecievedAt = t.RecievedAt,
-                Notes = t.Notes,
-                RequestedByName = t.RequestedByNavigation != null ? ((t.RequestedByNavigation.UserFirstname ?? "") + " " + (t.RequestedByNavigation.UserLastname ?? "")).Trim() : null,
-                ApprovedByName = t.ApprovedByNavigation != null ? ((t.ApprovedByNavigation.UserFirstname ?? "") + " " + (t.ApprovedByNavigation.UserLastname ?? "")).Trim() : null,
-                DriverName = t.Driver != null ? t.Driver.DriverName : null,
-                DriverEmail = t.Driver != null ? t.Driver.DriverEmail : null,
-                Items = t.TransferItems.Select(it => new InventoryTransferItemDto
+                throw new UnauthorizedAccessException("The inventory transfer involves stores that do not belong to the same organization as the logged-in user.");
+            }
+
+            // Map the transfer to the InventoryTransferDetailDto
+            var result = new InventoryTransferDetailDto
+            {
+                TransferId = transfer.InventoryTransferId,
+                FromStoreName = transfer.FromStoreNavigation != null ? transfer.FromStoreNavigation.StoreName : null,
+                ToStoreName = transfer.ToStoreNavigation != null ? transfer.ToStoreNavigation.StoreName : null,
+                TransferDate = transfer.TransferDate,
+                Status = transfer.InventoryTransferStatus != null ? transfer.InventoryTransferStatus.TransferStatus : null,
+                RequestedAt = transfer.RequestedAt,
+                RecievedAt = transfer.RecievedAt,
+                Notes = transfer.Notes,
+                RequestedByName = transfer.RequestedByNavigation != null ? ((transfer.RequestedByNavigation.UserFirstname ?? "") + " " + (transfer.RequestedByNavigation.UserLastname ?? "")).Trim() : null,
+                ApprovedByName = transfer.ApprovedByNavigation != null ? ((transfer.ApprovedByNavigation.UserFirstname ?? "") + " " + (transfer.ApprovedByNavigation.UserLastname ?? "")).Trim() : null,
+                DriverName = transfer.Driver != null ? transfer.Driver.DriverName : null,
+                DriverEmail = transfer.Driver != null ? transfer.Driver.DriverEmail : null,
+                Items = transfer.TransferItems.Select(it => new InventoryTransferItemDto
                 {
                     TransferItemId = it.TransferItemId,
                     InventoryItemId = it.InventoryItemId,
@@ -253,7 +272,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     RecipeId = it.RecipeId,
                     RecipeName = it.Recipe != null ? it.Recipe.RecipeName : null
                 }).ToList()
-            }).FirstOrDefaultAsync();
+            };
 
             return result;
         }
@@ -914,6 +933,58 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .ToListAsync();
 
             return transfers;
+        }
+
+        public async Task<bool> ValidateOrgAssociationAsync(
+int loggedInUserId,
+IEnumerable<int>? storeIds = null,
+IEnumerable<int>? userIds = null)
+        {
+            // Fetch the organization ID of the logged-in user
+            var loggedInUserOrgId = await _context.Users
+                .Where(u => u.UserId == loggedInUserId)
+                .Select(u => u.OrgId)
+                .FirstOrDefaultAsync();
+
+            if (!loggedInUserOrgId.HasValue)
+            {
+                throw new UnauthorizedAccessException("Unable to resolve the logged-in user's organization.");
+            }
+
+            // Validate store IDs
+            if (storeIds != null && storeIds.Any())
+            {
+                var storeOrgIds = await _context.Stores
+                    .Where(s => storeIds.Contains(s.StoreId))
+                    .Select(s => s.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any store's OrgId does not match the logged-in user's OrgId, return false
+                if (storeOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // Validate user IDs
+            if (userIds != null && userIds.Any())
+            {
+                var userOrgIds = await _context.Users
+                    .Where(u => userIds.Contains(u.UserId))
+                    .Select(u => u.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any user's OrgId does not match the logged-in user's OrgId, return false
+                if (userOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // If all validations pass, return true
+            return true;
         }
 
     }

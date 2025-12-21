@@ -114,9 +114,10 @@ namespace LeadgerLink.Server.Repositories.Implementations
         }
 
         // Return detailed recipe DTO including ingredients and related product info.
-        public async Task<RecipeDetailDto?> GetDetailByIdAsync(int recipeId)
+        public async Task<RecipeDetailDto?> GetDetailByIdAsync(int recipeId, int loggedInUserId)
         {
-            var q = _context.Recipes
+            // Fetch the recipe with related data
+            var recipe = await _context.Recipes
                 .Where(r => r.RecipeId == recipeId)
                 .Include(r => r.CreatedByNavigation)
                 .Include(r => r.Store)
@@ -124,33 +125,49 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 .Include(r => r.RecipeInventoryItems)
                     .ThenInclude(rii => rii.InventoryItem)
                 .AsNoTracking()
-                .AsEnumerable();
+                .FirstOrDefaultAsync();
 
-            var dto = q.Select(r => new RecipeDetailDto
+            if (recipe == null) return null;
+
+            // Validate that the recipe's store belongs to the same organization as the logged-in user
+            var isValid = await ValidateOrgAssociationAsync(
+                loggedInUserId: loggedInUserId,
+                storeIds: recipe.StoreId.HasValue ? new[] { recipe.StoreId.Value } : Array.Empty<int>()
+            );
+
+            if (!isValid)
             {
-                RecipeId = r.RecipeId,
-                RecipeName = r.RecipeName,
-                Description = r.Instructions,
-                StoreId = r.StoreId,
-                StoreName = r.Store != null ? r.Store.StoreName : null,
-                CreatedByName = r.CreatedByNavigation != null ? ((r.CreatedByNavigation.UserFirstname ?? "") + " " + (r.CreatedByNavigation.UserLastname ?? "")).Trim() : null,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt,
-                Image = (r.Image != null && r.Image.Length > 0)
-                    ? $"data:image;base64,{Convert.ToBase64String(r.Image)}"
+                throw new UnauthorizedAccessException("The recipe's store does not belong to the same organization as the logged-in user.");
+            }
+
+            // Map the recipe to the RecipeDetailDto
+            var dto = new RecipeDetailDto
+            {
+                RecipeId = recipe.RecipeId,
+                RecipeName = recipe.RecipeName,
+                Description = recipe.Instructions,
+                StoreId = recipe.StoreId,
+                StoreName = recipe.Store != null ? recipe.Store.StoreName : null,
+                CreatedByName = recipe.CreatedByNavigation != null
+                    ? ((recipe.CreatedByNavigation.UserFirstname ?? "") + " " + (recipe.CreatedByNavigation.UserLastname ?? "")).Trim()
                     : null,
-                IsOnSale = r.Products.Any(),
-                RelatedProductId = r.Products.FirstOrDefault() != null ? (int?)r.Products.FirstOrDefault()!.ProductId : null,
-                Ingredients = r.RecipeInventoryItems.Select(rii => new RecipeIngredientDto
+                CreatedAt = recipe.CreatedAt,
+                UpdatedAt = recipe.UpdatedAt,
+                Image = (recipe.Image != null && recipe.Image.Length > 0)
+                    ? $"data:image;base64,{Convert.ToBase64String(recipe.Image)}"
+                    : null,
+                IsOnSale = recipe.Products.Any(),
+                RelatedProductId = recipe.Products.FirstOrDefault() != null ? (int?)recipe.Products.FirstOrDefault()!.ProductId : null,
+                Ingredients = recipe.RecipeInventoryItems.Select(rii => new RecipeIngredientDto
                 {
                     RecipeInventoryItemId = rii.RecipeInventoryItemId,
                     InventoryItemId = rii.InventoryItemId,
                     InventoryItemName = rii.InventoryItem != null ? rii.InventoryItem.InventoryItemName : null,
                     Quantity = rii.Quantity
                 }).ToList()
-            }).FirstOrDefault();
+            };
 
-            return await Task.FromResult(dto);
+            return dto;
         }
 
         // Return all recipes, optionally filtered by organization ID.
@@ -575,5 +592,59 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 return (false, $"An error occurred while receiving recipes: {ex.Message}");
             }
         }
+
+        public async Task<bool> ValidateOrgAssociationAsync(
+int loggedInUserId,
+IEnumerable<int>? storeIds = null,
+IEnumerable<int>? userIds = null)
+        {
+            // Fetch the organization ID of the logged-in user
+            var loggedInUserOrgId = await _context.Users
+                .Where(u => u.UserId == loggedInUserId)
+                .Select(u => u.OrgId)
+                .FirstOrDefaultAsync();
+
+            if (!loggedInUserOrgId.HasValue)
+            {
+                throw new UnauthorizedAccessException("Unable to resolve the logged-in user's organization.");
+            }
+
+            // Validate store IDs
+            if (storeIds != null && storeIds.Any())
+            {
+                var storeOrgIds = await _context.Stores
+                    .Where(s => storeIds.Contains(s.StoreId))
+                    .Select(s => s.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any store's OrgId does not match the logged-in user's OrgId, return false
+                if (storeOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // Validate user IDs
+            if (userIds != null && userIds.Any())
+            {
+                var userOrgIds = await _context.Users
+                    .Where(u => userIds.Contains(u.UserId))
+                    .Select(u => u.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any user's OrgId does not match the logged-in user's OrgId, return false
+                if (userOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // If all validations pass, return true
+            return true;
+        }
+
+
     }
 }

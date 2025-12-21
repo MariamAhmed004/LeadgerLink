@@ -15,7 +15,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<List<ProductListDto>> GetForOrganizationAsync(int organizationId);
 
         // Return detailed product projection for product detail view.
-        Task<ProductDetailDto?> GetDetailByIdAsync(int productId);
+        Task<ProductDetailDto?> GetDetailByIdAsync(int productId, int loggedInUserId);
         Task<(List<(int InventoryItemId, decimal Quantity)> InventoryItems, List<(int RecipeId, decimal Quantity)> Recipes)>
     SeparateProductsAsync(IEnumerable<(int ProductId, decimal Quantity)> productQuantities);
     }

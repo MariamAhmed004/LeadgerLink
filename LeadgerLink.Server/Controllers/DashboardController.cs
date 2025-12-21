@@ -27,13 +27,17 @@ namespace LeadgerLink.Server.Controllers
         // Logger for logging dashboard operations
         private readonly ILogger<DashboardController> _logger;
 
+        // Repository for fetching store data
+        private readonly IStoreRepository _storeRepository;
+
         // Constructor to initialize dependencies
-        public DashboardController(IReportRepository reportRepository, IUserRepository userRepository, IInventoryItemRepository inventoryRepository, ILogger<DashboardController> logger)
+        public DashboardController(IReportRepository reportRepository, IUserRepository userRepository, IInventoryItemRepository inventoryRepository, ILogger<DashboardController> logger, IStoreRepository storeRepository)
         {
             _reportRepository = reportRepository ?? throw new ArgumentNullException(nameof(reportRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _inventoryRepository = inventoryRepository ?? throw new ArgumentNullException(nameof(inventoryRepository));
             _logger = logger;
+            _storeRepository = storeRepository;
         }
 
         // GET api/dashboard/summary
@@ -52,10 +56,22 @@ namespace LeadgerLink.Server.Controllers
                 if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
                 var domainUser = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-
                 domainUser = await _userRepository.GetByIdRelationAsync(domainUser.UserId);
 
                 if (domainUser == null) return Unauthorized();
+
+                var userOrgId = domainUser.OrgId;
+                if (!userOrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
+
+                // ------------------------- Validate store organization ID -------------------------
+                if (storeId.HasValue)
+                {
+                    var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(storeId.Value);
+                    if (!storeOrgId.HasValue || storeOrgId.Value != userOrgId.Value)
+                    {
+                        return Forbid(); // Return 403 Forbidden if the store does not belong to the user's organization
+                    }
+                }
 
                 // ------------------------- Determine scope -------------------------
                 var isStoreManager = string.Equals(domainUser.Role?.RoleTitle, "Store Manager", StringComparison.OrdinalIgnoreCase);

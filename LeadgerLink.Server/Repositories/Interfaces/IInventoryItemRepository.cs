@@ -65,7 +65,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<(IEnumerable<object> Units, IEnumerable<object> VatCategories)> GetLookupsAsync(int? storeId = null);
 
         // Return a DTO shaped for API consumption (avoids serializing EF navigation cycles)
-        Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId);
+        Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId, int loggedInUser);
 
         // Organization-wide paged listing with filtering & total count
         Task<(IEnumerable<InventoryItemListDto> Items, int TotalCount)> GetPagedForOrganizationAsync(

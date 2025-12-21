@@ -389,45 +389,62 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
         // Add this method inside the InventoryItemRepository class (use existing _context).
         // Requires: using LeadgerLink.Server.Dtos; using Microsoft.EntityFrameworkCore;
-        public async Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId)
+        public async Task<InventoryItemDetailDto?> GetDetailByIdAsync(int inventoryItemId, int loggedInUserId)
         {
-            return await _context.InventoryItems
+            // Fetch the inventory item details
+            var inventoryItem = await _context.InventoryItems
                 .Where(i => i.InventoryItemId == inventoryItemId)
-                .Select(i => new InventoryItemDetailDto
+                .Select(i => new
                 {
-                    InventoryItemId = i.InventoryItemId,
-                    InventoryItemName = i.InventoryItemName,
-                    Description = i.Description,
-                    Quantity = i.Quantity,
-                    MinimumQuantity = i.MinimumQuantity,
-                    CostPerUnit = i.CostPerUnit,
-                    UnitId = i.UnitId,
-                    UnitName = i.Unit != null ? i.Unit.UnitName : null,
-                    SupplierId = i.SupplierId,
-                    SupplierName = i.Supplier != null ? i.Supplier.SupplierName : null,
-                    SupplierContact = i.Supplier != null ? i.Supplier.ContactMethod : null,
-                    CategoryId = i.InventoryItemCategoryId,
-                    CategoryName = i.InventoryItemCategory != null ? i.InventoryItemCategory.InventoryItemCategoryName : null,
-                    StoreId = i.StoreId,
-                    StoreName = i.Store != null ? i.Store.StoreName : null,
-                    StockLevel = (i.Quantity <= 0) ? "Out of Stock" :
-                                 (i.MinimumQuantity.HasValue && i.Quantity < i.MinimumQuantity.Value) ? "Low Stock" :
-                                 "In Stock",
-                    ImageDataUrl = i.InventoryItemImage != null && i.InventoryItemImage.Length > 0
-                                   ? $"data:image;base64,{Convert.ToBase64String(i.InventoryItemImage)}"
-                                   : null,
-                    CreatedByName = i.User != null ? ((i.User.UserFirstname ?? "") + " " + (i.User.UserLastname ?? "")).Trim() : null,
-                    CreatedAt = i.CreatedAt,
-                    UpdatedAt = i.UpdatedAt,
-                    RelatedProductId = i.Products != null
-                        ? i.Products
-                            .Where(p => p.InventoryItemId == i.InventoryItemId)
-                            .Select(p => (int?)p.ProductId)
-                            .FirstOrDefault()
-                        : null
+                    i.StoreId,
+                    Detail = new InventoryItemDetailDto
+                    {
+                        InventoryItemId = i.InventoryItemId,
+                        InventoryItemName = i.InventoryItemName,
+                        Description = i.Description,
+                        Quantity = i.Quantity,
+                        MinimumQuantity = i.MinimumQuantity,
+                        CostPerUnit = i.CostPerUnit,
+                        UnitId = i.UnitId,
+                        UnitName = i.Unit != null ? i.Unit.UnitName : null,
+                        SupplierId = i.SupplierId,
+                        SupplierName = i.Supplier != null ? i.Supplier.SupplierName : null,
+                        SupplierContact = i.Supplier != null ? i.Supplier.ContactMethod : null,
+                        CategoryId = i.InventoryItemCategoryId,
+                        CategoryName = i.InventoryItemCategory != null ? i.InventoryItemCategory.InventoryItemCategoryName : null,
+                        StoreId = i.StoreId,
+                        StoreName = i.Store != null ? i.Store.StoreName : null,
+                        StockLevel = (i.Quantity <= 0) ? "Out of Stock" :
+                                     (i.MinimumQuantity.HasValue && i.Quantity < i.MinimumQuantity.Value) ? "Low Stock" :
+                                     "In Stock",
+                        ImageDataUrl = i.InventoryItemImage != null && i.InventoryItemImage.Length > 0
+                                       ? $"data:image;base64,{Convert.ToBase64String(i.InventoryItemImage)}"
+                                       : null,
+                        CreatedByName = i.User != null ? ((i.User.UserFirstname ?? "") + " " + (i.User.UserLastname ?? "")).Trim() : null,
+                        CreatedAt = i.CreatedAt,
+                        UpdatedAt = i.UpdatedAt,
+                        RelatedProductId = i.Products != null
+                            ? i.Products
+                                .Where(p => p.InventoryItemId == i.InventoryItemId)
+                                .Select(p => (int?)p.ProductId)
+                                .FirstOrDefault()
+                            : null
+                    }
                 })
-                .AsNoTracking()
                 .FirstOrDefaultAsync();
+
+            // If the inventory item does not exist, return null
+            if (inventoryItem == null) return null;
+
+            // Validate that the store's OrgId matches the logged-in user's OrgId
+            var isValid = await ValidateOrgAssociationAsync(loggedInUserId, storeIds: new[] { inventoryItem.StoreId });
+            if (!isValid)
+            {
+                throw new UnauthorizedAccessException("The inventory item's store does not belong to the same organization as the logged-in user.");
+            }
+
+            // Return the inventory item details
+            return inventoryItem.Detail;
         }
 
         public async Task<(bool Success, List<int> InsufficientInventoryItems, List<int> InsufficientRecipeIngredients)> DeductQuantitiesAsync(
@@ -871,6 +888,56 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
         }
 
+        public async Task<bool> ValidateOrgAssociationAsync(
+    int loggedInUserId,
+    IEnumerable<int>? storeIds = null,
+    IEnumerable<int>? userIds = null)
+        {
+            // Fetch the organization ID of the logged-in user
+            var loggedInUserOrgId = await _context.Users
+                .Where(u => u.UserId == loggedInUserId)
+                .Select(u => u.OrgId)
+                .FirstOrDefaultAsync();
 
+            if (!loggedInUserOrgId.HasValue)
+            {
+                throw new UnauthorizedAccessException("Unable to resolve the logged-in user's organization.");
+            }
+
+            // Validate store IDs
+            if (storeIds != null && storeIds.Any())
+            {
+                var storeOrgIds = await _context.Stores
+                    .Where(s => storeIds.Contains(s.StoreId))
+                    .Select(s => s.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any store's OrgId does not match the logged-in user's OrgId, return false
+                if (storeOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // Validate user IDs
+            if (userIds != null && userIds.Any())
+            {
+                var userOrgIds = await _context.Users
+                    .Where(u => userIds.Contains(u.UserId))
+                    .Select(u => u.OrgId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // If any user's OrgId does not match the logged-in user's OrgId, return false
+                if (userOrgIds.Any(orgId => orgId != loggedInUserOrgId.Value))
+                {
+                    return false;
+                }
+            }
+
+            // If all validations pass, return true
+            return true;
+        }
     }
 }

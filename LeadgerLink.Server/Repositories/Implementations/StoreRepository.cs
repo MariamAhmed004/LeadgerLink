@@ -150,5 +150,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
         }
 
+
+        public async Task<int?> GetOrganizationIdByStoreIdAsync(int storeId)
+        {
+            return await _context.Stores
+                .Where(store => store.StoreId == storeId)
+                .Select(store => store.OrgId)
+                .FirstOrDefaultAsync();
+        }
     }
 }

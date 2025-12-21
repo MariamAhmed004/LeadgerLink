@@ -137,16 +137,12 @@ const InventoryTransferView = () => {
   // --------------------------------------------------
   // DATA PROCESSING: build items list JSX
   // --------------------------------------------------
-  // Build items list JSX with image fallback and name resolution
+  // Build items list JSX 
   const itemsJsx =
     transfer.items && transfer.items.length ? (
       <ul style={{ margin: 0, paddingLeft: "0", listStyle: "none" }}>
         {transfer.items.map((it) => {
-          // resolve image source: prefer explicit url; else build from inventoryItemId; else base64
-          const explicitUrl = it.imageUrl || it.inventoryItemImageUrl || null;
-          const builtUrl = it.inventoryItemId ? `/api/inventoryitems/${encodeURIComponent(it.inventoryItemId)}/image` : null;
-          const base64 = it.imageBase64 || it.inventoryItemImage || null;
-          const src = explicitUrl || builtUrl || (base64 ? `data:image/jpeg;base64,${base64}` : null);
+     
 
           // determine display name using available fields
           const name = it.inventoryItemName
@@ -160,22 +156,7 @@ const InventoryTransferView = () => {
 
           return (
             <li key={it.transferItemId} className="d-flex align-items-center py-1">
-              <div className="me-2" style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", background: "#f1f1f1", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {src ? (
-                  <img
-                    src={src}
-                    alt={name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = "/placeholder.png";
-                    }}
-                  />
-                ) : (
-                  // simple fallback visual
-                  <span className="text-muted" style={{ fontSize: 10 }}>no image</span>
-                )}
-              </div>
+              
               <div className="flex-grow-1">
                 <span>{name}{qty}{req}</span>
               </div>

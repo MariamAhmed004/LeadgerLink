@@ -127,12 +127,38 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("{id:int}")]
         public async Task<ActionResult> GetById(int id)
         {
-            // Fetch the product details
-            var dto = await _productRepository.GetDetailByIdAsync(id);
-            if (dto == null) return NotFound();
+            try
+            {
 
-            // Return the result
-            return Ok(dto);
+                //resolve user ID
+                var userId = await ResolveUserIdAsync();
+
+                if (!userId.HasValue)
+                    return Unauthorized();
+                else
+                {
+                    // Fetch the product details
+                    var dto = await _productRepository.GetDetailByIdAsync(id, userId.Value);
+                    if (dto == null) return NotFound();
+
+                    // Return the result
+                    return Ok(dto);
+
+                }
+
+            }
+            catch (DbUpdateException dbEx)
+            {
+                // Log the exception (not shown here for brevity)
+                return StatusCode(500, "A database error occurred while processing your request.");
+            }
+            catch (System.Exception ex)
+            {
+                // Log the exception (not shown here for brevity)
+                return StatusCode(500, "An unexpected error occurred while processing your request.");
+            }
+
+
         }
 
         // PUT: api/products/{id}
@@ -233,5 +259,7 @@ namespace LeadgerLink.Server.Controllers
             // Resolve the user ID and set it in the audit context
             _auditContext.UserId = await ResolveUserIdAsync();
         }
+
+
     }
 }

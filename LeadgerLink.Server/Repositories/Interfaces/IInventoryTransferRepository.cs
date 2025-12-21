@@ -34,7 +34,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<IEnumerable<string>> GetStatusesAsync();
 
         // Return detailed transfer by id including related entities and transfer items.
-        Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId);
+        Task<InventoryTransferDetailDto?> GetDetailByIdAsync(int inventoryTransferId, int loggedInUserId);
 
         // Update transfer items for a transfer id with the provided selection (replace-all strategy).
         Task UpdateTransferItemsAsync(int transferId, IEnumerable<CreateInventoryTransferItemDto> items);
