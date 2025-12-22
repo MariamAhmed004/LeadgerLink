@@ -647,5 +647,55 @@ IEnumerable<int>? userIds = null)
         }
 
 
+        public async Task<bool> DeleteRecipeAsync(int recipeId)
+        {
+            try
+            {
+                // Step 1: Fetch the recipe
+                var recipe = await _context.Recipes
+                    .Include(r => r.Products) // Include associated products
+                    .Include(r => r.RecipeInventoryItems) // Include transfer items
+                    .FirstOrDefaultAsync(r => r.RecipeId == recipeId);
+
+                if (recipe == null)
+                {
+                    throw new KeyNotFoundException($"Recipe with ID {recipeId} not found.");
+                }
+
+                // Step 2: Remove sale items associated with the product
+                var associatedProduct = await _context.Products.FirstOrDefaultAsync(p => p.RecipeId == recipeId);
+                if (associatedProduct != null)
+                {
+                    var saleItems = _context.SaleItems.Where(si => si.ProductId == associatedProduct.ProductId);
+                    _context.SaleItems.RemoveRange(saleItems);
+
+                    // Step 3: Delete the associated product
+                    _context.Products.Remove(associatedProduct);
+                }
+
+                // Step 4: Remove transfer items associated with the recipe
+                var transferItems = _context.TransferItems.Where(ti => ti.RecipeId == recipeId);
+                _context.TransferItems.RemoveRange(transferItems);
+
+                // Step 5: Remove recipe inventory items
+                var recipeInventoryItems = _context.RecipeInventoryItems.Where(rii => rii.RecipeId == recipeId);
+                _context.RecipeInventoryItems.RemoveRange(recipeInventoryItems);
+
+                // Step 6: Delete the recipe itself
+                _context.Recipes.Remove(recipe);
+
+                // Save changes to the database
+                await _context.SaveChangesAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (if logging is implemented)
+                Console.WriteLine($"Error deleting recipe: {ex.Message}");
+                return false;
+            }
+        }
+
     }
 }

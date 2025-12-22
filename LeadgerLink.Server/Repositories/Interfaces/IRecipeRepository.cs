@@ -54,6 +54,7 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<(bool Success, string Message)> ReceiveRecipesAsync(
     List<(int RecipeId, decimal Quantity)> recipes,
     int storeId);
-
+        // Deletes a recipe along with its associated product, transfer items, sale items, and inventory items.
+        Task<bool> DeleteRecipeAsync(int recipeId);
     }
 }

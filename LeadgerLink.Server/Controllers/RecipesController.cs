@@ -370,7 +370,7 @@ namespace LeadgerLink.Server.Controllers
                 var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId.Value);
                 if (store == null) return BadRequest("Invalid store ID.");
 
-                // Ensure store belongs to same organization as the logged-in admin
+                // Ensure store belongs to the same organization as the logged-in admin
                 if (!domainUser.OrgId.HasValue || store.OrgId != domainUser.OrgId)
                 {
                     return Forbid("The specified store does not belong to the same organization as the user.");
@@ -397,6 +397,39 @@ namespace LeadgerLink.Server.Controllers
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to update recipe");
                 return StatusCode(500, "Failed to update recipe.");
+            }
+        }
+
+        // DELETE api/recipes/{recipeId}
+        // Deletes a recipe along with its associated product, transfer items, sale items, and inventory items.
+        [Authorize(Roles = "Organization Admin,Store Manager")]
+        [HttpDelete("{recipeId:int}")]
+        public async Task<IActionResult> Delete(int recipeId)
+        {
+            try
+            {
+                //set the audit context user ID
+                await SetAuditContextUserId();
+
+                // Call the repository method to delete the recipe
+                var success = await _recipeRepository.DeleteRecipeAsync(recipeId);
+
+                if (!success)
+                {
+                    return StatusCode(500, "Failed to delete the recipe.");
+                }
+
+                return NoContent(); // Return 204 No Content on successful deletion
+            }
+            catch (KeyNotFoundException ex)
+            {
+                _logger.LogError(ex, "Recipe not found for deletion");
+                return NotFound("Recipe not found.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete recipe");
+                return StatusCode(500, "Failed to delete recipe.");
             }
         }
 

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { FaPencilAlt } from "react-icons/fa";
-import { useParams, Link } from "react-router-dom";
+import { FaPencilAlt, FaTrash } from "react-icons/fa";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
 import { FaBookBookmark } from "react-icons/fa6";
+import InfoModal from "../../components/Ui/InfoModal";
+import { useAuth } from "../../Context/AuthContext";
 
 /*
   RecipeView
@@ -17,12 +19,17 @@ import { FaBookBookmark } from "react-icons/fa6";
 // --------------------------------------------------
 const RecipeView = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
+
   // loading indicator while fetch runs
   const [loading, setLoading] = useState(true);
   // error string shown when fetch fails
   const [error, setError] = useState("");
   // recipe DTO returned by API
   const [recipe, setRecipe] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false); // State for delete confirmation modal
+  const [deleting, setDeleting] = useState(false); // State for delete operation
 
   // --------------------------------------------------
   // EFFECT: load recipe with ingredients on mount / id change
@@ -68,6 +75,33 @@ const RecipeView = () => {
   }, [id]);
 
   // --------------------------------------------------
+  // DELETE RECIPE HANDLER
+  // --------------------------------------------------
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/recipes/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Failed to delete recipe (status ${res.status})`);
+      }
+
+      // Navigate back to the recipes list after successful deletion
+      navigate("/recipes", { state: { type: "deleted", name: recipe.recipeName } });
+    } catch (ex) {
+      console.error("Failed to delete recipe", ex);
+      alert(ex?.message || "Failed to delete recipe.");
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  // --------------------------------------------------
   // PREPARE HEADER / ACTIONS
   // --------------------------------------------------
   // Note: actions intentionally passed separately to the template
@@ -86,6 +120,16 @@ const RecipeView = () => {
     },
     { icon: null, title: "Back to recipes", route: "/recipes" },
   ];
+
+  // Add "Delete Recipe" button for allowed roles
+  const allowedRoles = ["Organization Admin", "Store Manager"];
+  if (loggedInUser?.roles?.some((role) => allowedRoles.includes(role))) {
+    actions.unshift({
+      icon: <FaTrash />,
+      title: "Delete Recipe",
+      onClick: () => setShowDeleteModal(true),
+    });
+  }
 
   // --------------------------------------------------
   // RENDER: loading / error / not found handling
@@ -201,13 +245,53 @@ const RecipeView = () => {
   // FINAL RENDER: detail view with image and metadata
   // --------------------------------------------------
   return (
-    <DetailViewWithImage
-      headerProps={headerProps}
-      detail={detail}
-      metadataUnderImage={metadata}
-      actions={actions}
-      image={image}
-    />
+    <>
+      <DetailViewWithImage
+        headerProps={headerProps}
+        detail={detail}
+        metadataUnderImage={metadata}
+        actions={actions}
+        image={image}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <InfoModal
+        show={showDeleteModal}
+        title="Confirm Recipe Deletion"
+        onClose={() => setShowDeleteModal(false)}
+      >
+        <p>
+          Are you sure you want to delete the recipe <strong>{recipe.recipeName}</strong>?
+        </p>
+        <ul>
+          <li>
+            <strong>Product:</strong> {recipe.isOnSale ? "Will be removed" : "N/A"}
+          </li>
+          <li>
+            <strong>Sale Details:</strong> {recipe.isOnSale ? "Will be removed" : "N/A"}
+          </li>
+          <li>
+            <strong>Transfer Items:</strong> Will be removed
+          </li>
+        </ul>
+        <div className="text-end">
+          <button
+            className="btn btn-danger me-2"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowDeleteModal(false)}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
+        </div>
+      </InfoModal>
+    </>
   );
 };
 
