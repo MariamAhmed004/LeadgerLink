@@ -123,49 +123,53 @@ const ProductEdit = () => {
   // --------------------------------------------------
   // SUBMIT: validate and PUT updates
   // --------------------------------------------------
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    if (!productName.trim()) return setError("Product name is required");
-    if (!vatCategoryId) return setError("Select VAT category");
-    if (!sellingPrice || isNaN(Number(sellingPrice))) return setError("Provide a valid selling price");
-    setSaving(true);
-    try {
-      const payload = {
-        productId: Number(id),
-        productName: productName.trim(),
-        vatCategoryId: Number(vatCategoryId),
-        sellingPrice: Number(Number(sellingPrice).toFixed(3)),
-        description: description || null
-      };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError("");
 
-      // Append storeId query only when current user is Organization Admin and we have a storeId from the product details
-      let apiUrl = `/api/products/${encodeURIComponent(id)}`;
-      const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
-      if (isOrgAdmin && storeId) {
-        apiUrl += `?storeId=${encodeURIComponent(storeId)}`;
-      }
+        // Validation checks
+        if (!productName.trim()) return setError("Product name is required");
+        if (!vatCategoryId) return setError("Select VAT category");
+        if (!sellingPrice || isNaN(Number(sellingPrice))) return setError("Provide a valid selling price");
+        if (Number(sellingPrice) < 0) return setError("Selling price cannot be negative");
 
-      // Persist changes
-      const res = await fetch(apiUrl, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => null);
-        throw new Error(txt || `Failed to save product (${res.status})`);
-      }
-      // Navigate back to products list with a transient success state
-      navigate('/products', { state: { updated: true, updatedName: `Product ${id}` } });
-    } catch (err) {
-      console.error(err);
-      setError(err?.message || 'Failed to save product');
-    } finally {
-      setSaving(false);
-    }
-  };
+        setSaving(true);
+        try {
+            const payload = {
+                productId: Number(id),
+                productName: productName.trim(),
+                vatCategoryId: Number(vatCategoryId),
+                sellingPrice: Number(Number(sellingPrice).toFixed(3)),
+                description: description || null
+            };
+
+            // Append storeId query only when current user is Organization Admin and we have a storeId from the product details
+            let apiUrl = `/api/products/${encodeURIComponent(id)}`;
+            const isOrgAdmin = loggedInUser && Array.isArray(loggedInUser.roles) && loggedInUser.roles.includes("Organization Admin");
+            if (isOrgAdmin && storeId) {
+                apiUrl += `?storeId=${encodeURIComponent(storeId)}`;
+            }
+
+            // Persist changes
+            const res = await fetch(apiUrl, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => null);
+                throw new Error(txt || `Failed to save product (${res.status})`);
+            }
+            // Navigate back to products list with a transient success state
+            navigate('/products', { state: { updated: true, updatedName: `Product ${id}` } });
+        } catch (err) {
+            console.error(err);
+            setError(err?.message || 'Failed to save product');
+        } finally {
+            setSaving(false);
+        }
+    };
 
   // --------------------------------------------------
   // HEADER ACTIONS: related recipe/item button
@@ -205,8 +209,8 @@ const ProductEdit = () => {
           <div className="col-12 col-md-6">
             <InputField label="Product Name" value={productName} onChange={setProductName} required placeholder="Product name" />
           </div>
-          <div className="col-12 col-md-6">
-            <SelectField label="VAT" value={vatCategoryId} onChange={setVatCategoryId} options={vatOptions} />
+                  <div className="col-12 col-md-6">
+                      <SelectField label="VAT" value={vatCategoryId} onChange={setVatCategoryId} options={vatOptions} required />
           </div>
           <div className="col-12 col-md-6">
             <InputField label="Selling Price (BHD)" value={sellingPrice} onChange={setSellingPrice} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />

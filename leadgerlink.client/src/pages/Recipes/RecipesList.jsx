@@ -8,6 +8,7 @@ import FilterSelect from "../../components/Listing/FilterSelect";
 import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
 import { useAuth } from "../../Context/AuthContext";
+import { useLocation } from 'react-router-dom';
 
 /*
   RecipesManagement (RecipesList.jsx)
@@ -22,7 +23,8 @@ import { useAuth } from "../../Context/AuthContext";
 const RecipesManagement = () => {
   // Auth context and role check
   const { loggedInUser } = useAuth();
-  const isOrgAdmin = Array.isArray(loggedInUser?.roles) && loggedInUser.roles.includes("Organization Admin");
+    const isOrgAdmin = Array.isArray(loggedInUser?.roles) && loggedInUser.roles.includes("Organization Admin");
+    const location = useLocation();
 
   // --------------------------------------------------
   // STATE: filters, pagination, data and UI
@@ -161,7 +163,20 @@ const RecipesManagement = () => {
             route: "/recipes/new",
           },
         ]}
-      />
+          />
+
+          {location.state?.type === "added" && (
+              <div className="alert alert-success">
+                  {location.state.name} was successfully added.
+              </div>
+          )}
+
+          {location.state?.type === "updated" && (
+              <div className="alert alert-info">
+                  {location.state.name} was successfully updated.
+              </div>
+          )}
+
 
       <FilterSection
         searchValue={searchTerm}

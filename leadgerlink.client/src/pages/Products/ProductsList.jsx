@@ -5,7 +5,8 @@ import FilterSelect from '../../components/Listing/FilterSelect';
 import EntityTable from '../../components/Listing/EntityTable';
 import PaginationSection from '../../components/Listing/PaginationSection';
 import { BiSolidPackage } from "react-icons/bi";
-import { useAuth } from '../../Context/AuthContext'; // Import the AuthContext to get the logged-in user
+import { useAuth } from '../../Context/AuthContext'; 
+import { useLocation } from 'react-router-dom';
 
 /*
   ProductsList.jsx
@@ -23,7 +24,9 @@ export default function ProductsList() {
   const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
   const isOrgAdmin = roles.includes("Organization Admin");
   // organization id if available (used when calling org endpoints)
-  const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+    const orgId = loggedInUser?.orgId ?? loggedInUser?.OrgId ?? null;
+
+    const location = useLocation();
 
   // --------------------------------------------------
   // STATE: filters, paging, data and UI
@@ -164,6 +167,14 @@ export default function ProductsList() {
         ]}
         actions={[]}
       />
+
+          {/* Success Alert */}
+          {location.state?.updated && (
+              <div className="alert alert-success">
+                  {location.state.updatedName} was successfully updated.
+              </div>
+          )}
+
 
       <FilterSection
         searchValue={searchTerm}

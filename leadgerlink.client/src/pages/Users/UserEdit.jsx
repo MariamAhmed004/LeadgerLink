@@ -217,8 +217,7 @@ export default function UserEdit() {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Failed to update user (${res.status})`);
       }
-      navigate(`/users/${id}`);
-    } catch (ex) {
+        navigate("/users", { state: { successMsg: "User updated successfully!" } });    } catch (ex) {
       setError(ex.message || "Failed to update user");
     } finally {
       setSaving(false);

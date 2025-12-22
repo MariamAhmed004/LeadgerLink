@@ -34,7 +34,7 @@ export default function RestockItemsPage() {
   // loading / error / info UI flags
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState(''); // FIX: define info state
+  const [info, setInfo] = useState('');
 
   // --------------------------------------------------
   // HELPERS
@@ -90,14 +90,12 @@ export default function RestockItemsPage() {
       // clear selection-related UI when no item chosen
       setSelectedItem(null);
       setInputQuantity('');
-      setInfo('');
       return;
     }
     // find the selected item in the loaded items list
     const found = items.find(it => String(it.inventoryItemId ?? it.id ?? '') === String(selectedItemId));
     setSelectedItem(found || null);
     setInputQuantity('');
-    setInfo('');
   }, [selectedItemId, items]);
 
   // --------------------------------------------------
@@ -153,7 +151,13 @@ export default function RestockItemsPage() {
       );
       setSelectedItem(si => si ? { ...si, quantity: newQty } : si);
       setInputQuantity('');
-      setInfo('Quantity updated successfully. You can continue restocking.');
+        setInfo('Quantity updated successfully. You can continue entering quantities for other items.');
+
+        // Automatically clear the alert after 5 seconds
+        setTimeout(() => {
+            setInfo('');
+        }, 3500);
+
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to restock item');
@@ -188,16 +192,9 @@ export default function RestockItemsPage() {
             </div>
           )}
 
-          {info && (
-            <div className="col-12">
-              <div className="alert alert-success text-start">{info}</div>
-            </div>
-          )}
-
-          {/* Row 1: item select + readonly unit */}
-                  <div className="col-12 col-md-6 text-start">
-                      <SelectField
-                          searchable
+          <div className="col-12 col-md-6 text-start">
+            <SelectField
+              searchable
               label="Inventory Item"
               value={selectedItemId}
               onChange={setSelectedItemId}
@@ -219,7 +216,6 @@ export default function RestockItemsPage() {
 
           <div className="col-12 my-3" />
 
-          {/* Row 2: quantity input + calculation display */}
           <div className="col-12 col-md-6">
             <InputField
                           label="Quantity to add"
@@ -235,16 +231,15 @@ export default function RestockItemsPage() {
           </div>
 
           <div className="col-12 col-md-6">
-                      <FieldWrapper label="Result" className={"text-start"}>
+            <FieldWrapper label="Result" className={"text-start"}>
               <div className="border rounded p-2 ">
-                              <div>
-                                  Total after restock: <strong>{Number(prevQuantity ?? 0).toFixed(3)}</strong> +  <strong>{parsedInputQty.toFixed(3)}</strong> =  <strong>{totalQuantity.toFixed(3)}</strong>
-                              </div>
+                <div>
+                  Total after restock: <strong>{Number(prevQuantity ?? 0).toFixed(3)}</strong> +  <strong>{parsedInputQty.toFixed(3)}</strong> =  <strong>{totalQuantity.toFixed(3)}</strong>
+                </div>
               </div>
             </FieldWrapper>
           </div>
 
-          {/* Action buttons */}
           <div className="col-12 col-md-6 offset-md-6 d-flex justify-content-end">
             <FormActions
               onCancel={() => navigate('/inventory')}
@@ -255,6 +250,12 @@ export default function RestockItemsPage() {
           </div>
         </div>
       </FormBody>
+
+      {info && (
+        <div className="alert alert-success text-start mt-4">
+          {info}
+        </div>
+      )}
     </div>
   );
 }

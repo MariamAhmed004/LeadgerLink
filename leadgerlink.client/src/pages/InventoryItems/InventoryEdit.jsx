@@ -304,7 +304,7 @@ const InventoryItemEdit = () => {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate("/inventory");
+        navigate("/inventory", { state: { type: "updated", name: `Inventory Item "${itemName}"` } });
     } catch (err) {
       console.error(err);
       setError(err.message || "Save failed");

@@ -333,8 +333,7 @@ const RecipeNew = () => {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate("/recipes");
-    } catch (ex) {
+        navigate("/recipes", { state: { type: "added", name: `Recipe "${recipeName}"` } });    } catch (ex) {
       console.error(ex);
       setError(ex.message || "Save failed");
     } finally {

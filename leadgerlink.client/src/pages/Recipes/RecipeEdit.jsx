@@ -289,8 +289,7 @@ const RecipeEdit = () => {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate('/recipes');
-    } catch (ex) {
+        navigate("/recipes", { state: { type: "updated", name: `Recipe "${recipeName}"` } });    } catch (ex) {
       console.error(ex);
       setError(ex?.message || 'Failed to save recipe');
     } finally {

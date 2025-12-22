@@ -208,8 +208,7 @@ const SaleEdit = () => {
         throw new Error(txt || `Server returned ${res.status}`);
       }
 
-      navigate(`/sales/${id}`);
-    } catch (err) {
+        navigate("/sales", { state: { type: "updated", name: `Sale "${id}"` } });    } catch (err) {
       console.error(err);
       setError(err.message || "Save failed");
     } finally {

@@ -26,7 +26,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         // Daily totals for the current month for a store.
         public async Task<IEnumerable<DailySalesDto>> GetDailySalesForCurrentMonthAsync(int storeId)
         {
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
             var year = now.Year;
             var month = now.Month;
 
@@ -267,7 +267,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         // Sum sales for the current month for a specific store.
         public async Task<decimal> SumSalesForCurrentMonthAsync(int storeId)
         {
-            var now = DateTime.UtcNow;
+            var now = DateTime.Now;
             var year = now.Year;
             var month = now.Month;
 
@@ -318,15 +318,15 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Step 1: Create the sale
             var sale = new Sale
             {
-                Timestamp = dto.Timestamp == default ? DateTime.UtcNow : dto.Timestamp,
+                Timestamp = dto.Timestamp == default ? DateTime.Now : dto.Timestamp,
                 UserId = userId, // always the current logged-in user
                 StoreId = storeId,
                 TotalAmount = dto.TotalAmount,
                 AppliedDiscount = dto.AppliedDiscount,
                 PaymentMethodId = dto.PaymentMethodId,
                 Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim(),
-                CreatedAt = DateTime.UtcNow.ToString("o"),
-                UpdatedAt = DateTime.UtcNow.ToString("o")
+                CreatedAt = DateTime.Now.ToString("o"),
+                UpdatedAt = DateTime.Now.ToString("o")
             };
 
             _context.Sales.Add(sale);
@@ -441,7 +441,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             sale.AppliedDiscount = dto.AppliedDiscount;
             sale.PaymentMethodId = dto.PaymentMethodId;
             sale.Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes!.Trim();
-            sale.UpdatedAt = DateTime.UtcNow.ToString("o");
+            sale.UpdatedAt = DateTime.Now.ToString("o");
 
             // Replace existing sale items with those provided by the client
             _context.SaleItems.RemoveRange(sale.SaleItems);

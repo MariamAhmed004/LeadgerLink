@@ -348,7 +348,7 @@ public partial class LedgerLinkDbContext : DbContext
 
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = previousValues.Count > 0 ? JsonSerializer.Serialize(previousValues) : null,
                 NewValue = currentValues.Count > 0 ? JsonSerializer.Serialize(currentValues) : null,
                 Details = entry.State.ToString(),

@@ -434,8 +434,8 @@ const SalesNew = () => {
         show={showSummary}
         title="Sale Summary"
         onClose={() => {
-          setShowSummary(false);
-          navigate("/sales");
+            setShowSummary(false);
+            navigate("/sales", { state: { type: "added", name: `Sale "${timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"` } });
         }}
       >
         <div className="mb-2">
@@ -449,7 +449,10 @@ const SalesNew = () => {
           )}
         </div>
         <div className="mt-3 text-end">
-          <button className="btn btn-primary" onClick={() => { setShowSummary(false); navigate("/sales"); }}>
+                  <button className="btn btn-primary" onClick={() => {
+                      setShowSummary(false); 
+                      navigate("/sales", { state: { type: "added", name: `Sale "${timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"` } });
+ }}>
             OK
           </button>
         </div>

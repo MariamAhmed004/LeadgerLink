@@ -7,6 +7,8 @@ import FilterDate from "../../components/Listing/FilterDate";
 import EntityTable from "../../components/Listing/EntityTable";
 import PaginationSection from "../../components/Listing/PaginationSection";
 import { useAuth } from "../../Context/AuthContext";
+import { useLocation } from "react-router-dom";
+
 
 /*
   SalesList.jsx
@@ -20,7 +22,9 @@ import { useAuth } from "../../Context/AuthContext";
 // STATE / HOOKS
 // --------------------------------------------------
 const SalesListPage = () => {
-  const { loggedInUser } = useAuth();
+    const { loggedInUser } = useAuth();
+    const location = useLocation();
+
 
   // filter fields
   const [createdBy, setCreatedBy] = useState("");
@@ -197,7 +201,19 @@ const SalesListPage = () => {
             route: "/sales/new",
           },
         ]}
-      />
+          />
+
+          {location.state?.type === "added" && (
+              <div className="alert alert-success">
+                  {location.state.name} was successfully added.
+              </div>
+          )}
+
+          {location.state?.type === "updated" && (
+              <div className="alert alert-info">
+                  {location.state.name} was successfully updated.
+              </div>
+          )}
 
       <FilterSection
         searchValue={searchTerm}

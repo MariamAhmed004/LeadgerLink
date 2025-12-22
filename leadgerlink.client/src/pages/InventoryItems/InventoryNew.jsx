@@ -175,43 +175,41 @@ const InventoryItemNew = () => {
   // --------------------------------------------------
   // VALIDATION / PAYLOAD BUILDING
   // --------------------------------------------------
-  const validate = () => {
-    const errors = [];
+    const validate = () => {
+        const errors = [];
 
-    if (!isTextValid(itemName)) errors.push("Item Name must be at least 3 characters.");
+        if (!isTextValid(itemName)) errors.push("Item Name must be at least 3 characters.");
 
-    if (shortDescription && String(shortDescription).trim().length > 0 && !isTextValid(shortDescription))
-      errors.push("Short description must be at least 3 characters when provided.");
+        if (shortDescription && String(shortDescription).trim().length > 0 && !isTextValid(shortDescription))
+            errors.push("Short description must be at least 3 characters when provided.");
 
-    const hasSelectedSupplier = !!supplierId;
-    const hasNewSupplierName = String(newSupplierName ?? "").trim().length > 0;
-    const hasNewSupplierContact = String(newSupplierContact ?? "").trim().length > 0;
+        const hasSelectedSupplier = !!supplierId;
+        const hasNewSupplierName = String(newSupplierName ?? "").trim().length > 0;
+        const hasNewSupplierContact = String(newSupplierContact ?? "").trim().length > 0;
 
-    if (!hasSelectedSupplier) {
-      if (!hasNewSupplierName || !hasNewSupplierContact) {
-        errors.push("Provide an existing supplier or enter both New Supplier Name and New Supplier Contact (each >= 3 chars).");
-      } else {
-        if (!isTextValid(newSupplierName)) errors.push("New Supplier Name must be at least 3 characters.");
-        if (!isTextValid(newSupplierContact)) errors.push("New Supplier Contact must be at least 3 characters.");
-      }
-    }
+        if (!hasSelectedSupplier && (!hasNewSupplierName || !hasNewSupplierContact)) {
+            errors.push("Provide an existing supplier or enter both New Supplier Name and New Supplier Contact (each >= 3 chars).");
+        } else {
+            if (!isTextValid(newSupplierName) && hasNewSupplierName) errors.push("New Supplier Name must be at least 3 characters.");
+            if (!isTextValid(newSupplierContact) && hasNewSupplierContact) errors.push("New Supplier Contact must be at least 3 characters.");
+        }
 
-    const q = parseNonNegativeNumber(quantity);
-    if (Number.isNaN(q)) errors.push("Quantity must be a valid number.");
-    else if (q != null && q < 0) errors.push("Quantity cannot be negative.");
+        const q = parseNonNegativeNumber(quantity);
+        if (q == null || Number.isNaN(q)) errors.push("Quantity is required and must be a valid number.");
+        else if (q < 0) errors.push("Quantity cannot be negative.");
 
-    const cpu = parseNonNegativeNumber(costPerUnit);
-    if (Number.isNaN(cpu)) errors.push("Cost per Unit must be a valid number.");
-    else if (cpu != null && cpu < 0) errors.push("Cost per Unit cannot be negative.");
+        const cpu = parseNonNegativeNumber(costPerUnit);
+        if (cpu == null || Number.isNaN(cpu)) errors.push("Cost per Unit is required and must be a valid number.");
+        else if (cpu < 0) errors.push("Cost per Unit cannot be negative.");
 
-    const th = parseNonNegativeNumber(threshold);
-    if (Number.isNaN(th)) errors.push("Threshold must be a valid number.");
-    else if (th != null && th < 0) errors.push("Threshold (minimum quantity) cannot be negative.");
+        const th = parseNonNegativeNumber(threshold);
+        if (th == null || Number.isNaN(th)) errors.push("Threshold is required and must be a valid number.");
+        else if (th < 0) errors.push("Threshold (minimum quantity) cannot be negative.");
 
-    if (!categoryId) errors.push("Category must be selected.");
+        if (!categoryId) errors.push("Category must be selected.");
 
-    return errors;
-  };
+        return errors;
+    };
 
   const buildPayload = () => {
     const base = {
@@ -289,7 +287,7 @@ const InventoryItemNew = () => {
         const txt = await res.text().catch(() => null);
         throw new Error(txt || `Server returned ${res.status}`);
       }
-      navigate("/inventory");
+        navigate("/inventory", { state: { type: "added", name: `Inventory Item "${itemName}"` } });
     } catch (err) {
       console.error(err);
       setError(err.message || "Save failed");
@@ -392,17 +390,17 @@ const InventoryItemNew = () => {
           <div className="col-12 col-md-6 text-start" />
 
           <div className="col-12 col-md-6 text-start">
-            <SelectField label="Unit" value={unitId} onChange={(v) => setUnitId(v)} options={[{ label: "Select unit", value: "" }, ...mapOptions(units, "unitName", "unitId")] } />
+                      <SelectField label="Unit" value={unitId} onChange={(v) => setUnitId(v)} options={[{ label: "Select unit", value: "" }, ...mapOptions(units, "unitName", "unitId")]} required />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Cost per Unit" value={costPerUnit} onChange={setCostPerUnit} type="number" step="0.001" placeholder="0.000" />
+                      <InputField label="Cost per Unit" value={costPerUnit} onChange={setCostPerUnit} type="number" step="0.001" placeholder="0.000" required />
           </div>
 
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Quantity" type="number" value={quantity} onChange={setQuantity} placeholder="0.00" />
+                      <InputField label="Quantity" type="number" value={quantity} onChange={setQuantity} placeholder="0.00" required />
           </div>
           <div className="col-12 col-md-6 text-start">
-            <InputField label="Threshold (Reorder level)" value={threshold} onChange={setThreshold} type="number" placeholder="0" />
+                      <InputField label="Threshold (Reorder level)" value={threshold} onChange={setThreshold} type="number" placeholder="0" required />
           </div>
 
           {/* UI-only Product Details box */}
@@ -426,7 +424,7 @@ const InventoryItemNew = () => {
                 </div>
                 {showWarning && (
                   <div className="col-12">
-                    <div className="alert alert-warning">Selling price is lower than the computed cost price.</div>
+                    <div className="alert alert-warning">Warnig: Selling price is lower than the computed cost price.</div>
                   </div>
                 )}
               </div>

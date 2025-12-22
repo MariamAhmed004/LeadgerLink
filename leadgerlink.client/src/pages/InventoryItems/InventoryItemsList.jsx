@@ -9,6 +9,8 @@ import InfoModal from '../../components/Ui/InfoModal'; // Import InfoModal
 import { MdOutlineInventory } from "react-icons/md";
 import { useAuth } from "../../Context/AuthContext";
 import SelectField from "../../components/Form/SelectField";
+import { useLocation } from 'react-router-dom';
+
 
 // --------------------------------------------------
 // InventoryItemsListPage
@@ -23,7 +25,8 @@ const InventoryItemsListPage = () => {
   // MODAL STATE
   // --------------------------------------------------
   // Controls visibility of the bulk upload modal
-  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+    const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+    const location = useLocation();
 
   // --------------------------------------------------
   // FILTER STATE
@@ -156,6 +159,8 @@ const InventoryItemsListPage = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [stockLevel, supplier, category, entriesPerPage, searchTerm]);
+
+
 
   // --------------------------------------------------
   // EFFECT: load stores for org admins
@@ -377,6 +382,19 @@ const InventoryItemsListPage = () => {
           },
         ]}
       />
+
+          {location.state?.type === "added" && (
+              <div className="alert alert-success">
+                  {location.state.name} was successfully added.
+              </div>
+          )}
+
+          {location.state?.type === "updated" && (
+              <div className="alert alert-info">
+                  {location.state.name} was successfully updated.
+              </div>
+          )}
+
 
       <FilterSection
         searchValue={searchTerm}
