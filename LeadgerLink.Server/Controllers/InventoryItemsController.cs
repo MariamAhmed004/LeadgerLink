@@ -312,6 +312,24 @@ namespace LeadgerLink.Server.Controllers
                     UserId = domainUser.UserId
                 };
 
+                // Check for duplicates
+                var existingItem = await _inventoryRepo.GetFirstOrDefaultAsync(i =>
+                    i.InventoryItemName == dto.inventoryItemName.Trim() &&
+                    i.Description == (string.IsNullOrWhiteSpace(dto.shortDescription) ? null : dto.shortDescription.Trim()) &&
+                    i.InventoryItemCategoryId == dto.inventoryItemCategoryId &&
+                    i.UnitId == (dto.unitId ?? 0) &&
+                    i.Quantity == (dto.quantity ?? 0m) &&
+                    i.CostPerUnit == (dto.costPerUnit ?? 0m) &&
+                    i.MinimumQuantity == dto.minimumQuantity &&
+                    i.StoreId == resolvedStoreId.Value &&
+                    i.SupplierId == resolvedSupplierId
+                );
+
+                if (existingItem != null)
+                {
+                    return Conflict("An inventory item with the same details already exists.");
+                }
+
                 // Handle image if present
                 if (Request.HasFormContentType && Request.Form.Files.Count > 0)
                 {

@@ -670,6 +670,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     // Read rows (skip header row)
                     var rows = wsData.RowsUsed().Skip(1);
 
+                    var skippedItems = new List<string>(); // Track skipped items
                     foreach (var row in rows)
                     {
                         // Check if the row has no item name, stop processing further rows
@@ -771,6 +772,24 @@ namespace LeadgerLink.Server.Repositories.Implementations
                             return (false, $"Invalid unit '{unitName}' in row {row.RowNumber()}.");
                         }
 
+                        // Check for duplicates in the database
+                        var existingItem = await _context.InventoryItems
+                            .FirstOrDefaultAsync(ii =>
+                                ii.InventoryItemName == itemName &&
+                                ii.Description == description &&
+                                ii.SupplierId == supplier.SupplierId &&
+                                ii.InventoryItemCategoryId == category.InventoryItemCategoryId &&
+                                ii.UnitId == unit.UnitId &&
+                                ii.CostPerUnit == costPerUnit &&
+                                ii.StoreId == storeId);
+
+                        if (existingItem != null)
+                        {
+                            // Skip this item and log it
+                            skippedItems.Add(itemName);
+                            continue; // Skip to the next row
+                        }
+
                         // Add inventory item
                         var inventoryItem = new InventoryItem
                         {
@@ -792,9 +811,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
                     // Save all changes
                     await _context.SaveChangesAsync();
-                }
 
-                return (true, "Inventory items uploaded successfully.");
+                    // Return success message with skipped items
+                    var skippedMessage = skippedItems.Any()
+                        ? $"Skipped {skippedItems.Count} duplicate items: {string.Join(", ", skippedItems)}."
+                        : "No duplicate items were skipped.";
+                    return (true, $"Inventory items uploaded successfully. {skippedMessage}");
+                }
             }
             catch (Exception ex)
             {

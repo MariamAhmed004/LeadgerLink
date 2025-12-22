@@ -113,7 +113,7 @@ namespace LeadgerLink.Server.Services
 
                 var log = new AuditLog
                 {
-                    Timestamp = DateTime.UtcNow,
+                    Timestamp = DateTime.Now,
                     OldValue = previousValues.Count > 0 ? JsonSerializer.Serialize(previousValues) : null,
                     NewValue = currentValues.Count > 0 ? JsonSerializer.Serialize(currentValues) : null,
                     Details = entry.State.ToString(),
@@ -132,7 +132,7 @@ namespace LeadgerLink.Server.Services
             var payload = new { errorMessage, stackTrace };
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = null,
                 NewValue = JsonSerializer.Serialize(payload),
                 Details = "Exception",
@@ -148,7 +148,7 @@ namespace LeadgerLink.Server.Services
         {
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = null,
                 NewValue = details,
                 Details = "Login",
@@ -164,7 +164,7 @@ namespace LeadgerLink.Server.Services
         {
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = null,
                 NewValue = details,
                 Details = "Logout",
@@ -180,7 +180,7 @@ namespace LeadgerLink.Server.Services
         {
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = previousValue,
                 NewValue = currentValue,
                 Details = string.IsNullOrWhiteSpace(details) ? affectedData : details,
@@ -196,7 +196,7 @@ namespace LeadgerLink.Server.Services
         {
             var log = new AuditLog
             {
-                Timestamp = DateTime.UtcNow,
+                Timestamp = DateTime.Now,
                 OldValue = null,
                 NewValue = details,
                 Details = $"{action} for {email}",

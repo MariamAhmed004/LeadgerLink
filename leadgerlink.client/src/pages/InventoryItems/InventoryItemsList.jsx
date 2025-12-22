@@ -484,7 +484,11 @@ const InventoryItemsListPage = () => {
                   </li>
               </ul>
               <p>
-                  <strong>Note:</strong> If a supplier with the same name and contact method already exists for the store, it will be reused. Otherwise, a new supplier will be created and linked to the inventory item.
+                  <strong>Note:</strong>
+                  <ul>
+                      <li>If a supplier with the same name and contact method already exists for the store, it will be reused. Otherwise, a new supplier will be created and linked to the inventory item.</li>
+                      <li><strong>Duplicate rows or already existing items with the same exact details will not be added to the system.</strong></li>
+                  </ul>
               </p>
               <div className="text-end">
                   <button className="btn btn-primary" onClick={handleDownloadTemplate}>
