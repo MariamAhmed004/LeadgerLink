@@ -13,6 +13,8 @@ import MenuTabCard from "../../components/Form/MenuTabCard";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
 import { useAuth } from "../../Context/AuthContext";
+import InfoModal from "../../components/Ui/InfoModal";
+
 
 /*
   RecipeEdit.jsx
@@ -30,7 +32,9 @@ const PLACEHOLDER_IMG = "/images/placeholder.png";
 const RecipeEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { loggedInUser } = useAuth();
+    const { loggedInUser } = useAuth();
+    const [showRemoveModal, setShowRemoveModal] = useState(false);
+    const [successMessage, setSuccessMessage] = useState("");
 
   // UI flags
   const [loading, setLoading] = useState(true);
@@ -163,7 +167,7 @@ const RecipeEdit = () => {
                 setSellingPrice(pJson.sellingPrice != null ? Number(pJson.sellingPrice) : 0);
                 setSellingPriceTouched(false);
               }
-            } catch { }
+            } catch { /* empty */ }
           }
         }
       } catch (ex) {
@@ -323,7 +327,7 @@ const RecipeEdit = () => {
   // SELLING PRICE HANDLERS & WARNINGS
   // --------------------------------------------------
   const onSellingPriceChange = (v) => {
-    const num = Number(String(v).replace(/[^0-9.\-]/g, "")) || 0;
+    const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0;
     setSellingPrice(num);
     setSellingPriceTouched(true);
   };
@@ -349,6 +353,44 @@ const RecipeEdit = () => {
     return () => { mounted = false; clearTimeout(t); };
   }, [sellingPrice, recipeCost]);
 
+
+    // --------------------------------------------------
+    // REMOVE ITEM FROM SALE
+    // --------------------------------------------------
+    const handleRemoveFromSale = async () => {
+        try {
+            if (!relatedProductId) {
+                throw new Error("No product is associated with this recipe.");
+            }
+
+            // Call the DELETE endpoint for the product
+            const response = await fetch(`/api/products/${relatedProductId}`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => "Failed to remove recipe from sale.");
+                throw new Error(errorText);
+            }
+
+            // Show success message
+            setSuccessMessage("The recipe was successfully removed from sale.");
+
+            // Reset the product-related state
+            setOriginalOnSale(false);
+            setRelatedProductId(null);
+        } catch (error) {
+            console.error("Error removing recipe from sale:", error);
+            alert(error.message || "Failed to remove recipe from sale.");
+        } finally {
+            setShowRemoveModal(false); // Close the modal
+        }
+    };
+
+    // --------------------------------------------------
+    // RENDER
+    // --------------------------------------------------
   return (
     <div className="container py-5">
       <PageHeader
@@ -380,7 +422,13 @@ const RecipeEdit = () => {
 
           <div className="col-12 mt-4">
             <TitledGroup title="Product Details" subtitle={originalOnSale ? "Manage sale-related actions" : "Configure sale options for this recipe"}>
-              {originalOnSale ? (
+                          {successMessage && (
+                              <div className="alert alert-success mb-3">
+                                  {successMessage}
+                              </div>
+                          )}
+
+                          {originalOnSale ? (
                 <div className="row gx-3 gy-3">
                   <div className="col-12">
                     <div className="alert alert-light mb-3 text-start">
@@ -392,7 +440,7 @@ const RecipeEdit = () => {
                   <div className="align-items-center col-12">
                     <div className="d-flex gap-2">
                       <a className="btn btn-dark btn-sm" href={relatedProductId ? `/products/edit/${relatedProductId}` : '/products'}>Edit Product</a>
-                      <button className="btn btn-dark btn-sm" type="button" onClick={() => alert('Remove Recipe from Sale not implemented yet')}>Remove Recipe from Sale</button>
+                                          <button className="btn btn-dark btn-sm" type="button" onClick={() => setShowRemoveModal(true)}>Remove Recipe from Sale</button>
                     </div>
                   </div>
                 </div>
@@ -426,7 +474,27 @@ const RecipeEdit = () => {
                 </div>
               )}
             </TitledGroup>
-          </div>
+                  </div>
+
+                  {/* Confirmation Modal */}
+                  <InfoModal
+                      show={showRemoveModal}
+                      title="Confirm Remove from Sale"
+                      onClose={() => setShowRemoveModal(false)}
+                  >
+                      <p>
+                          This action will remove the recipe from products and delete it from all previous sales details.
+                          <strong> This action cannot be undone.</strong> Are you sure you want to proceed?
+                      </p>
+                      <div className="d-flex justify-content-end gap-2">
+                          <button className="btn btn-secondary" onClick={() => setShowRemoveModal(false)}>
+                              Cancel
+                          </button>
+                          <button className="btn btn-danger" onClick={handleRemoveFromSale}>
+                              Remove from Sale
+                          </button>
+                      </div>
+                  </InfoModal>
 
           <div className="col-12 d-flex justify-content-end">
             <FormActions onCancel={() => navigate('/recipes')} submitLabel={saving ? 'Saving...' : 'Save Recipe'} loading={saving} />

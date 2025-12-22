@@ -10,7 +10,9 @@ import SwitchField from "../../components/Form/SwitchField";
 import FormActions from "../../components/Form/FormActions";
 import TitledGroup from "../../components/Form/TitledGroup";
 import { MdOutlineInventory } from "react-icons/md";
-import { useAuth } from "../../Context/AuthContext"; // Import the AuthContext hook
+import { useAuth } from "../../Context/AuthContext"; 
+import InfoModal from "../../components/Ui/InfoModal";
+
 
 /*
   InventoryEdit.jsx
@@ -26,7 +28,10 @@ import { useAuth } from "../../Context/AuthContext"; // Import the AuthContext h
 const InventoryItemEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { loggedInUser } = useAuth(); // Access the logged-in user from the context
+    const { loggedInUser } = useAuth(); 
+    const [showRemoveModal, setShowRemoveModal] = useState(false);
+    const [productId, setProductId] = useState(null); 
+    const [successMessage, setSuccessMessage] = useState("");
 
   // --------------------------------------------------
   // PRIMARY FIELDS
@@ -165,6 +170,9 @@ const InventoryItemEdit = () => {
       setShortDescription(it.description || "");
       setSupplierId(it.supplierId ? String(it.supplierId) : "");
 
+      // Capture the product ID associated with the item
+      setProductId(it.relatedProductId || null);
+
       // Pre-fill editable supplier fields if API provided them
       setEditSupplierName(it.supplierName || "");
       setEditSupplierContact(it.supplierContact  || "");
@@ -177,8 +185,8 @@ const InventoryItemEdit = () => {
       setCostPerUnit(it.costPerUnit != null ? String(it.costPerUnit) : "");
       setThreshold(it.minimumQuantity != null ? String(it.minimumQuantity) : "");
 
-      // product
-      setOriginalOnSale(Boolean(it.isOnSale || (it.relatedProductsCount > 0)));
+        // product
+        setOriginalOnSale(Boolean(it.isOnSale || (it.relatedProductId != null && it.relatedProductId > 0)));
       // don't flip UI into on-sale mode automatically; allow explicit user control
       setIsOnSale(false);
       setSellingPrice(it.sellingPrice != null ? String(it.sellingPrice) : "");
@@ -336,16 +344,64 @@ const InventoryItemEdit = () => {
     <div className="d-flex align-items-center gap-2">
       {/* Use product id when known in future; for now redirect to product list/edit accordingly */}
       <a className="btn btn-dark btn-sm" href={`/products`}>Edit Product</a>
-      <button className="btn btn-dark btn-sm" type="button" onClick={() => alert('Remove from sale not implemented yet')}>Remove Item from Sale</button>
+      <button
+        className="btn btn-dark btn-sm"
+        type="button"
+        onClick={() => setShowRemoveModal(true)} // Show confirmation modal
+      >
+        Remove Item from Sale
+      </button>
     </div>
   ) : null;
+
+  // --------------------------------------------------
+  // REMOVE ITEM FROM SALE
+  // --------------------------------------------------
+  const handleRemoveFromSale = async () => {
+    try {
+      if (!productId) {
+        throw new Error("No product is associated with this item.");
+      }
+
+      // Call the DELETE endpoint for the product
+      const response = await fetch(`/api/products/${productId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "Failed to remove item from sale.");
+        throw new Error(errorText);
+      }
+
+      // Show success message
+      setSuccessMessage("The item was successfully removed from sale.");
+
+      // Reset the product-related state
+      setOriginalOnSale(false);
+      setProductId(null);
+    } catch (error) {
+      console.error("Error removing item from sale:", error);
+      alert(error.message || "Failed to remove item from sale.");
+    } finally {
+      setShowRemoveModal(false); // Close the modal
+    }
+  };
 
   // --------------------------------------------------
   // RENDER
   // --------------------------------------------------
   return (
     <div className="container py-5">
-      <PageHeader icon={<MdOutlineInventory size={55} />} title="Edit Inventory Item" descriptionLines={["Edit item details, image and assignments.", "Change assigned supplier via select, or edit the current supplier details below."]} actions={[]} />
+      <PageHeader
+        icon={<MdOutlineInventory size={55} />}
+        title="Edit Inventory Item"
+        descriptionLines={[
+          "Edit item details, image and assignments.",
+          "Change assigned supplier via select, or edit the current supplier details below.",
+        ]}
+        actions={[]}
+      />
 
       {loading ? (
         <div className="alert alert-info">Loading...</div>
@@ -446,7 +502,11 @@ const InventoryItemEdit = () => {
                         />
                       </div>
                     </div>
-
+                                              {successMessage && (
+                                                  <div className="alert alert-success mb-3">
+                                                      {successMessage}
+                                                  </div>
+                                              )}
                     {isOnSale && (
                       <>
                         <div className="col-12 col-md-6 text-start">
@@ -489,6 +549,26 @@ const InventoryItemEdit = () => {
                 )}
               </TitledGroup>
             </div>
+
+            {/* Confirmation Modal */}
+            <InfoModal
+              show={showRemoveModal}
+              title="Confirm Remove from Sale"
+              onClose={() => setShowRemoveModal(false)}
+            >
+              <p>
+                This action will remove the item from products and delete the item from all previous sales details.
+                <strong> This action cannot be undone.</strong> Are you sure you want to proceed?
+              </p>
+              <div className="d-flex justify-content-end gap-2">
+                <button className="btn btn-secondary" onClick={() => setShowRemoveModal(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-danger" onClick={handleRemoveFromSale}>
+                  Remove from Sale
+                </button>
+              </div>
+            </InfoModal>
 
             <div className="col-12 d-flex justify-content-end">
               <FormActions onCancel={() => navigate("/inventory")} submitLabel="Save Changes" loading={saving} />

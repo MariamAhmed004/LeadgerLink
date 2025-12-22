@@ -236,6 +236,46 @@ namespace LeadgerLink.Server.Controllers
             return Ok(list);
         }
 
+        // DELETE api/products/{id}
+        // Deletes a product and handles its associations with recipes, inventory items, and sale items.
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                // Ensure user is authenticated
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+                // Resolve the logged-in user's ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Set the audit context user ID
+                await SetAuditContextUserId();
+
+                // Call the repository method to delete the product
+                var success = await _productRepository.DeleteProductAsync(id);
+
+                if (!success) return NotFound();
+
+                return NoContent();
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                // Log the exception (not shown here for brevity)
+                return StatusCode(500, "A database error occurred while processing your request.");
+            }
+            catch (Exception ex)
+            {
+                // Log the exception (not shown here for brevity)
+                return StatusCode(500, "An unexpected error occurred while processing your request.");
+            }
+        }
+
         // Resolves the user ID from the current user's claims.
         private async Task<int?> ResolveUserIdAsync()
         {

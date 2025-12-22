@@ -375,5 +375,38 @@ IEnumerable<int>? userIds = null)
             return true;
         }
 
+        public async Task<bool> DeleteProductAsync(int productId)
+        {
+            // Fetch the product with related data
+            var product = await _context.Products
+                .Include(p => p.Recipe)
+                .Include(p => p.InventoryItem)
+                .FirstOrDefaultAsync(p => p.ProductId == productId);
+
+            if (product == null)
+            {
+                throw new KeyNotFoundException($"Product with ID {productId} not found.");
+            }
+
+            
+
+            // Delete all sale items associated with this product
+            var saleItems = await _context.SaleItems
+                .Where(si => si.ProductId == productId)
+                .ToListAsync();
+
+            if (saleItems.Any())
+            {
+                _context.SaleItems.RemoveRange(saleItems);
+            }
+
+            // Delete the product
+            _context.Products.Remove(product);
+
+            // Save changes to the database
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
     }
 }

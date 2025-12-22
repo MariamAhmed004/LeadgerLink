@@ -262,7 +262,7 @@ const RecipeNew = () => {
     }
     if (isForSale) {
       if (!vatId) errs.push("Select VAT category for sale.");
-      if (!String(saleDescription).trim()) errs.push("Provide sale description when recipe is on sale.");
+      // Removed the validation for saleDescription
     }
     return errs;
   };
@@ -288,7 +288,7 @@ const RecipeNew = () => {
         ...base,
         isOnSale: true,
         vatCategoryId: vatId ? Number(vatId) : null,
-        productDescription: saleDescription ? String(saleDescription).trim() : null,
+        productDescription: saleDescription ? String(saleDescription).trim() : null, // Optional field
         costPrice: Number(costPrice.toFixed(3)),
         sellingPrice: Number(sellingPrice || 0),
       };

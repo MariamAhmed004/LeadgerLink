@@ -18,5 +18,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<ProductDetailDto?> GetDetailByIdAsync(int productId, int loggedInUserId);
         Task<(List<(int InventoryItemId, decimal Quantity)> InventoryItems, List<(int RecipeId, decimal Quantity)> Recipes)>
     SeparateProductsAsync(IEnumerable<(int ProductId, decimal Quantity)> productQuantities);
+
+        // Deletes a product and handles its associations with recipes, inventory items, and sale items.
+        Task<bool> DeleteProductAsync(int productId);
     }
 }
