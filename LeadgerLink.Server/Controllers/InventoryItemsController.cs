@@ -306,8 +306,8 @@ namespace LeadgerLink.Server.Controllers
                     CostPerUnit = dto.costPerUnit ?? 0m,
                     MinimumQuantity = dto.minimumQuantity,
                     StoreId = resolvedStoreId.Value,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
                     SupplierId = resolvedSupplierId,
                     UserId = domainUser.UserId
                 };
@@ -585,7 +585,7 @@ namespace LeadgerLink.Server.Controllers
                 existing.Quantity = dto.quantity ?? existing.Quantity;
                 existing.CostPerUnit = dto.costPerUnit ?? existing.CostPerUnit;
                 existing.MinimumQuantity = dto.minimumQuantity;
-                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedAt = DateTime.Now;
                 existing.StoreId = storeId.Value; // Update the store ID
 
                 // Assign supplier if provided
@@ -707,7 +707,7 @@ namespace LeadgerLink.Server.Controllers
 
                 // Update the quantity
                 item.Quantity += dto.AddedQuantity;
-                item.UpdatedAt = DateTime.UtcNow;
+                item.UpdatedAt = DateTime.Now;
 
                 // Use the repository to update the inventory item
                 await _inventoryRepo.UpdateAsync(item);

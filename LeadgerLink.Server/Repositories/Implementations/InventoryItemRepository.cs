@@ -155,7 +155,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var item = await _context.InventoryItems.FindAsync(itemId);
             if (item == null) return;
 
-            item.UpdatedAt = DateTime.UtcNow;
+            item.UpdatedAt = DateTime.Now;
             _context.InventoryItems.Update(item);
             await _context.SaveChangesAsync();
         }
@@ -802,8 +802,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                             Quantity = quantity,
                             MinimumQuantity = threshold,
                             StoreId = storeId,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
+                            CreatedAt = DateTime.Now,
+                            UpdatedAt = DateTime.Now
                         };
 
                         _context.InventoryItems.Add(inventoryItem);
@@ -858,7 +858,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                         // Update the quantity and description of the existing item
                         existingItem.Quantity += quantity;
                         existingItem.Description += " ---- received from inventory transfer";
-                        existingItem.UpdatedAt = DateTime.UtcNow;
+                        existingItem.UpdatedAt = DateTime.Now;
                         _context.InventoryItems.Update(existingItem);
                     }
                     else
@@ -885,8 +885,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                             Quantity = quantity,
                             MinimumQuantity = inventoryItemDetails.MinimumQuantity,
                             StoreId = storeId,
-                            CreatedAt = DateTime.UtcNow,
-                            UpdatedAt = DateTime.UtcNow
+                            CreatedAt = DateTime.Now,
+                            UpdatedAt = DateTime.Now
                         };
 
                         newInventoryItems.Add(newItem);

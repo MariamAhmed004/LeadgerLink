@@ -117,7 +117,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 Message = message,
                 UserId = userId,
                 NotificationTypeId = notificationType.NotificationTypeId, // Use the fetched NotificationTypeId
-                CreatedAt = createdAt ?? DateTime.UtcNow,
+                CreatedAt = createdAt ?? DateTime.Now,
                 IsRead = false // Default to unread
             };
 

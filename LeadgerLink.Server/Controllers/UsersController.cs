@@ -151,7 +151,7 @@ namespace LeadgerLink.Server.Controllers
             }
 
             // Update the user
-            existing.UpdatedAt = DateTime.UtcNow;
+            existing.UpdatedAt = DateTime.Now;
             await _userRepository.UpdateAsync(existing);
             return NoContent();
         }
@@ -268,8 +268,8 @@ namespace LeadgerLink.Server.Controllers
                     OrgId = model.OrgId,
                     StoreId = roleRequiresStore ? model.StoreId : null,
                     RoleId = roleEntity.RoleId,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
 
                 var created = await _userRepository.AddAsync(domainUser);

@@ -261,7 +261,7 @@ namespace LeadgerLink.Server.Controllers
             if (!fromId.HasValue) return BadRequest("Request From store must be selected.");
 
             // Parse the requested date
-            var parsedDate = DateTime.UtcNow;
+            var parsedDate = DateTime.Now;
             if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
 
             

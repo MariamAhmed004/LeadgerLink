@@ -205,8 +205,8 @@ namespace LeadgerLink.Server.Controllers
                     WorkingHours = string.IsNullOrWhiteSpace(dto.WorkingHours) ? null : dto.WorkingHours,
                     Location = string.IsNullOrWhiteSpace(dto.Location) ? null : dto.Location,
                     OrgId = resolvedOrgId.Value,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
 
                 // Add the store to the repository
@@ -311,7 +311,7 @@ namespace LeadgerLink.Server.Controllers
                 existing.OpeningDate = model.OpeningDate;
                 existing.OperationalStatusId = model.OperationalStatusId;
                 existing.WorkingHours = model.WorkingHours;
-                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedAt = DateTime.Now;
 
                 // 4. Save Everything
                 await _repository.UpdateAsync(existing);

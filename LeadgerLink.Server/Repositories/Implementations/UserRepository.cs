@@ -120,7 +120,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 // Update user properties
                 user.IsActive = false;
                 user.StoreId = null;
-                user.UpdatedAt = DateTime.UtcNow;
+                user.UpdatedAt = DateTime.Now;
 
                 _context.Users.Attach(user);
                 _context.Entry(user).Property(u => u.IsActive).IsModified = true;
@@ -146,7 +146,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 // Update user properties
                 user.IsActive = true;
                 user.StoreId = storeId;
-                user.UpdatedAt = DateTime.UtcNow;
+                user.UpdatedAt = DateTime.Now;
 
                 _context.Users.Attach(user);
                 _context.Entry(user).Property(u => u.IsActive).IsModified = true;

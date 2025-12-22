@@ -77,7 +77,7 @@ namespace LeadgerLink.Server.Controllers
                 var isStoreManager = string.Equals(domainUser.Role?.RoleTitle, "Store Manager", StringComparison.OrdinalIgnoreCase);
                 int? effectiveStoreId = storeId ?? (isStoreManager ? domainUser.StoreId : null);
 
-                var end = DateTime.UtcNow;
+                var end = DateTime.Now;
                 var start = end.AddMonths(-months + 1);
 
                 if (effectiveStoreId.HasValue)

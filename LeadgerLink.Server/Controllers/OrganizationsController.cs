@@ -140,7 +140,7 @@ namespace LeadgerLink.Server.Controllers
                 EstablishmentDate = dto.EstablishmentDate,
                 WebsiteUrl = string.IsNullOrWhiteSpace(dto.WebsiteUrl) ? null : dto.WebsiteUrl!.Trim(),
                 IsActive = dto is { } && dto.StoresCount >= 0 ? true : true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             // Add the organization and fetch the details

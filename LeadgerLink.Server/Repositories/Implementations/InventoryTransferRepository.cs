@@ -817,7 +817,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             }
 
             transfer.InventoryTransferStatusId = deliveredStatus.TransferStatusId;
-            transfer.RecievedAt = DateTime.UtcNow;
+            transfer.RecievedAt = DateTime.Now;
 
             _context.InventoryTransfers.Update(transfer);
             await _context.SaveChangesAsync();

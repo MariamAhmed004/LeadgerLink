@@ -140,7 +140,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
         public async Task<TimeSeriesDto> GetStoreSalesSeriesAsync(int storeId, int months)
         {
-            var end = DateTime.UtcNow;
+            var end = DateTime.Now;
             var start = end.AddMonths(-Math.Max(1, months) + 1);
 
             // group by month (YYYY-MM)
@@ -166,7 +166,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         // Organization-level aggregation
         public async Task<TimeSeriesDto> GetOrganizationSalesSeriesAsync(int organizationId, int months)
         {
-            var end = DateTime.UtcNow;
+            var end = DateTime.Now;
             var start = end.AddMonths(-Math.Max(1, months) + 1);
 
             var q = await _context.Sales
@@ -582,7 +582,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
                 .FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
             var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
             var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
             var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
@@ -669,7 +669,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
                 .FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm") + " UTC";
+            var generatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " UTC";
             var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
             var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
             var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
@@ -861,7 +861,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var store = await _context.Stores.Include(s => s.InventoryItems).ThenInclude(ii => ii.InventoryItemCategory)
                 .FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
             var lowStockCount = await _inventoryRepo.CountLowStockItemsByStoreAsync(storeId);
             var storeValue = await _inventoryRepo.GetInventoryMonetaryValueByStoreAsync(storeId);
             var allItems = await _inventoryRepo.GetItemsByStoreAsync(storeId);
@@ -920,7 +920,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // Fetch store, recipes and sales aggregates via context
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             // Aggregate recipe sales for the store
             var recipeSales = await _context.SaleItems
@@ -997,7 +997,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             // All employees in the store
             var employees = await _context.Users
@@ -1085,8 +1085,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
-            var today = DateTime.UtcNow.Date;
+            var generatedAt = DateTime.Now;
+            var today = DateTime.Now.Date;
 
             // Daily counts and totals
             var todaysSales = await _context.Sales
@@ -1159,7 +1159,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             // Utilization entries for the store
             var utilizationEntries = await _context.RecipeInventoryItems
@@ -1265,7 +1265,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             var recipeSales = await _context.SaleItems
                 .Include(si => si.Sale)
@@ -1314,7 +1314,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             // All employees in the store
             var employees = await _context.Users
@@ -1374,8 +1374,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
-            var today = DateTime.UtcNow.Date;
+            var generatedAt = DateTime.Now;
+            var today = DateTime.Now.Date;
 
             var todaysSales = await _context.Sales
                 .Where(s => s.StoreId == storeId && s.Timestamp.Date == today)
@@ -1418,7 +1418,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
         {
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.StoreId == storeId);
             var storeName = store?.StoreName ?? $"Store {storeId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             var utilizationEntries = await _context.RecipeInventoryItems
                 .Include(ri => ri.Recipe)
@@ -1513,7 +1513,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization COGS (BHD)" };
             var summaryRows = new List<string[]>
             {
-                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgCogs.ToString("F3") }
+                new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgCogs.ToString("F3") }
             };
             r = AddStyledTableAt(ws, r, "Monthly COGS Report", summaryHeaders, summaryRows, new[] { 40d, 30d, 20d, 20d });
 
@@ -1550,7 +1550,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 DrawSectionHeader(gfx, "Monthly COGS Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {new DateTime(year, month, 1):yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization COGS: BHD {orgCogs:F3}", textFont, x, ref y, contentWidth);
 
                 y += 8;
@@ -1610,7 +1610,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization Gross Profit (BHD)", "Organization Profit Margin (%)" };
             var summaryRows = new List<string[]> {
-                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgGrossProfit.ToString("F3"), orgProfitMargin.ToString("F2") }
+                new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), new DateTime(year, month, 1).ToString("yyyy-MM"), orgGrossProfit.ToString("F3"), orgProfitMargin.ToString("F2") }
             };
             r = AddStyledTableAt(ws, r, "Monthly Gross Profit & Margin Report", summaryHeaders, summaryRows, new[] { 30d, 22d, 18d, 28d, 20d });
 
@@ -1646,7 +1646,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 DrawSectionHeader(gfx, "Monthly Gross Profit & Margin Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {new DateTime(year, month, 1):yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Gross Profit: BHD {orgGrossProfit:F3}", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Profit Margin: {orgProfitMargin:F2} %", textFont, x, ref y, contentWidth);
 
@@ -1721,7 +1721,7 @@ public async Task<byte[]> GenerateInventoryValuationReportExcelAsync(int organiz
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Organization Inventory Value (BHD)" };
             var summaryRows = new List<string[]>
     {
-        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), orgInventoryValue.ToString("F3") }
+        new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), orgInventoryValue.ToString("F3") }
     };
             r = AddStyledTableAt(ws, r, "Inventory Valuation Report", summaryHeaders, summaryRows, new[] { 40d, 30d, 30d });
 
@@ -1820,7 +1820,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             // Summary block
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Recipes Sold (Qty)", "Total Revenue (BHD)" };
             var summaryRows = new List<string[]> {
-        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotalCount.ToString("F3"), orgTotalRevenue.ToString("F3") }
+        new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotalCount.ToString("F3"), orgTotalRevenue.ToString("F3") }
     };
             row = AddStyledTableAt(ws, row, "Sales Summary by Recipe", summaryHeaders, summaryRows, new[] { 30d, 24d, 18d, 18d, 22d });
 
@@ -1921,7 +1921,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 DrawSectionHeader(gfx, "Sales Summary by Recipe", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Recipes Sold (Qty): {orgTotalCount:F3}", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Total Revenue: BHD {orgTotalRevenue:F3}", textFont, x, ref y, contentWidth);
 
@@ -2011,7 +2011,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             // Summary block
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Sales Count", "Total Paid (BHD)" };
             var summaryRows = new List<string[]> {
-        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgSalesCount.ToString(), orgSalesTotal.ToString("F3") }
+        new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgSalesCount.ToString(), orgSalesTotal.ToString("F3") }
     };
             row = AddStyledTableAt(ws, row, "Monthly Sales Report", summaryHeaders, summaryRows, new[] { 30d, 24d, 18d, 18d, 22d });
 
@@ -2068,7 +2068,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 DrawSectionHeader(gfx, "Monthly Sales Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Sales Count: {orgSalesCount}", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Total Paid: BHD {orgSalesTotal:F3}", textFont, x, ref y, contentWidth);
 
@@ -2142,7 +2142,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             // Summary block
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Sales Count", "Total Paid (BHD)" };
             var summaryRows = new List<string[]> {
-        new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgSalesCount.ToString(), orgSalesTotal.ToString("F3") }
+        new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgSalesCount.ToString(), orgSalesTotal.ToString("F3") }
     };
             row = AddStyledTableAt(ws, row, "Store Performance Report", summaryHeaders, summaryRows, new[] { 30d, 24d, 18d, 18d, 22d });
 
@@ -2251,7 +2251,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 DrawSectionHeader(gfx, "Store Performance Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Sales Count: {orgSalesCount}", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Total Paid: BHD {orgSalesTotal:F3}", textFont, x, ref y, contentWidth);
 
@@ -2455,7 +2455,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Period", "Organization Total Paid (BHD)" };
             var summaryRows = new List<string[]>
             {
-                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotal.ToString("F3") }
+                new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), periodStart.ToString("yyyy-MM"), orgTotal.ToString("F3") }
             };
             row = AddStyledTableAt(ws, row, "Employee Sales Performance Report", summaryHeaders, summaryRows, new[] { 40d, 28d, 22d, 30d });
 
@@ -2570,7 +2570,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 DrawSectionHeader(gfx, "Employee Sales Performance Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Period: {periodStart:yyyy-MM}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Total Paid: BHD {orgTotal:F3}", textFont, x, ref y, contentWidth);
 
                 y += 8;
@@ -2681,7 +2681,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
         {
             var org = await _context.Organizations.FindAsync(organizationId);
             var orgName = org?.OrgName ?? $"Org {organizationId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             // Organization inventory value (try inventory repo first)
             decimal orgInventoryValue = 0m;
@@ -2795,7 +2795,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
         {
             var org = await _context.Organizations.FindAsync(organizationId);
             var orgName = org?.OrgName ?? $"Org {organizationId}";
-            var generatedAt = DateTime.UtcNow;
+            var generatedAt = DateTime.Now;
 
             decimal orgInventoryValue = 0m;
             try
@@ -2971,7 +2971,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 DrawSectionHeader(gfx, "Stores Monthly Sales Report", titleFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization: {orgName}", headerFont, x, ref y, contentWidth, headerBg);
                 DrawSectionHeader(gfx, $"Year: {year}", textFont, x, ref y, contentWidth);
-                DrawSectionHeader(gfx, $"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
+                DrawSectionHeader(gfx, $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC", textFont, x, ref y, contentWidth);
                 DrawSectionHeader(gfx, $"Organization Year Sales: BHD {orgTotal:F3}", textFont, x, ref y, contentWidth);
 
                 y += 8;
@@ -3023,7 +3023,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
                 // Build AI prompt
                 var sb = new StringBuilder();
                 sb.AppendLine($"Stores Monthly Sales Report for \"{orgName}\" — Year {year}");
-                sb.AppendLine($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+                sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC");
                 sb.AppendLine($"Organization Year Sales: BHD {orgTotal:F3}");
                 sb.AppendLine();
                 sb.AppendLine("Per-store totals and peak months (Store | YearTotal | PeakMonth -> Amount):");
@@ -3096,7 +3096,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             var summaryHeaders = new[] { "Organization", "Generated (UTC)", "Year", "Year Sales (BHD)" };
             var summaryRows = new List<string[]>
             {
-                new[] { orgName, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm"), year.ToString(), orgTotal.ToString("F3") }
+                new[] { orgName, DateTime.Now.ToString("yyyy-MM-dd HH:mm"), year.ToString(), orgTotal.ToString("F3") }
             };
             row = AddStyledTableAt(ws, row, "Stores Monthly Sales Report", summaryHeaders, summaryRows, new[] { 35d, 30d, 15d, 20d });
 
@@ -3125,7 +3125,7 @@ public async Task<byte[]> GenerateSalesByRecipeReportExcelAsync(int organization
             // Build AI prompt summarizing per-store totals + month patterns
             var sb = new StringBuilder();
             sb.AppendLine($"Stores Monthly Sales Report for \"{orgName}\" — Year {year}");
-            sb.AppendLine($"Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+            sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm} UTC");
             sb.AppendLine($"Organization Year Sales: BHD {orgTotal:F3}");
             sb.AppendLine();
             sb.AppendLine("Per-store totals and monthly breakdown (Store | YearTotal | PeakMonth -> Amount):");

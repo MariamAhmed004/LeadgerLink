@@ -287,8 +287,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 Instructions = instructions,
                 CreatedBy = createdBy,
                 StoreId = storeId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
             };
 
             // Absorb image from multipart if present
@@ -389,7 +389,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
 
             recipe.RecipeName = string.IsNullOrWhiteSpace(dto.RecipeName) ? recipe.RecipeName : dto.RecipeName.Trim();
             recipe.Instructions = string.IsNullOrWhiteSpace(dto.Instructions) ? null : dto.Instructions.Trim();
-            recipe.UpdatedAt = DateTime.UtcNow;
+            recipe.UpdatedAt = DateTime.Now;
 
             // Handle image if present in multipart
             if (request.HasFormContentType && request.Form.Files.Count > 0)
@@ -536,7 +536,7 @@ namespace LeadgerLink.Server.Repositories.Implementations
                         {
                             // Update the quantity of the existing inventory item
                             inventoryItem.Quantity += totalIngredientQuantity;
-                            inventoryItem.UpdatedAt = DateTime.UtcNow;
+                            inventoryItem.UpdatedAt = DateTime.Now;
                             _context.InventoryItems.Update(inventoryItem);
                         }
                         else
@@ -563,8 +563,8 @@ namespace LeadgerLink.Server.Repositories.Implementations
                                 Quantity = totalIngredientQuantity,
                                 MinimumQuantity = inventoryItemDetails.MinimumQuantity,
                                 StoreId = storeId,
-                                CreatedAt = DateTime.UtcNow,
-                                UpdatedAt = DateTime.UtcNow
+                                CreatedAt = DateTime.Now,
+                                UpdatedAt = DateTime.Now
                             };
 
                             await _context.InventoryItems.AddAsync(newItem);
