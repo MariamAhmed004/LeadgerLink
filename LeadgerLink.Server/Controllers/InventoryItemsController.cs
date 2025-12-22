@@ -1,6 +1,6 @@
 using DocumentFormat.OpenXml.Spreadsheet;
 using LeadgerLink.Server.Contexts;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.InventoryItemDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Services;

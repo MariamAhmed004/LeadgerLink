@@ -9,9 +9,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Contexts;
+using LeadgerLink.Server.Dtos.InventoryItemDtos;
+using LeadgerLink.Server.Dtos.RecipeDtos;
 
 namespace LeadgerLink.Server.Controllers
 {

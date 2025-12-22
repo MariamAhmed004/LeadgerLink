@@ -5,7 +5,9 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.RecipeDtos;
+using LeadgerLink.Server.Dtos.SaleDtos;
+using LeadgerLink.Server.Dtos.StoreDtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {

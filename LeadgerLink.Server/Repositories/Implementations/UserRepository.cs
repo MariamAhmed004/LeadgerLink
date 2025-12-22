@@ -4,8 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
-using LeadgerLink.Server.Dtos;
 using System;
+using LeadgerLink.Server.Dtos.UserDtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {

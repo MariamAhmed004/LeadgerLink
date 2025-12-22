@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using LeadgerLink.Server.Dtos.AuditLogDtos;
 
 namespace LeadgerLink.Server.Controllers
 {

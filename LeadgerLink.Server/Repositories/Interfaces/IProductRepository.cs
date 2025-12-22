@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.ProductDtos;
 using LeadgerLink.Server.Models;
 
 namespace LeadgerLink.Server.Repositories.Interfaces

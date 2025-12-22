@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.OrganizationDtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {

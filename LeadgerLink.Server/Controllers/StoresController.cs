@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Contexts;
 using Microsoft.EntityFrameworkCore;
+using LeadgerLink.Server.Dtos.StoreDtos;
 
 namespace LeadgerLink.Server.Controllers
 {

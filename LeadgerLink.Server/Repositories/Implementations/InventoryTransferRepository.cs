@@ -1,4 +1,4 @@
-﻿using LeadgerLink.Server.Dtos;
+﻿using LeadgerLink.Server.Dtos.InventoryTransferDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Services;

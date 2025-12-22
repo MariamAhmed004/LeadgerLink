@@ -1,5 +1,5 @@
 using ClosedXML.Excel;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.InventoryItemDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;

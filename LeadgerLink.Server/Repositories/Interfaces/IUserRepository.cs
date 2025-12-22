@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.UserDtos;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {

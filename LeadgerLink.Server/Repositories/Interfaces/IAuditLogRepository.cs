@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.AuditLogDtos;
 using LeadgerLink.Server.Models;
 
 namespace LeadgerLink.Server.Repositories.Interfaces

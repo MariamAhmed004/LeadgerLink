@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Dtos.AuditLogDtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {

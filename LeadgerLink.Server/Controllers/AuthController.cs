@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Services;
@@ -7,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Dtos.UserDtos;
 
 namespace LeadgerLink.Server.Controllers
 {

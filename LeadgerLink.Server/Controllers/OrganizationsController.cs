@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
-using LeadgerLink.Server.Dtos;
 using Microsoft.AspNetCore.Authorization;
+using LeadgerLink.Server.Dtos.OrganizationDtos;
 
 namespace LeadgerLink.Server.Controllers
 {

@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.InventoryItemDtos;
+using LeadgerLink.Server.Dtos.RecipeDtos;
 
 namespace LeadgerLink.Server.Repositories.Interfaces
 {

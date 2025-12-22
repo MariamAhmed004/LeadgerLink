@@ -4,8 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Models;
-using LeadgerLink.Server.Dtos;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Dtos.ProductDtos;
 
 namespace LeadgerLink.Server.Repositories.Implementations
 {

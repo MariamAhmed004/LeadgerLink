@@ -1,5 +1,5 @@
 ﻿using LeadgerLink.Server.Contexts;
-using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Dtos.UserDtos;
 using LeadgerLink.Server.Identity;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
