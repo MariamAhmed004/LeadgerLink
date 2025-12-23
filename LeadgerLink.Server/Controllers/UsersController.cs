@@ -14,6 +14,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -40,6 +41,9 @@ namespace LeadgerLink.Server.Controllers
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public UsersController(
             UserManager<ApplicationUser> userManager,
@@ -47,7 +51,8 @@ namespace LeadgerLink.Server.Controllers
             IRepository<Role> roleRepository,
             IStoreRepository storeRepository,
             ILogger<UsersController> logger,
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IAuditLogger auditLogger)
         {
             _userManager = userManager;
             _userRepository = userRepository;
@@ -55,6 +60,7 @@ namespace LeadgerLink.Server.Controllers
             _storeRepository = storeRepository ?? throw new ArgumentNullException(nameof(storeRepository));
             _logger = logger;
             _auditContext = auditContext;
+            _auditLogger = auditLogger;
         }
 
         // GET: api/users
@@ -279,6 +285,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to create domain user after identity creation. Rolling back identity user.");
+                try { await _auditLogger.LogExceptionAsync("Failed to create domain user after identity creation", ex.StackTrace); } catch { }
                 var createdIdentity = await _userManager.FindByEmailAsync(model.Email.Trim());
                 if (createdIdentity != null)
                 {

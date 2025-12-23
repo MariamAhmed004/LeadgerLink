@@ -3,6 +3,7 @@ using LeadgerLink.Server.Dtos.ProductDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,19 +33,24 @@ namespace LeadgerLink.Server.Controllers
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public ProductsController(
             IProductRepository productRepository,
             IRepository<VatCategory> vatRepository,
             IUserRepository userRepository,
             IStoreRepository storeRepository,
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IAuditLogger auditLogger)
         {
             _productRepository = productRepository;
             _vatRepository = vatRepository;
             _user_repository = userRepository;
             _storeRepository = storeRepository;
             _auditContext = auditContext;
+            _auditLogger = auditLogger;
         }
 
         // GET api/products/vatcategories
@@ -149,12 +155,14 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (DbUpdateException dbEx)
             {
-                // Log the exception (not shown here for brevity)
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Database error fetching product details", dbEx.StackTrace); } catch { }
                 return StatusCode(500, "A database error occurred while processing your request.");
             }
             catch (System.Exception ex)
             {
-                // Log the exception (not shown here for brevity)
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Unexpected error fetching product details", ex.StackTrace); } catch { }
                 return StatusCode(500, "An unexpected error occurred while processing your request.");
             }
 
@@ -262,16 +270,17 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (KeyNotFoundException ex)
             {
+                try { await _auditLogger.LogExceptionAsync("Product not found while deleting", ex.StackTrace); } catch { }
                 return NotFound(ex.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                // Log the exception (not shown here for brevity)
+                try { await _auditLogger.LogExceptionAsync("Database error deleting product", dbEx.StackTrace); } catch { }
                 return StatusCode(500, "A database error occurred while processing your request.");
             }
             catch (Exception ex)
             {
-                // Log the exception (not shown here for brevity)
+                try { await _auditLogger.LogExceptionAsync("Unexpected error deleting product", ex.StackTrace); } catch { }
                 return StatusCode(500, "An unexpected error occurred while processing your request.");
             }
         }

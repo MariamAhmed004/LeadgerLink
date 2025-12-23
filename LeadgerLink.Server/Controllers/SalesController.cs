@@ -10,6 +10,7 @@ using LeadgerLink.Server.Dtos.SaleDtos;
 using LeadgerLink.Server.Dtos.UserDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,9 @@ namespace LeadgerLink.Server.Controllers
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public SalesController(
             LedgerLinkDbContext context,
@@ -51,7 +55,8 @@ namespace LeadgerLink.Server.Controllers
             IRepository<PaymentMethod> paymentMethodRepo,
             ILogger<SalesController> logger,
             IUserRepository usersRepsitory, 
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _saleRepository = saleRepository;
@@ -60,6 +65,7 @@ namespace LeadgerLink.Server.Controllers
             _logger = logger;
             _usersRepsitory = usersRepsitory;
             _auditContext = auditContext;
+            _auditLogger = auditLogger;
         }
 
         // GET api/sales/sum
@@ -82,6 +88,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to calculate sales sum for organization {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to calculate sales sum for organization", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to calculate sales sum.");
             }
         }
@@ -139,6 +146,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to calculate sales sum for the current store month");
+                try { await _auditLogger.LogExceptionAsync("Failed to calculate sales sum for current store month", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to calculate sales sum.");
             }
         }
@@ -179,6 +187,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to retrieve best-selling recipe for the current store");
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve best-selling recipe for current store", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to retrieve best-selling recipe.");
             }
         }
@@ -278,6 +287,7 @@ namespace LeadgerLink.Server.Controllers
                     // Rollback the transaction on error
                     await tx.RollbackAsync();
                     _logger.LogError(ex, "Failed to create sale");
+                    try { await _auditLogger.LogExceptionAsync("Failed to create sale", ex.StackTrace); } catch { }
                     return StatusCode(500, "Failed to create sale.");
                 }
             }
@@ -285,6 +295,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "An error occurred while creating the sale");
+                try { await _auditLogger.LogExceptionAsync("An error occurred while creating the sale", ex.StackTrace); } catch { }
                 return StatusCode(500, "An error occurred while creating the sale.");
             }
         }
@@ -346,6 +357,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to retrieve sale details for sale ID {SaleId}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve sale details", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to retrieve sale details.");
             }
         }
@@ -442,12 +454,14 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Rollback the transaction on database update error
                 await tx.RollbackAsync();
+                try { await _auditLogger.LogExceptionAsync("Database error updating sale", ex.StackTrace); } catch { }
                 return StatusCode(500, ex.Message);
             }
             catch (Exception ex)
             {
                 // Rollback the transaction on general error
                 await tx.RollbackAsync();
+                try { await _auditLogger.LogExceptionAsync("Unexpected error updating sale", ex.StackTrace); } catch { }
                 return StatusCode(500, ex.Message);
             }
         }
@@ -486,6 +500,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load sales for organization {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to load sales for organization", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load sales");
             }
         }

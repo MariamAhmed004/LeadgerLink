@@ -11,6 +11,7 @@ using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Contexts;
 using Microsoft.EntityFrameworkCore;
 using LeadgerLink.Server.Dtos.StoreDtos;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -37,6 +38,9 @@ namespace LeadgerLink.Server.Controllers
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public StoresController(
             IStoreRepository repository,
@@ -44,7 +48,8 @@ namespace LeadgerLink.Server.Controllers
             IUserRepository userRepository,
             IOrganizationRepository organizationRepository,
             ILogger<StoresController> logger,
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IAuditLogger auditLogger)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _lookupRepository = lookupRepository ?? throw new ArgumentNullException(nameof(lookupRepository));
@@ -52,6 +57,7 @@ namespace LeadgerLink.Server.Controllers
             _organizationRepository = organizationRepository ?? throw new ArgumentNullException(nameof(organizationRepository));
             _logger = logger;
             _auditContext = auditContext;
+            _auditLogger = auditLogger;
         }
 
         // GET: api/stores
@@ -105,6 +111,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load operational statuses");
+                try { await _auditLogger.LogExceptionAsync("Failed to load operational statuses", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load operational statuses");
             }
         }
@@ -235,6 +242,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to create store for user {Email}", email);
+                try { await _auditLogger.LogExceptionAsync("Failed to create store for user", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to create store");
             }
         }
@@ -318,6 +326,13 @@ namespace LeadgerLink.Server.Controllers
 
                 return NoContent();
             }
+            catch (Exception ex)
+            {
+                // Log the error and return a 500 status code
+                _logger.LogError(ex, "Failed to update store {StoreId}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to update store", ex.StackTrace); } catch { }
+                return StatusCode(500, "Failed to update store");
+            }
             finally
             {
                 // Reset tracking behavior
@@ -338,6 +353,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return null
                 _logger.LogError(ex, "Failed to get organization for user {UserId}", userId);
+                try { await _auditLogger.LogExceptionAsync("Failed to get organization for user", ex.StackTrace); } catch { }
                 return null;
             }
         }

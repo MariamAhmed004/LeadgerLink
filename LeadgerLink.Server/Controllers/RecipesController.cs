@@ -13,6 +13,7 @@ using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Dtos.InventoryItemDtos;
 using LeadgerLink.Server.Dtos.RecipeDtos;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -42,6 +43,9 @@ namespace LeadgerLink.Server.Controllers
         // Context for managing audit-related data
         private readonly IAuditContext _auditContext;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public RecipesController(
             LedgerLinkDbContext context, 
@@ -50,7 +54,8 @@ namespace LeadgerLink.Server.Controllers
             IRepository<VatCategory> vatRepository, 
             ILogger<SalesController> logger, 
             IRepository<User> userRepository, 
-            IAuditContext auditContext)
+            IAuditContext auditContext,
+            IAuditLogger auditLogger)
         {
             _context = context;
             _recipeRepository = recipeRepository;
@@ -59,6 +64,7 @@ namespace LeadgerLink.Server.Controllers
             _logger = logger;
             _userRepository = userRepository;
             _auditContext = auditContext;
+            _auditLogger = auditLogger;
         }
 
         // GET api/recipes
@@ -78,6 +84,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to retrieve recipes");
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve recipes", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to retrieve recipes.");
             }
         }
@@ -111,6 +118,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to retrieve recipes for the current store");
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve recipes for the current store", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to retrieve recipes for the current store.");
             }
         }
@@ -199,6 +207,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load recipe details");
+                try { await _auditLogger.LogExceptionAsync("Failed to load recipe details", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load recipe details");
             }
         }
@@ -304,6 +313,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to create recipe");
+                try { await _auditLogger.LogExceptionAsync("Failed to create recipe", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to create recipe.");
             }
         }
@@ -396,8 +406,10 @@ namespace LeadgerLink.Server.Controllers
             {
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to update recipe");
+                try { await _auditLogger.LogExceptionAsync("Failed to update recipe", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to update recipe.");
             }
+
         }
 
         // DELETE api/recipes/{recipeId}
@@ -424,11 +436,13 @@ namespace LeadgerLink.Server.Controllers
             catch (KeyNotFoundException ex)
             {
                 _logger.LogError(ex, "Recipe not found for deletion");
+                try { await _auditLogger.LogExceptionAsync("Recipe not found for deletion", ex.StackTrace); } catch { }
                 return NotFound("Recipe not found.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to delete recipe");
+                try { await _auditLogger.LogExceptionAsync("Failed to delete recipe", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to delete recipe.");
             }
         }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -19,11 +20,15 @@ namespace LeadgerLink.Server.Controllers
         // Logger for logging errors and information
         private readonly ILogger<ReportsController> _logger;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
-        public ReportsController(IReportRepository reportRepository, ILogger<ReportsController> logger)
+        public ReportsController(IReportRepository reportRepository, ILogger<ReportsController> logger, IAuditLogger auditLogger)
         {
             _reportRepository = reportRepository ?? throw new ArgumentNullException(nameof(reportRepository));
             _logger = logger;
+            _auditLogger = auditLogger;
         }
 
         // -------------------------
@@ -72,6 +77,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate report {ReportId} format {Format}", reportId, format);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate report", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate report.");
             }
         }
@@ -103,6 +109,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate current stock PDF for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate current stock PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate current stock PDF.");
             }
         }
@@ -127,6 +134,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate current stock Excel for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate current stock Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate current stock Excel.");
             }
         }
@@ -154,6 +162,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Top Recipes & Sales PDF for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Top Recipes & Sales PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Top Recipes & Sales PDF.");
             }
         }
@@ -178,10 +187,10 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Top Recipes & Sales Excel for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Top Recipes & Sales Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Top Recipes & Sales Excel.");
             }
         }
-
 
         // -------------------------
         // Top Employee
@@ -206,6 +215,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Top Employee PDF for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Top Employee PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Top Employee PDF.");
             }
         }
@@ -230,10 +240,10 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Top Employee Excel for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Top Employee Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Top Employee Excel.");
             }
         }
-
 
         // -------------------------
         // Sales Summary
@@ -259,6 +269,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Sales Summary PDF for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Sales Summary PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Sales Summary PDF.");
             }
         }
@@ -283,6 +294,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Sales Summary Excel for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Sales Summary Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Sales Summary Excel.");
             }
         }
@@ -313,6 +325,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Inventory Usage Trends PDF for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Inventory Usage Trends PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Inventory Usage Trends PDF.");
             }
         }
@@ -338,6 +351,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Inventory Usage Trends Excel for store {StoreId}", storeId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Inventory Usage Trends Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Inventory Usage Trends Excel.");
             }
         }
@@ -370,6 +384,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate monthly COGS PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate monthly COGS PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate monthly COGS PDF.");
             }
         }
@@ -395,6 +410,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate monthly COGS Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate monthly COGS Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate monthly COGS Excel.");
             }
         }
@@ -423,6 +439,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate monthly Gross Profit PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate monthly Gross Profit PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate monthly Gross Profit PDF.");
             }
         }
@@ -448,6 +465,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate monthly Gross Profit Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate monthly Gross Profit Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate monthly Gross Profit Excel.");
             }
         }
@@ -477,6 +495,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate inventory valuation Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate inventory valuation Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate inventory valuation Excel.");
             }
         }
@@ -506,6 +525,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Sales by Recipe PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Sales by Recipe PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Sales by Recipe PDF.");
             }
         }
@@ -531,6 +551,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Sales by Recipe Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Sales by Recipe Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Sales by Recipe Excel.");
             }
         }
@@ -561,6 +582,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Monthly Sales PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Monthly Sales PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Monthly Sales PDF.");
             }
         }
@@ -586,6 +608,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to generate Monthly Sales Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Monthly Sales Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Monthly Sales Excel.");
             }
         }
@@ -626,6 +649,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Employee Sales Performance PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Employee Sales Performance PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Employee Sales Performance PDF.");
             }
         }
@@ -647,6 +671,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Employee Sales Performance Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Employee Sales Performance Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Employee Sales Performance Excel.");
             }
         }
@@ -666,6 +691,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Inventory Utilization Excel for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Inventory Utilization Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Inventory Utilization Excel.");
             }
         }
@@ -684,6 +710,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Inventory Utilization PDF for org {OrgId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Inventory Utilization PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Inventory Utilization PDF.");
             }
         }
@@ -707,6 +734,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Stores Monthly Sales Excel for org {OrgId} year {Year}", organizationId, year);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Stores Monthly Sales Excel", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Stores Monthly Sales Excel.");
             }
         }
@@ -726,6 +754,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to generate Stores Monthly Sales PDF for org {OrgId} year {Year}", organizationId, year);
+                try { await _auditLogger.LogExceptionAsync("Failed to generate Stores Monthly Sales PDF", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to generate Stores Monthly Sales PDF.");
             }
         }

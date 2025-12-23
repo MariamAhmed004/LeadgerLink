@@ -8,6 +8,7 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -22,13 +23,18 @@ namespace LeadgerLink.Server.Controllers
         // Repository for managing user-related data
         private readonly IUserRepository _userRepository;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public SuppliersController(
             IRepository<Supplier> supplierRepo,
-            IUserRepository userRepository)
+            IUserRepository userRepository,
+            IAuditLogger auditLogger)
         {
             _supplierRepo = supplierRepo ?? throw new ArgumentNullException(nameof(supplierRepo));
             _userRepository = userRepository;
+            _auditLogger = auditLogger;
         }
 
         // GET api/suppliers?storeId=5
@@ -79,6 +85,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 Console.Error.WriteLine(ex); // Replace with proper logging
+                try { await _auditLogger.LogExceptionAsync("Failed to load suppliers", ex.StackTrace); } catch { }
                 return StatusCode(500, $"Failed to load suppliers: {ex.Message}");
             }
         }
