@@ -3,6 +3,7 @@ using LeadgerLink.Server.Dtos.InventoryTransferDtos;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -35,14 +36,18 @@ namespace LeadgerLink.Server.Controllers
         // Repository for user-specific queries
         private readonly IUserRepository _userRepository;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
-        public InventoryTransfersController(IInventoryTransferRepository repository, LedgerLinkDbContext context, ILogger<InventoryTransfersController> logger, IAuditContext auditContext, IUserRepository userRepository)
+        public InventoryTransfersController(IInventoryTransferRepository repository, LedgerLinkDbContext context, ILogger<InventoryTransfersController> logger, IAuditContext auditContext, IUserRepository userRepository, IAuditLogger auditLogger)
         {
             _repository = repository;
             _context = context;
             _logger = logger;
             _auditContext = auditContext;
             _userRepository = userRepository;
+            _auditLogger = auditLogger;
         }
 
         // GET api/inventorytransfers/count
@@ -62,6 +67,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to count inventory transfers");
+                try { await _auditLogger.LogExceptionAsync("Failed to count inventory transfers", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to count inventory transfers");
             }
         }
@@ -74,24 +80,24 @@ namespace LeadgerLink.Server.Controllers
         {
             const int MaxPageSize = 50;
 
-            // Validate page size
-            pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
-
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null || !domainUser.StoreId.HasValue) return Ok(Array.Empty<InventoryTransferOverviewDto>());
-
-            var storeId = domainUser.StoreId.Value;
-
             try
             {
+                // Validate page size
+                pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null || !domainUser.StoreId.HasValue) return Ok(Array.Empty<InventoryTransferOverviewDto>());
+
+                var storeId = domainUser.StoreId.Value;
+
                 // Fetch the latest transfers
                 var transfers = await _repository.GetLatestForStoreAsync(storeId, pageSize);
 
@@ -100,8 +106,8 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load latest inventory transfers");
+                try { await _auditLogger.LogExceptionAsync("Failed to load latest inventory transfers", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load latest inventory transfers");
             }
         }
@@ -117,34 +123,34 @@ namespace LeadgerLink.Server.Controllers
             [FromQuery] int pageSize = 25,
             [FromQuery] int? storeId = null)
         {
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Ok(new { items = Array.Empty<InventoryTransferListDto>(), totalCount = 0 });
-
-            // Determine whether the caller is an organization admin
-            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
-
-            // Resolve the store ID based on the user's role
-            int? resolvedStoreId = null;
-            if (!isOrgAdmin)
-            {
-                if (!domainUser.StoreId.HasValue) return Ok(new { items = Array.Empty<InventoryTransferListDto>(), totalCount = 0 });
-                resolvedStoreId = domainUser.StoreId.Value;
-            }
-            else if (storeId.HasValue)
-            {
-                resolvedStoreId = storeId.Value;
-            }
-
             try
             {
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Ok(new { items = Array.Empty<InventoryTransferListDto>(), totalCount = 0 });
+
+                // Determine whether the caller is an organization admin
+                var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+
+                // Resolve the store ID based on the user's role
+                int? resolvedStoreId = null;
+                if (!isOrgAdmin)
+                {
+                    if (!domainUser.StoreId.HasValue) return Ok(new { items = Array.Empty<InventoryTransferListDto>(), totalCount = 0 });
+                    resolvedStoreId = domainUser.StoreId.Value;
+                }
+                else if (storeId.HasValue)
+                {
+                    resolvedStoreId = storeId.Value;
+                }
+
                 // Fetch the paged transfers
                 var orgId = domainUser.OrgId;
                 var (items, totalCount) = await _repository.GetPagedForCurrentStoreAsync(resolvedStoreId, isOrgAdmin, orgId, flow, status, page, pageSize);
@@ -154,8 +160,8 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load inventory transfers");
+                try { await _auditLogger.LogExceptionAsync("Failed to load inventory transfers", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load inventory transfers");
             }
         }
@@ -175,8 +181,8 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load transfer statuses");
+                try { await _auditLogger.LogExceptionAsync("Failed to load transfer statuses", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load transfer statuses");
             }
         }
@@ -206,8 +212,8 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load inventory transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to load inventory transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load inventory transfer");
             }
         }
@@ -218,59 +224,59 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost]
         public async Task<ActionResult> CreateTransfer()
         {
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
-
-            // Deserialize the request body
-            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            CreateInventoryTransferDto? dto;
             try
             {
-                using var sr = new System.IO.StreamReader(Request.Body);
-                var body = await sr.ReadToEndAsync();
-                dto = System.Text.Json.JsonSerializer.Deserialize<CreateInventoryTransferDto>(body, opts);
-            }
-            catch
-            {
-                return BadRequest("Invalid request body.");
-            }
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
 
-            // Validate the DTO
-            if (dto == null) return BadRequest("Missing payload.");
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
 
-            // Fetch the transfer status
-            var statusValue = !string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft";
+                // Fetch the domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null || !domainUser.StoreId.HasValue) return BadRequest("Unable to resolve user's store.");
 
-            //if draft allow empty items
-            if (statusValue != "draft") { 
-                if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
-            }
+                // Deserialize the request body
+                var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                CreateInventoryTransferDto? dto;
+                try
+                {
+                    using var sr = new System.IO.StreamReader(Request.Body);
+                    var body = await sr.ReadToEndAsync();
+                    dto = System.Text.Json.JsonSerializer.Deserialize<CreateInventoryTransferDto>(body, opts);
+                }
+                catch
+                {
+                    return BadRequest("Invalid request body.");
+                }
+
+                // Validate the DTO
+                if (dto == null) return BadRequest("Missing payload.");
+
+                // Fetch the transfer status
+                var statusValue = !string.IsNullOrWhiteSpace(dto.Status) ? dto.Status!.Trim() : "draft";
+
+                //if draft allow empty items
+                if (statusValue != "draft") { 
+                    if (dto.Items == null || dto.Items.Length == 0) return BadRequest("Select at least one item.");
+                }
 
 
-            // Resolve the requester and source store IDs
-            var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value;
-            var fromId = dto.FromStoreId;
-            if (!fromId.HasValue) return BadRequest("Request From store must be selected.");
+                // Resolve the requester and source store IDs
+                var requesterId = dto.RequesterStoreId ?? domainUser.StoreId!.Value;
+                var fromId = dto.FromStoreId;
+                if (!fromId.HasValue) return BadRequest("Request From store must be selected.");
 
-            // Parse the requested date
-            var parsedDate = DateTime.Now;
-            if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
+                // Parse the requested date
+                var parsedDate = DateTime.Now;
+                if (!string.IsNullOrWhiteSpace(dto.Date) && DateTime.TryParse(dto.Date, out var d)) parsedDate = d;
 
-            
-            var status = await _repository.GetTransferStatusByNameAsync(statusValue.ToLowerInvariant());
+                
+                var status = await _repository.GetTransferStatusByNameAsync(statusValue.ToLowerInvariant());
 
-            await SetAuditContextUserId();
+                await SetAuditContextUserId();
 
-            try
-            {
                 // Create the transfer object
                 var transfer = new InventoryTransfer
                 {
@@ -330,6 +336,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to create inventory transfer");
+                try { await _auditLogger.LogExceptionAsync("Failed to create inventory transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to create inventory transfer.");
             }
         }
@@ -340,35 +347,35 @@ namespace LeadgerLink.Server.Controllers
         [HttpPut("{id:int}/items")]
         public async Task<ActionResult> UpdateTransferItems(int id, [FromBody] CreateInventoryTransferItemDto[] items)
         {
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user using the repository
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Validate transfer exists and user has access
-            var transfer = await _repository.GetTransferWithStoresAsync(id);
-            if (transfer == null) return NotFound();
-
-            // Set the audit context user ID
-            await SetAuditContextUserId();
-
-            // Check if the user is an organization admin or has access to the transfer
-            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
-            if (!isOrgAdmin && domainUser.StoreId.HasValue)
-            {
-                var sId = domainUser.StoreId.Value;
-                if (transfer.FromStore != sId && transfer.ToStore != sId)
-                    return Forbid();
-            }
-
             try
             {
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user using the repository
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate transfer exists and user has access
+                var transfer = await _repository.GetTransferWithStoresAsync(id);
+                if (transfer == null) return NotFound();
+
+                // Set the audit context user ID
+                await SetAuditContextUserId();
+
+                // Check if the user is an organization admin or has access to the transfer
+                var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+                if (!isOrgAdmin && domainUser.StoreId.HasValue)
+                {
+                    var sId = domainUser.StoreId.Value;
+                    if (transfer.FromStore != sId && transfer.ToStore != sId)
+                        return Forbid();
+                }
+
                 // Delegate the update logic to the repository
                 await _repository.UpdateTransferItemsAsync(id, items ?? Array.Empty<CreateInventoryTransferItemDto>());
                 return NoContent();
@@ -377,12 +384,14 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the database error and return a 500 status code
                 _logger.LogError(ex, "DB error updating transfer items for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("DB error updating transfer items", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to update transfer items.");
             }
             catch (Exception ex)
             {
                 // Log the general error and return a 500 status code
                 _logger.LogError(ex, "Failed to update transfer items for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to update transfer items", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to update transfer items.");
             }
         }
@@ -393,36 +402,36 @@ namespace LeadgerLink.Server.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult> UpdateTransfer(int id, [FromBody] CreateInventoryTransferDto dto)
         {
-            // Validate the payload and transfer ID
-            if (dto == null) return BadRequest("Invalid payload.");
-            if (id <= 0) return BadRequest("Invalid transfer id.");
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user using the repository
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Validate transfer exists and user has access
-            var transfer = await _repository.GetTransferWithStoresAsync(id);
-            if (transfer == null) return NotFound();
-
-            // Check if the user is an organization admin or has access to the transfer
-            var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
-            if (!isOrgAdmin && domainUser.StoreId.HasValue)
-            {
-                var sId = domainUser.StoreId.Value;
-                if (transfer.FromStore != sId && transfer.ToStore != sId)
-                    return Forbid();
-            }
-
-            // Set the audit context user ID
-            await SetAuditContextUserId();
-
             try
             {
+                // Validate the payload and transfer ID
+                if (dto == null) return BadRequest("Invalid payload.");
+                if (id <= 0) return BadRequest("Invalid transfer id.");
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user using the repository
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate transfer exists and user has access
+                var transfer = await _repository.GetTransferWithStoresAsync(id);
+                if (transfer == null) return NotFound();
+
+                // Check if the user is an organization admin or has access to the transfer
+                var isOrgAdmin = User.IsInRole("Organization Admin") || User.IsInRole("Application Admin");
+                if (!isOrgAdmin && domainUser.StoreId.HasValue)
+                {
+                    var sId = domainUser.StoreId.Value;
+                    if (transfer.FromStore != sId && transfer.ToStore != sId)
+                        return Forbid();
+                }
+
+                // Set the audit context user ID
+                await SetAuditContextUserId();
+
                 // Update metadata (status, notes, date, stores) using the repository
                 await _repository.UpdateTransferAsync(id, dto);
 
@@ -443,12 +452,13 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the database error and return a 500 status code
                 _logger.LogError(ex, "DB error updating transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("DB error updating transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to update transfer.");
             }
             catch (Exception ex)
             {
-                // Log the general error and return a 500 status code
                 _logger.LogError(ex, "Failed to update transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to update transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to update transfer.");
             }
         }
@@ -459,35 +469,35 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("{id:int}/approve")]
         public async Task<ActionResult> Approve(int id, [FromBody] ApproveTransferDto dto)
         {
-            // Validate the transfer ID and payload
-            if (id <= 0) return BadRequest("Invalid transfer id.");
-            if (dto == null) return BadRequest("Invalid payload.");
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user using the repository
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Validate transfer exists and user has access
-            var transfer = await _repository.GetTransferWithStoresAsync(id);
-            if (transfer == null) return NotFound();
-
-            // Set the audit context user ID
-            await SetAuditContextUserId();
-
-            // Check if the user is an organization admin or has access to the transfer
-            var isOrgAdmin = User.IsInRole("Organization Admin");
-            if (!isOrgAdmin && domainUser.StoreId.HasValue)
-            {
-                var sId = domainUser.StoreId.Value;
-                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
-            }
-
             try
             {
+                // Validate the transfer ID and payload
+                if (id <= 0) return BadRequest("Invalid transfer id.");
+                if (dto == null) return BadRequest("Invalid payload.");
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user using the repository
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate transfer exists and user has access
+                var transfer = await _repository.GetTransferWithStoresAsync(id);
+                if (transfer == null) return NotFound();
+
+                // Set the audit context user ID
+                await SetAuditContextUserId();
+
+                // Check if the user is an organization admin or has access to the transfer
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                if (!isOrgAdmin && domainUser.StoreId.HasValue)
+                {
+                    var sId = domainUser.StoreId.Value;
+                    if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+                }
+
                 // Delegate the approval logic to the repository
                 var items = dto.Items ?? Array.Empty<CreateInventoryTransferItemDto>();
                 await _repository.ApproveTransferAsync(
@@ -504,20 +514,20 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (KeyNotFoundException knf)
             {
-                // Log the error and return a 404 status code
                 _logger.LogWarning(knf, "Approve failed for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Approve failed", knf.StackTrace); } catch { }
                 return NotFound(knf.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                // Log the database error and return a 500 status code
                 _logger.LogError(dbEx, "DB error approving transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("DB error approving transfer", dbEx.StackTrace); } catch { }
                 return StatusCode(500, "Failed to approve transfer.");
             }
             catch (Exception ex)
             {
-                // Log the general error and return a 500 status code
                 _logger.LogError(ex, "Failed to approve transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to approve transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to approve transfer.");
             }
         }
@@ -528,51 +538,51 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("{id:int}/reject")]
         public async Task<ActionResult> Reject(int id, [FromBody] RejectTransferDto? dto)
         {
-            // Validate the transfer ID
-            if (id <= 0) return BadRequest("Invalid transfer id.");
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user using the repository
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Validate transfer exists and user has access
-            var transfer = await _repository.GetTransferWithStoresAsync(id);
-            if (transfer == null) return NotFound();
-
-            // Check if the user is an organization admin or has access to the transfer
-            var isOrgAdmin = User.IsInRole("Organization Admin");
-            if (!isOrgAdmin && domainUser.StoreId.HasValue)
-            {
-                var sId = domainUser.StoreId.Value;
-                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
-            }
-
             try
             {
+                // Validate the transfer ID
+                if (id <= 0) return BadRequest("Invalid transfer id.");
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user using the repository
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate transfer exists and user has access
+                var transfer = await _repository.GetTransferWithStoresAsync(id);
+                if (transfer == null) return NotFound();
+
+                // Check if the user is an organization admin or has access to the transfer
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                if (!isOrgAdmin && domainUser.StoreId.HasValue)
+                {
+                    var sId = domainUser.StoreId.Value;
+                    if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+                }
+
                 // Delegate the rejection logic to the repository
                 await _repository.RejectTransferAsync(id, dto?.Notes);
                 return NoContent();
             }
             catch (KeyNotFoundException knf)
             {
-                // Log the error and return a 404 status code
                 _logger.LogWarning(knf, "Reject failed for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Reject failed", knf.StackTrace); } catch { }
                 return NotFound(knf.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                // Log the database error and return a 500 status code
                 _logger.LogError(dbEx, "DB error rejecting transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("DB error rejecting transfer", dbEx.StackTrace); } catch { }
                 return StatusCode(500, "Failed to reject transfer.");
             }
             catch (Exception ex)
             {
-                // Log the general error and return a 500 status code
                 _logger.LogError(ex, "Failed to reject transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to reject transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to reject transfer.");
             }
         }
@@ -584,57 +594,57 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("{id:int}/deliver")]
         public async Task<ActionResult> DeliverTransfer(int id)
          {
-            // Validate the transfer ID
-            if (id <= 0) return BadRequest("Invalid transfer ID.");
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch the domain user using the repository
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Validate transfer exists and user has access
-            var transfer = await _repository.GetTransferWithStoresAsync(id);
-            if (transfer == null) return NotFound();
-
-            // Check if the user is an organization admin or has access to the transfer
-            var isOrgAdmin = User.IsInRole("Organization Admin");
-            if (!isOrgAdmin && domainUser.StoreId.HasValue)
-            {
-                var sId = domainUser.StoreId.Value;
-                if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
-            }
-
             try
             {
+                // Validate the transfer ID
+                if (id <= 0) return BadRequest("Invalid transfer ID.");
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch the domain user using the repository
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Validate transfer exists and user has access
+                var transfer = await _repository.GetTransferWithStoresAsync(id);
+                if (transfer == null) return NotFound();
+
+                // Check if the user is an organization admin or has access to the transfer
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                if (!isOrgAdmin && domainUser.StoreId.HasValue)
+                {
+                    var sId = domainUser.StoreId.Value;
+                    if (transfer.FromStore != sId && transfer.ToStore != sId) return Forbid();
+                }
+
                 // Call the repository method to set the transfer to "delivered"
                 await _repository.SetTransferToDeliveredAsync(id);
                 return NoContent();
             }
             catch (KeyNotFoundException knf)
             {
-                // Log the error and return a 404 status code
                 _logger.LogWarning(knf, "Deliver failed for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Deliver failed", knf.StackTrace); } catch { }
                 return NotFound(knf.Message);
             }
             catch (InvalidOperationException ioe)
             {
-                // Log the error and return a 400 status code
                 _logger.LogWarning(ioe, "Deliver failed for transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Deliver failed", ioe.StackTrace); } catch { }
                 return BadRequest(ioe.Message);
             }
             catch (DbUpdateException dbEx)
             {
-                // Log the database error and return a 500 status code
                 _logger.LogError(dbEx, "DB error delivering transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("DB error delivering transfer", dbEx.StackTrace); } catch { }
                 return StatusCode(500, "Failed to deliver transfer.");
             }
             catch (Exception ex)
             {
-                // Log the general error and return a 500 status code
                 _logger.LogError(ex, "Failed to deliver transfer {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to deliver transfer", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to deliver transfer.");
             }
         }
@@ -654,8 +664,8 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load latest inventory transfers for organization {OrganizationId}", organizationId);
+                try { await _auditLogger.LogExceptionAsync("Failed to load latest inventory transfers for organization", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load latest inventory transfers for organization");
             }
         }
@@ -684,8 +694,5 @@ namespace LeadgerLink.Server.Controllers
             // Resolve the user ID and set it in the audit context
             _auditContext.UserId = await ResolveUserIdAsync();
         }
-
-
-
     }
 }

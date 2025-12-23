@@ -2,6 +2,7 @@ using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -27,12 +28,16 @@ namespace LeadgerLink.Server.Controllers
         // Repository for managing user-related data
         private readonly IUserRepository _userRepository;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
-        public NotificationsController(INotificationRepository repository, ILogger<NotificationsController> logger, IUserRepository userRepository)
+        public NotificationsController(INotificationRepository repository, ILogger<NotificationsController> logger, IUserRepository userRepository, IAuditLogger auditLogger)
         {
             _repository = repository;
             _logger = logger;
             _userRepository = userRepository;
+            _auditLogger = auditLogger;
         }
 
         // GET api/notifications/latest?pageSize=5
@@ -82,6 +87,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load latest notifications for user {UserId}", domainUser.UserId);
+                try { await _auditLogger.LogExceptionAsync("Failed to load latest notifications for user", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load notifications");
             }
         }
@@ -129,6 +135,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load notification {NotificationId} for user {UserId}", id, domainUser.UserId);
+                try { await _auditLogger.LogExceptionAsync("Failed to load notification for user", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to load notification");
             }
         }
@@ -161,6 +168,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to mark notification {NotificationId} read for user {UserId}", id, domainUser.UserId);
+                try { await _auditLogger.LogExceptionAsync("Failed to mark notification as read", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to mark notification as read");
             }
         }
@@ -182,6 +190,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to count notifications");
+                try { await _auditLogger.LogExceptionAsync("Failed to count notifications", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to count notifications");
             }
         }
@@ -213,8 +222,10 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to get unread notifications count for user {UserId}", domainUser.UserId);
+                try { await _auditLogger.LogExceptionAsync("Failed to get unread notifications count", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to get unread notifications count");
             }
+
         }
 
     }

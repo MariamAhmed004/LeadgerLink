@@ -97,7 +97,6 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 // Log error and return 500 status
-                _logger.LogError(ex, "Failed to load lookups");
                 await _auditLogger.LogExceptionAsync("Failed to load lookups", ex.StackTrace);
                 return StatusCode(500, "Failed to load lookups");
             }
@@ -115,42 +114,43 @@ namespace LeadgerLink.Server.Controllers
             [FromQuery] int pageSize = 25,
             [FromQuery] int? storeId = null)
         {
-            // Validate user authentication
-            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch domain user
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
-
-            // Validate user's organization association
-            if (!domainUser.OrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
-
-            // Determine store ID
-            var isOrgAdmin = User.IsInRole("Organization Admin");
-            int? resolvedStoreId = null;
-            if (!isOrgAdmin)
-            {
-                if (!domainUser.StoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
-                resolvedStoreId = domainUser.StoreId.Value;
-            }
-            else
-            {
-                resolvedStoreId = storeId ?? domainUser.StoreId;
-                if (!resolvedStoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
-
-                // Validate store organization ID
-                var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(resolvedStoreId.Value);
-                if (!storeOrgId.HasValue || storeOrgId.Value != domainUser.OrgId.Value)
-                {
-                    return Forbid("The store does not belong to the same organization as the user.");
-                }
-            }
             try
             {
+                // Validate user authentication
+                if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
+
+                // Validate user's organization association
+                if (!domainUser.OrgId.HasValue) return BadRequest("Unable to resolve user's organization.");
+
+                // Determine store ID
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                int? resolvedStoreId = null;
+                if (!isOrgAdmin)
+                {
+                    if (!domainUser.StoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
+                    resolvedStoreId = domainUser.StoreId.Value;
+                }
+                else
+                {
+                    resolvedStoreId = storeId ?? domainUser.StoreId;
+                    if (!resolvedStoreId.HasValue) return Ok(new { items = Array.Empty<object>(), totalCount = 0 });
+
+                    // Validate store organization ID
+                    var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(resolvedStoreId.Value);
+                    if (!storeOrgId.HasValue || storeOrgId.Value != domainUser.OrgId.Value)
+                    {
+                        return Forbid("The store does not belong to the same organization as the user.");
+                    }
+                }
+
                 // Normalize stock level
                 string? normalizedStockLevel = !string.IsNullOrWhiteSpace(stockLevel)
                     ? stockLevel.Trim().ToLowerInvariant()
@@ -176,8 +176,8 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 // Log error and return 500 status
-                _logger.LogError(ex, "Failed to load inventory items for store");
-                await _auditLogger.LogExceptionAsync("Failed to load inventory items for store", ex.StackTrace);
+                try { await _auditLogger.LogExceptionAsync("Failed to load inventory items for store", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to load inventory items");
             }
         }
@@ -394,7 +394,8 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Rollback transaction and log error
                 _logger.LogError(ex, "Failed to create inventory item");
-                await _auditLogger.LogExceptionAsync("Failed to create inventory item", ex.StackTrace);
+                try {await _auditLogger.LogExceptionAsync("Failed to create inventory item", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to create inventory item.");
             }
         }
@@ -434,7 +435,8 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log error and return 500 status
                 _logger.LogError(ex, "Failed to retrieve inventory item with ID {Id}", id);
-                await _auditLogger.LogExceptionAsync("Failed to retrieve inventory item", ex.StackTrace);
+                try {await _auditLogger.LogExceptionAsync("Failed to retrieve inventory item", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to retrieve inventory item.");
             }
 
@@ -462,6 +464,8 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log error and return 500 status
                 _logger.LogError(ex, "Failed to retrieve image for inventory item with ID {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve inventory item image", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to retrieve image.");
             }
         }
@@ -674,7 +678,8 @@ namespace LeadgerLink.Server.Controllers
                 // Rollback transaction and log error
                 await tx.RollbackAsync();
                 _logger.LogError(dbEx, "Database error updating inventory item");
-                await _auditLogger.LogExceptionAsync("Database error updating inventory item", dbEx.StackTrace);
+                try {await _auditLogger.LogExceptionAsync("Database error updating inventory item", dbEx.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to update inventory item.");
             }
             catch (Exception ex)
@@ -682,7 +687,8 @@ namespace LeadgerLink.Server.Controllers
                 // Rollback transaction and log error
                 await tx.RollbackAsync();
                 _logger.LogError(ex, "Failed to update inventory item");
-                await _auditLogger.LogExceptionAsync("Failed to update inventory item", ex.StackTrace);
+                try {await _auditLogger.LogExceptionAsync("Failed to update inventory item", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to update inventory item.");
             }
         }
@@ -717,6 +723,8 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to restock inventory item with ID {Id}", id);
+                try {await _auditLogger.LogExceptionAsync("Failed to restock inventory item", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to restock inventory item.");
             }
         }
@@ -790,7 +798,8 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log error and return 500 status
                 _logger.LogError(ex, "Failed to load organization-wide inventory items");
-                await _auditLogger.LogExceptionAsync("Failed to load organization-wide inventory items", ex.StackTrace);
+                try {await _auditLogger.LogExceptionAsync("Failed to load organization-wide inventory items", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "Failed to load organization-wide inventory items");
             }
         }
@@ -812,6 +821,7 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log error and return 500 status
                 _logger.LogError(ex, "Failed to generate inventory template");
+
                 return StatusCode(500, "Failed to generate inventory template");
             }
         }
@@ -841,30 +851,31 @@ namespace LeadgerLink.Server.Controllers
         }
 
         // POST api/inventoryitems/upload
+        // Handles bulk upload of inventory items.
         [Authorize]
         [HttpPost("upload")]
         public async Task<IActionResult> UploadInventoryItems([FromForm] UploadInventoryItemsDto dto)
         {
-            if (dto.File == null || dto.File.Length == 0)
-                return BadRequest("No file uploaded or file is empty.");
-
-            // Resolve user ID
-            var userId = await ResolveUserIdAsync();
-            if (!userId.HasValue) return Unauthorized();
-
-            // Fetch domain user
-            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
-            if (domainUser == null) return Unauthorized();
-
-            // Determine store ID
-            var isOrgAdmin = User.IsInRole("Organization Admin");
-            int? resolvedStoreId = isOrgAdmin ? dto.StoreId : domainUser.StoreId;
-
-            if (!resolvedStoreId.HasValue)
-                return BadRequest("Unable to resolve store for the current user.");
-
             try
             {
+                if (dto.File == null || dto.File.Length == 0)
+                    return BadRequest("No file uploaded or file is empty.");
+
+                // Resolve user ID
+                var userId = await ResolveUserIdAsync();
+                if (!userId.HasValue) return Unauthorized();
+
+                // Fetch domain user
+                var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+                if (domainUser == null) return Unauthorized();
+
+                // Determine store ID
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                int? resolvedStoreId = isOrgAdmin ? dto.StoreId : domainUser.StoreId;
+
+                if (!resolvedStoreId.HasValue)
+                    return BadRequest("Unable to resolve store for the current user.");
+
                 // Process the uploaded file
                 using var stream = dto.File.OpenReadStream();
                 var (success, message) = await _inventoryRepo.UploadInventoryItemsAsync(stream, resolvedStoreId.Value);
@@ -876,8 +887,9 @@ namespace LeadgerLink.Server.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to upload inventory items");
-                await _auditLogger.LogExceptionAsync("Failed to upload inventory items", ex.StackTrace);
+                // Log error and return 500 status
+                try {await _auditLogger.LogExceptionAsync("Failed to upload inventory items", ex.StackTrace); } catch { }
+                
                 return StatusCode(500, "An error occurred while processing the file.");
             }
         }

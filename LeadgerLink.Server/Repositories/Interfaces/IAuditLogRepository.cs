@@ -28,7 +28,8 @@ namespace LeadgerLink.Server.Repositories.Interfaces
             string? actionTypeName,
             DateTime? from,
             DateTime? to,
-            int? organizationId);
+            int? organizationId,
+            bool isApplicationAdmin);
 
         /// <summary>
         /// Get a single audit log detail DTO by id (or null when not found).

@@ -83,13 +83,15 @@ namespace LeadgerLink.Server.Repositories.Implementations
             string? actionTypeName,
             DateTime? from,
             DateTime? to,
-            int? organizationId)
+            int? organizationId,
+            bool isApplicationAdmin) 
         {
             var q = _context.AuditLogs
                 .Include(a => a.User)
                 .Include(a => a.ActionType)
                 .AsQueryable();
 
+            // Filter by action type ID or name
             if (actionTypeId.HasValue)
             {
                 q = q.Where(a => a.ActionTypeId == actionTypeId.Value);
@@ -99,11 +101,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 q = q.Where(a => a.ActionType != null && a.ActionType.ActionTypeName == actionTypeName);
             }
 
+            // Filter by organization ID
             if (organizationId.HasValue)
             {
                 q = q.Where(a => a.User != null && a.User.OrgId == organizationId.Value);
             }
 
+            // Filter by date range
             if (from.HasValue)
             {
                 var fromDate = from.Value.Date;
@@ -116,6 +120,13 @@ namespace LeadgerLink.Server.Repositories.Implementations
                 q = q.Where(a => a.Timestamp <= toDate);
             }
 
+            // Restrict to application-level logs if the user is an Application Admin
+            if (isApplicationAdmin)
+            {
+                q = q.Where(a => a.AuditLogLevelId == 1);
+            }
+
+            // Fetch and return the paginated results
             var items = await q
                 .OrderByDescending(a => a.Timestamp)
                 .Skip((page - 1) * pageSize)

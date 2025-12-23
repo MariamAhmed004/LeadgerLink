@@ -2,6 +2,7 @@ using LeadgerLink.Server.Contexts;
 using LeadgerLink.Server.Models;
 using LeadgerLink.Server.Repositories.Implementations;
 using LeadgerLink.Server.Repositories.Interfaces;
+using LeadgerLink.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -31,17 +32,22 @@ namespace LeadgerLink.Server.Controllers
         // Repository for user-specific queries
         private readonly IUserRepository _userRepository;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
         public InventoryTransferDriversController(
             IRepository<Driver> driverRepository,
             ILogger<InventoryTransferDriversController> logger,
             IAuditContext auditContext,
-            IUserRepository userRepository)
+            IUserRepository userRepository,
+            IAuditLogger auditLogger)
         {
             _driverRepository = driverRepository ?? throw new ArgumentNullException(nameof(driverRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _auditContext = auditContext ?? throw new ArgumentNullException(nameof(auditContext));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+            _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         }
 
         // GET: api/inventorytransfers/drivers/by-store/{storeId}
@@ -75,6 +81,14 @@ namespace LeadgerLink.Server.Controllers
             {
                 // Log the error and return a 500 status code
                 _logger.LogError(ex, "Failed to load drivers for store {StoreId}", storeId);
+                try
+                {
+                await _auditLogger.LogExceptionAsync("Failed to load drivers for store", ex.StackTrace);
+                }
+                catch
+                {
+                    // Swallow any exceptions from the audit logger to avoid masking the original error
+                }
                 return StatusCode(500, "Failed to load drivers");
             }
         }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using LeadgerLink.Server.Repositories.Interfaces;
 using LeadgerLink.Server.Dtos;
+using LeadgerLink.Server.Services;
 
 namespace LeadgerLink.Server.Controllers
 {
@@ -30,14 +31,18 @@ namespace LeadgerLink.Server.Controllers
         // Repository for fetching store data
         private readonly IStoreRepository _storeRepository;
 
+        // Audit logger for logging exceptions
+        private readonly IAuditLogger _auditLogger;
+
         // Constructor to initialize dependencies
-        public DashboardController(IReportRepository reportRepository, IUserRepository userRepository, IInventoryItemRepository inventoryRepository, ILogger<DashboardController> logger, IStoreRepository storeRepository)
+        public DashboardController(IReportRepository reportRepository, IUserRepository userRepository, IInventoryItemRepository inventoryRepository, ILogger<DashboardController> logger, IStoreRepository storeRepository, IAuditLogger auditLogger)
         {
             _reportRepository = reportRepository ?? throw new ArgumentNullException(nameof(reportRepository));
             _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
             _inventoryRepository = inventoryRepository ?? throw new ArgumentNullException(nameof(inventoryRepository));
             _logger = logger;
             _storeRepository = storeRepository;
+            _auditLogger = auditLogger;
         }
 
         // GET api/dashboard/summary
@@ -45,12 +50,12 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("summary")]
         public async Task<IActionResult> GetSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
         {
-            // ------------------------- Validate input -------------------------
-            if (months < 1) months = 6;
-            if (topN < 1) topN = 5;
-
             try
             {
+                // ------------------------- Validate input -------------------------
+                if (months < 1) months = 6;
+                if (topN < 1) topN = 5;
+
                 // ------------------------- Fetch user details -------------------------
                 var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? User.Identity?.Name;
                 if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
@@ -176,7 +181,7 @@ namespace LeadgerLink.Server.Controllers
             catch (Exception ex)
             {
                 // ------------------------- Log error -------------------------
-                _logger.LogError(ex, "Failed to build dashboard summary");
+                try { await _auditLogger.LogExceptionAsync("Failed to build dashboard summary", ex.StackTrace); } catch { }
                 return StatusCode(500, "Failed to build dashboard summary");
             }
         }
@@ -186,16 +191,34 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("store/summary")]
         public async Task<IActionResult> GetStoreSummary([FromQuery] int months = 6, [FromQuery] int topN = 5, [FromQuery] int? storeId = null)
         {
-            // ------------------------- Delegate to GetSummary -------------------------
-            return await GetSummary(months, topN, storeId);
+            try
+            {
+                // ------------------------- Delegate to GetSummary -------------------------
+                return await GetSummary(months, topN, storeId);
+            }
+            catch (Exception ex)
+            {
+                // ------------------------- Log error -------------------------
+                try { await _auditLogger.LogExceptionAsync("Failed to build store dashboard summary", ex.StackTrace); } catch { }
+                return StatusCode(500, "Failed to build store dashboard summary");
+            }
         }
 
         // Helper method to fetch sales series data
         private async Task<TimeSeriesDto> _report_repository_getsalesseries(int storeId, int months)
         {
-            var s = await _reportRepository.GetStoreSalesSeriesAsync(storeId, months);
-            if (s == null) return new TimeSeriesDto { Labels = Array.Empty<string>(), Values = Array.Empty<decimal>() };
-            return s;
+            try
+            {
+                var s = await _reportRepository.GetStoreSalesSeriesAsync(storeId, months);
+                if (s == null) return new TimeSeriesDto { Labels = Array.Empty<string>(), Values = Array.Empty<decimal>() };
+                return s;
+            }
+            catch (Exception ex)
+            {
+                // ------------------------- Log error -------------------------
+                try { await _auditLogger.LogExceptionAsync("Failed to fetch sales series data", ex.StackTrace); } catch { }
+                throw;
+            }
         }
     }
 }

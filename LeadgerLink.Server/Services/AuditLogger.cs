@@ -27,7 +27,6 @@ namespace LeadgerLink.Server.Services
 {
     public interface IAuditLogger
     {
-        Task TrackChangesAsync(int? auditLogLevelId = null);
         Task LogExceptionAsync(string errorMessage, string? stackTrace = null);
         Task LogLoginAsync(string? details = null);
         Task LogLogoutAsync(string? details = null);
@@ -69,63 +68,7 @@ namespace LeadgerLink.Server.Services
             catch { return null; }
         }
 
-        public async Task TrackChangesAsync(int? auditLogLevelId = null)
-        {
-            var db = ResolveDbContext();
-            var userId = ResolveUserId();
-
-            var entries = db.ChangeTracker.Entries()
-                .Where(e => e.State == EntityState.Modified || e.State == EntityState.Added || e.State == EntityState.Deleted)
-                .ToList();
-
-            foreach (var entry in entries)
-            {
-                var previousValues = new Dictionary<string, object?>();
-                var currentValues = new Dictionary<string, object?>();
-
-                if (entry.State == EntityState.Modified)
-                {
-                    foreach (var property in entry.OriginalValues.Properties)
-                    {
-                        var original = entry.OriginalValues[property];
-                        var current = entry.CurrentValues[property];
-                        if (!Equals(original, current))
-                        {
-                            previousValues[property.Name] = original;
-                            currentValues[property.Name] = current;
-                        }
-                    }
-                }
-                else if (entry.State == EntityState.Added)
-                {
-                    foreach (var property in entry.CurrentValues.Properties)
-                    {
-                        currentValues[property.Name] = entry.CurrentValues[property];
-                    }
-                }
-                else if (entry.State == EntityState.Deleted)
-                {
-                    foreach (var property in entry.OriginalValues.Properties)
-                    {
-                        previousValues[property.Name] = entry.OriginalValues[property];
-                    }
-                }
-
-                var log = new AuditLog
-                {
-                    Timestamp = DateTime.Now,
-                    OldValue = previousValues.Count > 0 ? JsonSerializer.Serialize(previousValues) : null,
-                    NewValue = currentValues.Count > 0 ? JsonSerializer.Serialize(currentValues) : null,
-                    Details = entry.State.ToString(),
-                    ActionTypeId = MapActionType(entry.State),
-                    AuditLogLevelId = auditLogLevelId,
-                    UserId = userId
-                };
-
-                await _repo.AddAsync(log);
-            }
-        }
-
+     
         public async Task LogExceptionAsync(string errorMessage, string? stackTrace = null)
         {
             var userId = ResolveUserId();
@@ -153,8 +96,8 @@ namespace LeadgerLink.Server.Services
                 NewValue = details,
                 Details = "Login",
                 ActionTypeId = MapActionType("Login"),
-                // Login logs are generic (no specific level)
-                AuditLogLevelId = null,
+                // Login logs are set to application-level  
+                AuditLogLevelId = 1,
                 UserId = ResolveUserId()
             };
             await _repo.AddAsync(log);
@@ -169,8 +112,8 @@ namespace LeadgerLink.Server.Services
                 NewValue = details,
                 Details = "Logout",
                 ActionTypeId = MapActionType("Logout"),
-                // Logout logs are generic (no specific level)
-                AuditLogLevelId = null,
+                // Logout logs are set to application-level
+                AuditLogLevelId = 1,
                 UserId = ResolveUserId()
             };
             await _repo.AddAsync(log);
@@ -201,21 +144,10 @@ namespace LeadgerLink.Server.Services
                 NewValue = details,
                 Details = $"{action} for {email}",
                 ActionTypeId = MapActionType("edit"), 
-                AuditLogLevelId = null, // Generic level for password reset actions
+                AuditLogLevelId = 1, // set to application-level for security-related actions
                 UserId = ResolveUserId()
             };
             await _repo.AddAsync(log);
-        }
-
-        private int? MapActionType(EntityState state)
-        {
-            return state switch
-            {
-                EntityState.Added => MapActionType("create"),
-                EntityState.Modified => MapActionType("edit"),
-                EntityState.Deleted => MapActionType("delete"),
-                _ => null
-            };
         }
 
         private int? MapActionType(string name)
@@ -229,7 +161,7 @@ namespace LeadgerLink.Server.Services
                 case "edit": return 4;
                 case "delete": return 5;
                 case "generate": return 6;
-                case "exception": return 1008;
+                case "exception": return 1007;
                 default: return null;
             }
         }

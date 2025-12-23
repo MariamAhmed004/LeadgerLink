@@ -45,26 +45,35 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
-            // ------------------------- Validate user credentials -------------------------
-            var user = await _userManager.FindByNameAsync(model.Username);
-            if (user == null) return Unauthorized("Invalid username or password");
-
-            // ------------------------- Check if the user is active -------------------------
-            var userRecord = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == user.Email.ToLower());
-            if (userRecord == null || !userRecord.IsActive)
+            try
             {
-                return Unauthorized("Your account is deactivated. Please contact support.");
+                // ------------------------- Validate user credentials -------------------------
+                var user = await _userManager.FindByNameAsync(model.Username);
+                if (user == null) return Unauthorized("Invalid username or password");
+
+                // ------------------------- Check if the user is active -------------------------
+                var userRecord = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == user.Email.ToLower());
+                if (userRecord == null || !userRecord.IsActive)
+                {
+                    return Unauthorized("Your account is deactivated. Please contact support.");
+                }
+
+                // ------------------------- Authenticate user -------------------------
+                var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent: true, lockoutOnFailure: false);
+                if (!result.Succeeded) return Unauthorized("Invalid username or password");
+
+                // ------------------------- Log login action -------------------------
+                await _auditLogger.LogLoginAsync($"User {user.UserName} logged in.");
+
+                // ------------------------- Return result -------------------------
+                return Ok("Logged in");
             }
-
-            // ------------------------- Authenticate user -------------------------
-            var result = await _signInManager.PasswordSignInAsync(user, model.Password, isPersistent: true, lockoutOnFailure: false);
-            if (!result.Succeeded) return Unauthorized("Invalid username or password");
-
-            // ------------------------- Log login action -------------------------
-            await _auditLogger.LogLoginAsync($"User {user.UserName} logged in.");
-
-            // ------------------------- Return result -------------------------
-            return Ok("Logged in");
+            catch (Exception ex)
+            {
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Failed to log in user", ex.StackTrace); } catch { }
+                return StatusCode(500, "An error occurred while logging in.");
+            }
         }
 
         // GET api/auth/loggedInuser
@@ -72,39 +81,48 @@ namespace LeadgerLink.Server.Controllers
         [HttpGet("loggedInuser")]
         public async Task<IActionResult> LoggedInUser()
         {
-            // ------------------------- Check authentication status -------------------------
-            if (User?.Identity?.IsAuthenticated != true)
+            try
             {
+                // ------------------------- Check authentication status -------------------------
+                if (User?.Identity?.IsAuthenticated != true)
+                {
+                    return Ok(new LoggedInUserDto
+                    {
+                        IsAuthenticated = false
+                    });
+                }
+
+                // ------------------------- Fetch user details -------------------------
+                var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                         ?? User.Identity!.Name;
+
+                var roles = User.Claims
+                    .Where(c => c.Type == ClaimTypes.Role || c.Type == "role")
+                    .Select(c => c.Value)
+                    .ToArray();
+
+                var userRecord = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+                // ------------------------- Return result -------------------------
                 return Ok(new LoggedInUserDto
                 {
-                    IsAuthenticated = false
+                    IsAuthenticated = true,
+                    UserName = email,
+                    Roles = roles,
+                    FullName = userRecord != null
+                        ? $"{userRecord.UserFirstname} {userRecord.UserLastname}"
+                        : null,
+                    UserId = userRecord?.UserId,
+                    OrgId = userRecord?.OrgId,
+                    StoreId = userRecord?.StoreId
                 });
             }
-
-            // ------------------------- Fetch user details -------------------------
-            var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                     ?? User.Identity!.Name;
-
-            var roles = User.Claims
-                .Where(c => c.Type == ClaimTypes.Role || c.Type == "role")
-                .Select(c => c.Value)
-                .ToArray();
-
-            var userRecord = await _userRepository.GetFirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
-
-            // ------------------------- Return result -------------------------
-            return Ok(new LoggedInUserDto
+            catch (Exception ex)
             {
-                IsAuthenticated = true,
-                UserName = email,
-                Roles = roles,
-                FullName = userRecord != null
-                    ? $"{userRecord.UserFirstname} {userRecord.UserLastname}"
-                    : null,
-                UserId = userRecord?.UserId,
-                OrgId = userRecord?.OrgId,
-                StoreId = userRecord?.StoreId
-            });
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Failed to retrieve logged-in user details", ex.StackTrace); } catch { }
+                return StatusCode(500, "An error occurred while retrieving user details.");
+            }
         }
 
         // POST api/auth/logout
@@ -112,14 +130,23 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("Logout")]
         public async Task<IActionResult> Logout()
         {
-            // ------------------------- Log logout action -------------------------
-            await _auditLogger.LogLogoutAsync($"User {User.Identity?.Name} logged out.");
+            try
+            {
+                // ------------------------- Log logout action -------------------------
+                await _auditLogger.LogLogoutAsync($"User {User.Identity?.Name} logged out.");
 
-            // ------------------------- Perform logout -------------------------
-            await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+                // ------------------------- Perform logout -------------------------
+                await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
 
-            // ------------------------- Return result -------------------------
-            return Ok();
+                // ------------------------- Return result -------------------------
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Failed to log out user", ex.StackTrace); } catch { }
+                return StatusCode(500, "An error occurred while logging out.");
+            }
         }
 
         // POST api/auth/request-password-reset
@@ -127,30 +154,39 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("request-password-reset")]
         public async Task<IActionResult> RequestPasswordReset([FromBody] RequestPasswordResetDto model)
         {
-            // ------------------------- Validate user existence -------------------------
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null) return NotFound("User with the specified email does not exist.");
+            try
+            {
+                // ------------------------- Validate user existence -------------------------
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user == null) return NotFound("User with the specified email does not exist.");
 
-            // ------------------------- Generate password reset token -------------------------
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                // ------------------------- Generate password reset token -------------------------
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 
-            // ------------------------- Send token via email -------------------------
-            var resetLink = $"https://localhost:55070/reset-password?email={Uri.EscapeDataString(model.Email)}&token={Uri.EscapeDataString(token)}";
-            var subject = "Password Reset Request";
-            var htmlBody = $@"
-                <p>Hi {user.UserName},</p>
-                <p>You requested to reset your password. Please click the link below to reset your password:</p>
-                <p><a href='{resetLink}'>Reset Password</a></p>
-                <p>If you did not request this, please ignore this email.</p>
-                <p>Thank you,<br>LedgerLink Team</p>";
+                // ------------------------- Send token via email -------------------------
+                var resetLink = $"https://localhost:55070/reset-password?email={Uri.EscapeDataString(model.Email)}&token={Uri.EscapeDataString(token)}";
+                var subject = "Password Reset Request";
+                var htmlBody = $@"
+                    <p>Hi {user.UserName},</p>
+                    <p>You requested to reset your password. Please click the link below to reset your password:</p>
+                    <p><a href='{resetLink}'>Reset Password</a></p>
+                    <p>If you did not request this, please ignore this email.</p>
+                    <p>Thank you,<br>LedgerLink Team</p>";
 
-            await _emailService.SendAsync(model.Email, subject, htmlBody);
+                await _emailService.SendAsync(model.Email, subject, htmlBody);
 
-            // ------------------------- Log password reset request -------------------------
-            await _auditLogger.LogPasswordResetAsync("Password reset requested", model.Email, $"Token generated and email sent to {model.Email}");
+                // ------------------------- Log password reset request -------------------------
+                await _auditLogger.LogPasswordResetAsync("Password reset requested", model.Email, $"Token generated and email sent to {model.Email}");
 
-            // ------------------------- Return result -------------------------
-            return Ok("Password reset email sent.");
+                // ------------------------- Return result -------------------------
+                return Ok("Password reset email sent.");
+            }
+            catch (Exception ex)
+            {
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Failed to request password reset", ex.StackTrace); } catch { }
+                return StatusCode(500, "An error occurred while requesting password reset.");
+            }
         }
 
         // POST api/auth/reset-password
@@ -158,23 +194,32 @@ namespace LeadgerLink.Server.Controllers
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
         {
-            // ------------------------- Validate user existence -------------------------
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null) return NotFound("User with the specified email does not exist.");
-
-            // ------------------------- Reset password -------------------------
-            var result = await _userManager.ResetPasswordAsync(user, model.Token, model.NewPassword);
-            if (!result.Succeeded)
+            try
             {
-                // Return validation errors if the reset fails
-                return BadRequest(result.Errors.Select(e => e.Description));
+                // ------------------------- Validate user existence -------------------------
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user == null) return NotFound("User with the specified email does not exist.");
+
+                // ------------------------- Reset password -------------------------
+                var result = await _userManager.ResetPasswordAsync(user, model.Token, model.NewPassword);
+                if (!result.Succeeded)
+                {
+                    // Return validation errors if the reset fails
+                    return BadRequest(result.Errors.Select(e => e.Description));
+                }
+
+                // ------------------------- Log password reset action -------------------------
+                await _auditLogger.LogPasswordResetAsync("Password reset completed", model.Email, $"Password successfully reset for {model.Email}");
+
+                // ------------------------- Return result -------------------------
+                return Ok("Password reset successfully.");
             }
-
-            // ------------------------- Log password reset action -------------------------
-            await _auditLogger.LogPasswordResetAsync("Password reset completed", model.Email, $"Password successfully reset for {model.Email}");
-
-            // ------------------------- Return result -------------------------
-            return Ok("Password reset successfully.");
+            catch (Exception ex)
+            {
+                // Log the exception
+                try { await _auditLogger.LogExceptionAsync("Failed to reset password", ex.StackTrace); } catch { }
+                return StatusCode(500, "An error occurred while resetting the password.");
+            }
         }
     }
 }
