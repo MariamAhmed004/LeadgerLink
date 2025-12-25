@@ -14,13 +14,21 @@ const MenuTabCard = ({ data }) => {
     enforceAvailability = true, // NEW: when true, cap selected qty to 'quantity' and set input max
   } = data;
 
-  const [selectedQty, setSelectedQty] = useState(0);
+  const [selectedQty, setSelectedQty] = useState(String(initialSelectedQty ?? ""));
+
+  // helper to parse quantity strings (accept comma or dot)
+  const parseQuantityValue = (v) => {
+    if (v == null || v === "") return 0;
+    const s = String(v).trim().replace(",", ".");
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  };
 
   useEffect(() => {
-    const v = Number(initialSelectedQty || 0);
-    if (Number.isFinite(v) && v > 0) {
-      setSelectedQty(v);
-      if (typeof onSelect === "function") onSelect(v);
+    const s = initialSelectedQty == null ? "" : String(initialSelectedQty);
+    if (s !== "" && parseQuantityValue(s) > 0) {
+      setSelectedQty(s);
+      if (typeof onSelect === "function") onSelect(parseQuantityValue(s));
     }
   }, [initialSelectedQty]);
 
@@ -31,27 +39,34 @@ const MenuTabCard = ({ data }) => {
   }, [isSelected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQtyChange = (e) => {
-    let v = parseInt(e.target.value, 10);
-    if (Number.isNaN(v)) v = 0;
-    if (v < 0) v = 0;
+    let input = e.target.value ?? "";
+    // normalize comma to dot
+    input = String(input).replace(",", ".");
+    // allow partial input like "", ".", "0.", "0.5"
+    if (input !== "" && !/^(\d+(\.\d*)?|\.\d*)$/.test(input)) {
+      // ignore invalid characters
+      return;
+    }
 
-    // Only clamp to available when enforceAvailability is true
-    if (enforceAvailability && quantity && v > quantity) v = quantity;
+    // If numeric, enforce availability cap
+    const numeric = parseQuantityValue(input);
+    if (enforceAvailability && quantity && numeric > quantity) {
+      input = String(quantity);
+    }
 
-    setSelectedQty(v);
+    setSelectedQty(input);
     if (typeof onSelect === "function") {
-      onSelect(v);
+      onSelect(parseQuantityValue(input));
     }
   };
 
   const handleSelectButton = () => {
-    // Select toggles to 1, but clamp only if enforceAvailability
+    const currentNumeric = parseQuantityValue(selectedQty);
+    const shouldDeselect = currentNumeric > 0;
     const minAllowed = enforceAvailability ? Math.min(1, quantity || 1) : 1;
-    const nextQty = selectedQty > 0 ? 0 : minAllowed;
+    const nextQty = shouldDeselect ? "" : String(minAllowed);
     setSelectedQty(nextQty);
-    if (typeof onSelect === "function") {
-      onSelect(nextQty);
-    }
+    if (typeof onSelect === "function") onSelect(parseQuantityValue(nextQty));
   };
 
   const selectedClass = isSelected || selectedQty > 0 ? "border-2 border-success shadow-sm" : "border border-light";
@@ -111,6 +126,7 @@ const MenuTabCard = ({ data }) => {
                 <span className="fw-semibold text-secondary me-2">Quantity: </span>
                 <input
                   type="number"
+                  step="any"
                   className="form-control form-control-sm"
                   style={{ width: 75 }}
                   min={0}

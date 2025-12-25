@@ -28,5 +28,6 @@ namespace LeadgerLink.Server.Dtos.ProductDtos
         public int? AvailableQuantity { get; set; }
         public int? StoreId { get; set; }
         public string? StoreName { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

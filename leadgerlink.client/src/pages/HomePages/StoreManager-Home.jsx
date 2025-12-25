@@ -36,7 +36,22 @@ const StoreManagerHomePage = () => {
             }
 
             if (lowStockRes.ok) {
-                lowStockCount = await lowStockRes.json();
+                // API may return { count: X } or a raw number — handle both.
+                try {
+                    const lowJson = await lowStockRes.json();
+                    if (lowJson == null) {
+                        lowStockCount = 0;
+                    } else if (typeof lowJson === "number") {
+                        lowStockCount = lowJson;
+                    } else if (typeof lowJson === "object") {
+                        // common shapes: { count: X } or { totalCount: X }
+                        lowStockCount = Number(lowJson.count ?? lowJson.value ?? 0) || 0;
+                    } else {
+                        lowStockCount = Number(lowJson) || 0;
+                    }
+                } catch {
+                    lowStockCount = 0;
+                }
             }
 
             // set cards

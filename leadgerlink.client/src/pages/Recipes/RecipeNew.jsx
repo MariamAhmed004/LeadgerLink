@@ -464,7 +464,13 @@ const RecipeNew = () => {
                 </div>
 
                 <div className="col-12 col-md-6 text-start">
-                  <InputField label="Selling Price (BHD)" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={onSellingPriceChange} />
+                                  <InputField label="Selling Price (BHD)"
+                                      type="number"
+                                      step="00.100"
+                                      value={sellingPrice != null ? Number(sellingPrice).toFixed(3) : "000.000"}
+                                      onChange={onSellingPriceChange}
+                                      placeholder="XXX.XXX BHD"
+                                      inputProps={{ inputMode: 'decimal' }} />
                 </div>
 
                 <div className="col-12 col-md-6 text-start">

@@ -213,7 +213,8 @@ const ProductEdit = () => {
                       <SelectField label="VAT" value={vatCategoryId} onChange={setVatCategoryId} options={vatOptions} required />
           </div>
           <div className="col-12 col-md-6">
-            <InputField label="Selling Price (BHD)" value={sellingPrice} onChange={setSellingPrice} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
+                      <InputField label="Selling Price (BHD)" type="number"
+                          step="00.100"  value={sellingPrice} onChange={setSellingPrice} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
           </div>
           <div className="col-12 col-md-6">
             <InputField label="Cost Price (BHD)" value={costPrice} readOnly disabled placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />

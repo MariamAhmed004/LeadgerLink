@@ -55,6 +55,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
                     dto.InventoryItemQuantity = qty;
                     dto.IsAvailable = ii != null && qty > 0m;
                     dto.AvailabilityMessage = dto.IsAvailable ? "Available" : "Out of stock";
+                    dto.ImageUrl = ii != null && ii.InventoryItemImage != null && ii.InventoryItemImage.Length > 0
+                        ? $"data:image;base64,{Convert.ToBase64String(ii.InventoryItemImage)}"
+                        : null;
                 }
                 else if (p.RecipeId.HasValue)
                 {
@@ -89,6 +92,9 @@ namespace LeadgerLink.Server.Repositories.Implementations
                             }
                         }
 
+                        dto.ImageUrl = recipe.Image != null && recipe.Image.Length > 0
+                            ? $"data:image;base64,{Convert.ToBase64String(recipe.Image)}"
+                            : null;
                         dto.IsAvailable = string.IsNullOrEmpty(missing);
                         dto.AvailabilityMessage = dto.IsAvailable ? "Available" : $"Unavailable: {missing}";
                         // For recipes compute how many full recipe portions can be made: min floor(ingredientQty / requiredQty)

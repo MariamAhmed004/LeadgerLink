@@ -894,5 +894,60 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+        // GET api/inventoryitems/lowstock/current-store/count
+        // Returns the number of inventory items in the current store whose quantity is less than the provided threshold.
+        [Authorize]
+        [HttpGet("lowstock/current-store/count")]
+        public async Task<ActionResult> GetLowStockCountForCurrentStore([FromQuery] int? storeId = null)
+        {
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Resolve user and domain user
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Determine resolved store id
+            var isOrgAdmin = User.IsInRole("Organization Admin");
+            int? resolvedStoreId = null;
+
+            if (!isOrgAdmin)
+            {
+                if (!domainUser.StoreId.HasValue) return Ok(new { count = 0 });
+                resolvedStoreId = domainUser.StoreId.Value;
+            }
+            else
+            {
+                resolvedStoreId = storeId ?? domainUser.StoreId;
+                if (!resolvedStoreId.HasValue) return Ok(new { count = 0 });
+
+                // Validate store belongs to the same organization as the user
+                var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(resolvedStoreId.Value);
+                if (!storeOrgId.HasValue || storeOrgId.Value != domainUser.OrgId)
+                {
+                    return Forbid("The store does not belong to the same organization as the user.");
+                }
+            }
+
+            try
+            {
+                // Use repository to fetch low-stock items and apply optional threshold locally.
+                var lowStockItems = await _inventoryRepo.GetLowStockItemsByStoreAsync(resolvedStoreId.Value);
+
+                var count = lowStockItems?.Count() ?? 0;
+
+                return Ok(new { count });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to count low stock items for store {StoreId}", resolvedStoreId);
+                try { await _auditLogger.LogExceptionAsync("Failed to count low stock items for store", ex.StackTrace); } catch { }
+                return StatusCode(500, "Failed to count low stock items.");
+            }
+        }
+
+
     }
 }

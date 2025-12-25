@@ -136,7 +136,9 @@ const SaleEdit = () => {
               price: Number(p.sellingPrice).toFixed(3) + " BHD",
               // use backend-provided availableQuantity for recipes, fallback to inventoryItemQuantity
               quantity: isRecipe ? Number(p.availableQuantity ?? p.inventoryItemQuantity ?? 0) : Number(p.inventoryItemQuantity ?? 0),
-              initialSelectedQty: byProductIdQty.get(Number(p.productId)) || 0
+                initialSelectedQty: byProductIdQty.get(Number(p.productId)) || 0,
+                imageUrl: p.imageUrl ?? p.ImageUrl ?? p.image ?? null
+
             };
 
             if (isRecipe) rec.push(item); else oth.push(item);

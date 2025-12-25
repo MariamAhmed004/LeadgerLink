@@ -185,21 +185,25 @@ const RecipeEdit = () => {
   // TABS: build tabs for TabbedMenu from ingredients
   // --------------------------------------------------
   const tabs = [
-    {
-      label: 'Ingredients',
-      items: ingredients.map(it => ({
-        name: it.name,
-        description: it.desc,
-        price: '',
-        quantity: Number(it.qtyAvailable || 0),
-        // initialize selection quantity for TabbedMenu so it pre-selects items saved on the recipe
-        initialSelectedQty: (selectedItems.find(s => Number(s.id) === Number(it.id)) || {}).quantity || 0,
-        isSelected: !!(selectedItems.find(s => s.id === it.id && s.isSelected)),
-        imageUrl: it.imageUrl || PLACEHOLDER_IMG
-      })),
-      cardComponent: (item) => <MenuTabCard data={{ ...item, enforceAvailability: false }} />
-    }
-  ];
+  {
+    label: 'Ingredients',
+    items: ingredients.map(it => ({
+      name: it.name,
+      description: it.desc,
+      price: '',
+      // allow decimal availability values
+      quantity: parseFloat(it.qtyAvailable ?? 0),
+      // preserve decimal initial selection quantities
+      initialSelectedQty: (() => {
+        const found = selectedItems.find(s => Number(s.id) === Number(it.id));
+        return found ? parseFloat(found.quantity ?? 0) : 0;
+      })(),
+      isSelected: !!(selectedItems.find(s => s.id === it.id && s.isSelected)),
+      imageUrl: it.imageUrl || PLACEHOLDER_IMG
+    })),
+    cardComponent: (item) => <MenuTabCard data={{ ...item, enforceAvailability: false }} />
+  }
+];
 
   // --------------------------------------------------
   // SELECTION: handle selection change from TabbedMenu
@@ -452,7 +456,13 @@ const RecipeEdit = () => {
                     <SelectField label="VAT Category" value={vatId} onChange={setVatId} options={vatOptions} searchable={false} />
                   </div>
                   <div className="col-12 col-md-6 text-start">
-                    <InputField label="Selling Price (BHD)" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={onSellingPriceChange} placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />
+                                          <InputField label="Selling Price (BHD)"
+                                              type="number"
+                                              step="00.100"
+                                              value={sellingPrice != null ? Number(sellingPrice).toFixed(3) : "000.000"}
+                                              onChange={onSellingPriceChange}
+                                              placeholder="XXX.XXX BHD"
+                                              inputProps={{ inputMode: 'decimal' }} />
                   </div>
                   <div className="col-12 col-md-6 text-start">
                     <InputField label="Cost Price (BHD)" value={recipeCost != null ? Number(recipeCost).toFixed(3) : ""} readOnly disabled placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />

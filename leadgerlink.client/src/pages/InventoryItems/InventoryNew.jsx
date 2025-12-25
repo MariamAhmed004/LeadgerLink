@@ -414,7 +414,7 @@ const InventoryItemNew = () => {
                   <SelectField label="VAT Category" value={vatCategoryId} onChange={(v) => setVatCategoryId(v)} options={[{ label: "Select VAT category", value: "" }, ...mapOptions(vatCategories, "label", "id")] } />
                 </div>
                 <div className="col-12 col-md-6 text-start">
-                  <InputField label="Selling Price" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={(v)=>{ const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0; setSellingPrice(num); setSellingPriceTouched(true); }} type="number" step="0.001" placeholder="0.000" />
+                  <InputField label="Selling Price" value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"} onChange={(v)=>{ const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0; setSellingPrice(num); setSellingPriceTouched(true); }} type="number" step="0.100" placeholder="0.000" />
                 </div>
                 <div className="col-12 col-md-6 text-start">
                   <InputField label="Cost Price (BHD)" value={costPrice != null ? Number(costPrice).toFixed(3) : ""} readOnly disabled placeholder="XX.XXX BHD" inputProps={{ inputMode: 'decimal' }} />

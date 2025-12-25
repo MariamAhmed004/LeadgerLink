@@ -171,13 +171,15 @@ const SalesNew = () => {
           (arr || []).forEach(p => {
             const description = p.description ?? p.productDescription ?? p.desc ?? "";
             const availableQty = p.availableQuantity ?? p.inventoryItemQuantity ?? p.quantity ?? null;
-            const item = {
-              productId: p.productId ?? p.productId,
-              name: p.productName ?? p.productName,
-              description,
-              price: (p.sellingPrice != null) ? Number(p.sellingPrice).toFixed(3) + " BHD" : "NA",
-              quantity: Number(availableQty ?? 0)
-            };
+              const item = {
+                  productId: p.productId ?? p.productId,
+                  name: p.productName ?? p.productName,
+                  description,
+                  price: (p.sellingPrice != null) ? Number(p.sellingPrice).toFixed(3) + " BHD" : "NA",
+                  quantity: Number(availableQty ?? 0),
+                  // Bind image URL (handle several common shapes coming from API)
+                  imageUrl: p.imageUrl ?? p.ImageUrl ?? p.image ?? null
+              };
             const isRecipe = (p.isRecipe === true) || (String(p.source || "").toLowerCase() === "recipe");
             if (isRecipe) rec.push(item); else oth.push(item);
           });

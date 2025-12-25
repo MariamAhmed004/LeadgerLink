@@ -515,7 +515,7 @@ const InventoryItemEdit = () => {
                             value={sellingPrice ? Number(sellingPrice).toFixed(3) : "0.000"}
                             onChange={(v) => { const num = Number(String(v).replace(/[^0-9.-]/g, "")) || 0; setSellingPrice(num); setSellingPriceTouched(true); }}
                             type="number"
-                            step="0.001"
+                            step="0.100"
                             placeholder="0.000"
                           />
                         </div>
