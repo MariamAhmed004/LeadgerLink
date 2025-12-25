@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaArrowLeft, FaEdit } from "react-icons/fa";
+import { FaArrowLeft, FaEdit, FaTrash } from "react-icons/fa";
 import DetailViewWithImage from "../Templates/DetailViewWithImage";
 import { MdOutlineInventory } from "react-icons/md";
+import InfoModal from "../../components/Ui/InfoModal";
+import { useAuth } from "../../Context/AuthContext"; // <-- added
 
 /*
   InventoryItemView.jsx
@@ -41,6 +43,7 @@ export default function InventoryItemView() {
   // route/nav helpers
   const { id } = useParams();
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth(); // <-- use auth to determine roles
 
   // --------------------------------------------------
   // STATE
@@ -50,6 +53,11 @@ export default function InventoryItemView() {
   // loading / error flags for fetch
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // delete modal + status
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // --------------------------------------------------
   // EFFECT: fetch item on mount / id change
@@ -78,6 +86,33 @@ export default function InventoryItemView() {
     load();
     return () => { mounted = false; };
   }, [id]);
+
+  // --------------------------------------------------
+  // DELETE handler
+  // --------------------------------------------------
+  const handleDeleteConfirm = async () => {
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/inventoryitems/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      if (res.ok) {
+        // navigate back to inventory list with a simple state to show success
+        navigate("/inventory", { state: { type: "deleted", name: item?.inventoryItemName ?? `Item ${id}` } });
+      } else {
+        const txt = await res.text().catch(() => null);
+        throw new Error(txt || `Server returned ${res.status}`);
+      }
+    } catch (ex) {
+      console.error("Delete failed", ex);
+      setDeleteError(ex?.message || "Failed to delete inventory item.");
+    } finally {
+      setDeleting(false);
+      // keep modal open on error; close on success because navigate will unmount this page
+    }
+  };
 
   // --------------------------------------------------
   // DATA PROCESSING: derive display values and stock level
@@ -110,6 +145,21 @@ export default function InventoryItemView() {
     descriptionLines: item ? [item.categoryName ?? "", item.supplierName ?? ""] : ["Inventory item details"],
     actions: []
   };
+
+  // Determine whether delete action should be visible:
+  // - visible to Organization Admins
+  // - visible to Store Manager when item.storeId matches manager's storeId
+  const roles = Array.isArray(loggedInUser?.roles) ? loggedInUser.roles : [];
+  const isOrgAdmin = roles.includes("Organization Admin");
+  const isStoreManager = roles.includes("Store Manager");
+  const canDelete = isOrgAdmin || (isStoreManager && loggedInUser?.storeId && item?.storeId && Number(loggedInUser.storeId) === Number(item.storeId));
+
+  // action buttons: back and edit always, delete only when allowed
+  const actions = [
+    { icon: <FaArrowLeft />, title: "Back to Items", onClick: () => navigate("/inventory") },
+    { icon: <FaEdit />, title: "Edit Item", route: `/inventory-items/edit/${idVal}` },
+    ...(canDelete ? [{ icon: <FaTrash />, title: "Delete Item", onClick: () => setShowDeleteModal(true) }] : [])
+  ];
 
   // --------------------------------------------------
   // RENDER: loading / error / not found handling
@@ -147,7 +197,7 @@ export default function InventoryItemView() {
   }
 
   // --------------------------------------------------
-  // DETAIL / METADATA / ACTIONS
+  // DETAIL / METADATA
   // --------------------------------------------------
   // rows for primary detail area
   const detailRows = [
@@ -186,22 +236,54 @@ export default function InventoryItemView() {
     alt: nameVal || `Item ${idVal}`
   };
 
-  // action buttons: back and edit
-  const actions = [
-    { icon: <FaArrowLeft />, title: "Back to Items", onClick: () => navigate("/inventory") },
-    { icon: <FaEdit />, title: "Edit Item", route: `/inventory-items/edit/${idVal}` }
-  ];
-
   // --------------------------------------------------
   // FINAL RENDER: detail view with image and metadata
   // --------------------------------------------------
   return (
-    <DetailViewWithImage
-      headerProps={headerProps}
-      detail={{ title: `inventory item#${idVal} ${nameVal}`, rows: detailRows }}
-      image={image}
-      metadataUnderImage={metadataUnderImage}
-      actions={actions}
-    />
+    <>
+      <DetailViewWithImage
+        headerProps={headerProps}
+        detail={{ title: `inventory item#${idVal} ${nameVal}`, rows: detailRows }}
+        image={image}
+        metadataUnderImage={metadataUnderImage}
+        actions={actions}
+      />
+
+      <InfoModal
+        show={showDeleteModal}
+        title="Confirm Delete"
+        onClose={() => { if (!deleting) { setShowDeleteModal(false); setDeleteError(""); } }}
+      >
+        <div>
+          <p>
+            This action <strong>cannot be undone</strong>. The inventory item "{nameVal}" will be permanently removed.
+          </p>
+          <ul>
+            <li>The item will be removed from all sales (sale items referencing any product linked to this inventory item will be deleted).</li>
+            <li>If an associated product exists, it will be deleted.</li>
+            <li>The item will be removed from inventory transfers.</li>
+            <li>The item will be removed from any recipes (recipe ingredient entries referencing it will be deleted).</li>
+          </ul>
+
+          {deleteError && (
+            <div className="alert alert-danger">{deleteError}</div>
+          )}
+        </div>
+
+        <div className="d-flex justify-content-end gap-2">
+          <button className="btn btn-secondary" onClick={() => { if (!deleting) setShowDeleteModal(false); }}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-danger"
+            onClick={handleDeleteConfirm}
+            disabled={deleting}
+            aria-disabled={deleting}
+          >
+            {deleting ? "Deleting..." : "Delete Item"}
+          </button>
+        </div>
+      </InfoModal>
+    </>
   );
 }

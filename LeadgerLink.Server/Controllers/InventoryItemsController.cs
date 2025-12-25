@@ -948,6 +948,67 @@ namespace LeadgerLink.Server.Controllers
             }
         }
 
+        // DELETE api/inventoryitems/{id}
+        // Deletes an inventory item and all dependent data:
+        // - sale items for products linked to this item
+        // - products linked to this item
+        // - transfer items referencing this item
+        // - recipe inventory entries referencing this item
+        [Authorize]
+        [HttpDelete("{id:int}")]
+        public async Task<ActionResult> DeleteInventoryItem(int id)
+        {
+            // Validate user authentication
+            if (User?.Identity?.IsAuthenticated != true) return Unauthorized();
+
+            // Set audit context user ID for auditing
+            await SetAuditContextUserId();
+
+            // Resolve user and domain user
+            var userId = await ResolveUserIdAsync();
+            if (!userId.HasValue) return Unauthorized();
+
+            var domainUser = await _userRepository.GetByIdAsync(userId.Value);
+            if (domainUser == null) return Unauthorized();
+
+            // Validate organization association: ensure the inventory item's store belongs to same org
+            try
+            {
+                // Fetch the inventory item to check store
+                var item = await _inventoryRepo.GetByIdAsync(id);
+                if (item == null) return NotFound();
+
+                var isOrgAdmin = User.IsInRole("Organization Admin");
+                if (!isOrgAdmin)
+                {
+                    // Non-org-admins can only delete items in their own store
+                    if (!domainUser.StoreId.HasValue || item.StoreId != domainUser.StoreId.Value)
+                        return Forbid("You do not have permission to delete this inventory item.");
+                }
+                else
+                {
+                    // For org admins ensure store belongs to same organization
+                    if (item.StoreId != 0)
+                    {
+                        var storeOrgId = await _storeRepository.GetOrganizationIdByStoreIdAsync(item.StoreId);
+                        if (!storeOrgId.HasValue || storeOrgId.Value != domainUser.OrgId)
+                            return Forbid("The inventory item's store does not belong to your organization.");
+                    }
+                }
+
+                // Call repository method to perform deletion
+                var deleted = await _inventoryRepo.DeleteInventoryItemAsync(id);
+                if (!deleted) return NotFound();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete inventory item with ID {Id}", id);
+                try { await _auditLogger.LogExceptionAsync("Failed to delete inventory item", ex.StackTrace); } catch { }
+                return StatusCode(500, "Failed to delete inventory item.");
+            }
+        }
 
     }
 }

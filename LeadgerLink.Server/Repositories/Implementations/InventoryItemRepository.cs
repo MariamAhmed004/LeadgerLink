@@ -962,5 +962,89 @@ namespace LeadgerLink.Server.Repositories.Implementations
             // If all validations pass, return true
             return true;
         }
+
+        // DELETE inventory item and cascade-clean related references.
+        // Order of operations:
+        // 1) delete sale items referencing products backed by this inventory item
+        // 2) delete products that reference this inventory item
+        // 3) delete transfer items that reference this inventory item
+        // 4) delete recipe inventory item entries that reference this inventory item
+        // 5) delete the inventory item record
+        public async Task<bool> DeleteInventoryItemAsync(int inventoryItemId)
+        {
+            // Begin transaction to ensure atomicity
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Ensure the inventory item exists
+                var inventoryItem = await _context.InventoryItems
+                    .FirstOrDefaultAsync(ii => ii.InventoryItemId == inventoryItemId);
+
+                if (inventoryItem == null)
+                    return false;
+
+                // 1) Find products that are backed by this inventory item
+                var products = await _context.Products
+                    .Where(p => p.InventoryItemId == inventoryItemId)
+                    .ToListAsync();
+
+                // 1.a) Delete sale items referencing those products
+                if (products.Any())
+                {
+                    var productIds = products.Select(p => p.ProductId).ToList();
+
+                    var saleItems = await _context.SaleItems
+                        .Where(si => productIds.Contains(si.ProductId))
+                        .ToListAsync();
+
+                    if (saleItems.Any())
+                    {
+                        _context.SaleItems.RemoveRange(saleItems);
+                    }
+                }
+
+                // 2) Delete the products that reference the inventory item
+                if (products.Any())
+                {
+                    _context.Products.RemoveRange(products);
+                }
+
+                // 3) Delete transfer items that reference this inventory item
+                var transferItems = await _context.TransferItems
+                    .Where(ti => ti.InventoryItemId == inventoryItemId)
+                    .ToListAsync();
+
+                if (transferItems.Any())
+                {
+                    _context.TransferItems.RemoveRange(transferItems);
+                }
+
+                // 4) Delete recipe inventory entries that reference this inventory item
+                var recipeInventoryItems = await _context.RecipeInventoryItems
+                    .Where(rii => rii.InventoryItemId == inventoryItemId)
+                    .ToListAsync();
+
+                if (recipeInventoryItems.Any())
+                {
+                    _context.RecipeInventoryItems.RemoveRange(recipeInventoryItems);
+                }
+
+                // 5) Finally delete the inventory item itself
+                _context.InventoryItems.Remove(inventoryItem);
+
+                // Persist changes
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return true;
+            }
+            catch
+            {
+                try { await tx.RollbackAsync(); } catch { }
+                throw;
+            }
+        }
+
+
     }
 }

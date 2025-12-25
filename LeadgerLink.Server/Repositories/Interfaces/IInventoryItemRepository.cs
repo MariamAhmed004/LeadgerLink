@@ -93,5 +93,13 @@ namespace LeadgerLink.Server.Repositories.Interfaces
         Task<(bool Success, string Message)> ReceiveInventoryItemsAsync(
     List<(int InventoryItemId, decimal Quantity)> inventoryItems,
     int storeId);
+
+        // Remove inventory item and all dependent records:
+        // - SaleItems that reference Products linked to the inventory item
+        // - Products linked to the inventory item
+        // - TransferItems that reference the inventory item
+        // - RecipeInventoryItems that reference the inventory item
+        // - Finally delete the InventoryItem record itself
+        Task<bool> DeleteInventoryItemAsync(int inventoryItemId);
     }
 }
