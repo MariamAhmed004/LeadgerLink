@@ -514,7 +514,7 @@ export default function InventoryTransferApprove() {
           </div>
 
           <div className="col-12">
-            <h5>Requested Items From &lt;Store&gt;:</h5>
+            <h5>View Requested Items From the requester:</h5>
             <TabbedMenu tabs={requestedTabs} contentMaxHeight={260} />
           </div>
 
@@ -553,7 +553,7 @@ export default function InventoryTransferApprove() {
           </div>
 
           <div className="col-12">
-            <h5>Sent Items To &lt;Store&gt;:</h5>
+            <h5>Select Items to send:</h5>
             <TabbedMenu tabs={sendTabs} contentMaxHeight={260} onSelectionChange={onSendSelectionChange} />
             {selectionError && <div className="mt-2 alert alert-danger">{selectionError}</div>}
           </div>

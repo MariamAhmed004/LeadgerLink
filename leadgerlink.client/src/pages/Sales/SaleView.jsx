@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FaFileInvoice, FaArrowLeft, FaPrint, FaPencilAlt } from "react-icons/fa";
+import { FaFileInvoice, FaArrowLeft, FaPencilAlt } from "react-icons/fa";
 import DetailViewWithMetadata from "../Templates/DetailViewWithMetadata";
 import { useAuth } from "../../Context/AuthContext";
 
@@ -148,11 +148,6 @@ const SaleView = () => {
       icon: <FaArrowLeft />,
       title: "Back to Sales",
       onClick: () => navigate("/sales"),
-    },
-    {
-      icon: <FaPrint />,
-      title: "Print",
-      onClick: () => window.print(),
     },
     ...(isStoreManager
       ? [

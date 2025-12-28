@@ -8,6 +8,7 @@ import InputField from "../../components/Form/InputField";
 import SelectField from "../../components/Form/SelectField";
 import TimestampField from "../../components/Form/TimestampField";
 import FormActions from "../../components/Form/FormActions";
+import { useAuth } from "../../Context/AuthContext"; // added to access loggedInUser
 
 /*
   StoreNew.jsx
@@ -27,6 +28,7 @@ const emailIsValid = (e) => /^\S+@\S+\.\S+$/.test(String(e || "").trim());
 // --------------------------------------------------
 const StoreNew = () => {
   const navigate = useNavigate();
+  const { loggedInUser } = useAuth();
 
   // --------------------------------------------------
   // FORM STATE
@@ -102,17 +104,48 @@ const StoreNew = () => {
           }
           if (!mounted) return;
 
-          // build manager options from returned users
+          // Robust helpers to extract roles and org id from candidate user object
+          const extractRoles = (u) => {
+            if (!u) return [];
+            // common shapes
+            if (Array.isArray(u.roles)) return u.roles.map(r => (typeof r === 'string' ? r : (r.name ?? r.roleName ?? String(r))));
+            if (Array.isArray(u.role)) return u.role.map(String);
+            const s = u.rolesString ?? u.roleNames ?? u.roleName ?? u.role ?? u.roles ?? "";
+            if (typeof s === 'string' && s.includes(',')) return s.split(',').map(x => x.trim());
+            if (typeof s === 'string' && s) return [s];
+            return [];
+          };
+
+          const extractOrg = (u) => u?.orgId ?? u?.OrgId ?? u?.organizationId ?? u?.organization_id ?? u?.org_id ?? null;
+
+          // Filter to users that have the 'Store Manager' role and (if available) belong to the same organization
+          const orgId = (loggedInUser?.orgId ?? loggedInUser?.OrgId) ?? null;
+          const candidates = Array.isArray(usersData) ? usersData : [];
+
+          const managers = candidates.filter(u => {
+            const roles = extractRoles(u).map(r => String(r ?? "").toLowerCase());
+            const hasRole = roles.some(r => r.includes('store manager'));
+            if (!hasRole) return false;
+
+            if (orgId != null) {
+              const candidateOrg = extractOrg(u);
+              if (candidateOrg == null) return false;
+              try {
+                return Number(candidateOrg) === Number(orgId);
+              } catch { return false; }
+            }
+
+            return true;
+          });
+
+          // build manager options from filtered users (or empty list if none)
           const opts = [
             { label: "Select manager", value: "" },
-            ...(Array.isArray(usersData)
-              ? usersData.map((u) => ({
-                  label:
-                    u.fullName ??
-                    (u.userFirstname ? `${u.userFirstname} ${u.userLastname}` : (u.name ?? u.userName ?? "Unnamed")),
-                  value: String(u.userId ?? u.UserId ?? u.id ?? "")
-                }))
-              : [])
+            ...managers.map((u) => ({
+              label:
+                u.fullName ?? (u.userFirstname ? `${u.userFirstname} ${u.userLastname}` : (u.name ?? u.userName ?? "Unnamed")),
+              value: String(u.userId ?? u.UserId ?? u.id ?? "")
+            }))
           ];
           setManagerOptions(opts);
         } catch (ex) {
@@ -128,7 +161,7 @@ const StoreNew = () => {
 
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [loggedInUser]);
 
   // --------------------------------------------------
   // SUBMIT: client-only validation and canonical payload
