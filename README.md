@@ -7,13 +7,13 @@ _A web-based operational reporting and inventory tracking system for multi-branc
 
 ## 1. Project Title and Description
 
-**LedgerLink** is an integrated web application designed to streamline operational reporting and inventory tracking for small and medium-sized enterprises (SMEs) with multiple branch locations. The system simplifies data communication between store branches and central accounting teams, facilitating structured, accurate, and efficient information management.
+**LedgerLink** is an integrated web application designed to streamline operational reporting and inventory tracking for small and medium-sized enterprises (SMEs) with multiple branch locations. Th[...]
 
 ---
 
 ## 2. Problem Statement
 
-Traditional branch-based industries such as restaurants and cafés rely heavily on manual or spreadsheet-driven reporting processes between operational branches and central accounting. This approach results in frequent data inaccuracies, limited transparency, and a lack of accountability, ultimately leading to operational inefficiencies across the organization.
+Traditional branch-based industries such as restaurants and cafés rely heavily on manual or spreadsheet-driven reporting processes between operational branches and central accounting. This approa[...]
 
 ---
 
@@ -51,9 +51,35 @@ LedgerLink implements role-based access control to assign responsibilities and p
 
 ---
 
+## Seeded Testing Users
+
+For development and testing, the following accounts are seeded via `Program.cs`:
+
+- **Application Admin**  
+  Email: `admin@demo.com`  
+  Password: `Admin123!`
+
+- **Organization Admin**  
+  Email: `orgadmin@demo.com`  
+  Password: `OrgAdmin123!`
+
+- **Organization Accountant**  
+  Email: `orgaccountant@demo.com`  
+  Password: `OrgAccountant123!`
+
+- **Store Manager**  
+  Email: `storemanager@demo.com`  
+  Password: `StoreManager123!`
+
+- **Store Employee**  
+  Email: `storeemployee@demo.com`  
+  Password: `StoreEmployee123!`
+
+---
+
 ## 6. System Architecture Overview
 
-LedgerLink adopts a web-based, client–server architecture. The frontend interacts with the backend through secure RESTful APIs, enabling seamless communication between users, branch locations, and the central database. Data is centrally stored and managed, ensuring consistency and real-time availability for authorized users. Security and auditability are reinforced through authentication protocols and logging mechanisms.
+LedgerLink adopts a web-based, client–server architecture. The frontend interacts with the backend through secure RESTful APIs, enabling seamless communication between users, branch locations, a[...]
 
 ---
 
@@ -128,6 +154,6 @@ The repository contains the following major components:
 
 ## 12. License or Academic Disclaimer
 
-This project was developed as a senior-year academic project for demonstration and educational purposes. The repository and its contents are not intended for commercial deployment without further review, security assessment, and professional development.
+This project was developed as a senior-year academic project for demonstration and educational purposes. The repository and its contents are not intended for commercial deployment without further[...]
 
 ---
