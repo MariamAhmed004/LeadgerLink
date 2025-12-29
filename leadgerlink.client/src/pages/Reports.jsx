@@ -25,10 +25,10 @@ const REPORTS_CONFIG = [
     { id: "sales_by_recipe", name: "Sales Summary by Recipe", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Sales aggregated by recipe to help finance reconcile costs." },
     { id: "monthly_sales", name: "Monthly Sales", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level monthly sales summary." },
 
-    { id: "store_performance", name: "Store Performance", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level store performance for the month: sales counts, totals, inventory value and transfers; includes AI recommendations." },
-    { id: "employee_sales_performance", name: "Employee Sales Performance", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Sales and KPI metrics per employee across the organization." },
-    { id: "inventory_utilization", name: "Inventory Utilization", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Utilization rates of inventory items across stores / time." },
-    { id: "sales_per_store_month", name: "Sales per Store / Month", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Matrix of monthly sales per store used for operational planning." }
+    { id: "store_performance", name: "Store Performance (Includes AI Recommendation)", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Organization-level store performance for the month: sales counts, totals, inventory value and transfers; includes AI recommendations." },
+    { id: "employee_sales_performance", name: "Employee Sales Performance (Includes AI Recommendation)", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Sales and KPI metrics per employee across the organization." },
+    { id: "inventory_utilization", name: "Inventory Utilization (Includes AI Recommendation)", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Utilization rates of inventory items across stores / time." },
+    { id: "sales_per_store_month", name: "Sales per Store in Month (Includes AI Recommendation)", allowedRoles: ["Organization Accountant", "Organization Admin"], formats: ["Excel", "PDF"], description: "Matrix of monthly sales per store used for operational planning." }
 ];
 
 export default function Reports() {
